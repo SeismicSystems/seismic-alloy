@@ -61,7 +61,7 @@ serde_json.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 
 [features]
-default = ["std", "seismic"]
+default = ["std"]
 std = ["alloy-eips/std", "c-kzg?/std"]
 k256 = ["dep:k256", "alloy-primitives/k256", "alloy-eips/k256"]
 kzg = ["dep:c-kzg", "alloy-eips/kzg", "std"]

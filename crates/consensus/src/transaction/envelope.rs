@@ -368,6 +368,7 @@ impl TxEnvelope {
     pub fn signature_hash(&self) -> B256 {
         match self {
             Self::Legacy(tx) => tx.signature_hash(),
+            #[cfg(feature = "seismic")]
             Self::Seismic(tx) => tx.signature_hash(),
             Self::Eip2930(tx) => tx.signature_hash(),
             Self::Eip1559(tx) => tx.signature_hash(),

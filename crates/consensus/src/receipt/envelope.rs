@@ -45,7 +45,7 @@ pub enum ReceiptEnvelope<T = Log> {
     #[cfg_attr(feature = "serde", serde(rename = "0x4", alias = "0x04"))]
     Eip7702(ReceiptWithBloom<Receipt<T>>),
     /// Receipt envelope with type flag 4A, containing a [Seismic] receipt.
-    ///
+    #[cfg(feature = "seismic")]
     #[cfg_attr(feature = "serde", serde(rename = "0x4A", alias = "0x04A"))]
     Seismic(ReceiptWithBloom<Receipt<T>>),
 }
@@ -56,6 +56,7 @@ impl<T> ReceiptEnvelope<T> {
     pub const fn tx_type(&self) -> TxType {
         match self {
             Self::Legacy(_) => TxType::Legacy,
+            #[cfg(feature = "seismic")]
             Self::Seismic(_) => TxType::Seismic,
             Self::Eip2930(_) => TxType::Eip2930,
             Self::Eip1559(_) => TxType::Eip1559,
@@ -94,11 +95,12 @@ impl<T> ReceiptEnvelope<T> {
     pub const fn as_receipt_with_bloom(&self) -> Option<&ReceiptWithBloom<Receipt<T>>> {
         match self {
             Self::Legacy(t)
-            | Self::Seismic(t)
             | Self::Eip2930(t)
             | Self::Eip1559(t)
             | Self::Eip4844(t)
             | Self::Eip7702(t) => Some(t),
+            #[cfg(feature = "seismic")]
+            Self::Seismic(t) => Some(t),
         }
     }
 
@@ -107,11 +109,12 @@ impl<T> ReceiptEnvelope<T> {
     pub const fn as_receipt(&self) -> Option<&Receipt<T>> {
         match self {
             Self::Legacy(t)
-            | Self::Seismic(t)
             | Self::Eip2930(t)
             | Self::Eip1559(t)
             | Self::Eip4844(t)
             | Self::Eip7702(t) => Some(&t.receipt),
+            #[cfg(feature = "seismic")]
+            Self::Seismic(t) => Some(&t.receipt),
         }
     }
 }
@@ -187,6 +190,7 @@ impl Encodable2718 for ReceiptEnvelope {
     fn type_flag(&self) -> Option<u8> {
         match self {
             Self::Legacy(_) => None,
+            #[cfg(feature = "seismic")]
             Self::Seismic(_) => Some(TxType::Seismic as u8),
             Self::Eip2930(_) => Some(TxType::Eip2930 as u8),
             Self::Eip1559(_) => Some(TxType::Eip1559 as u8),
@@ -217,6 +221,7 @@ impl Decodable2718 for ReceiptEnvelope {
             TxType::Eip4844 => Ok(Self::Eip4844(receipt)),
             TxType::Eip7702 => Ok(Self::Eip7702(receipt)),
             TxType::Legacy => Err(Eip2718Error::UnexpectedType(0)),
+            #[cfg(feature = "seismic")]
             TxType::Seismic => Ok(Self::Seismic(receipt)),
         }
     }
@@ -240,6 +245,7 @@ where
             2 => Ok(Self::Eip1559(receipt)),
             3 => Ok(Self::Eip4844(receipt)),
             4 => Ok(Self::Eip7702(receipt)),
+            #[cfg(feature = "seismic")]
             74 => Ok(Self::Seismic(receipt)),
             _ => unreachable!(),
         }

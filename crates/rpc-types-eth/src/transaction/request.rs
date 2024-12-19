@@ -1,8 +1,11 @@
 //! Alloy basic Transaction Request type.
 
 use crate::{transaction::AccessList, BlobTransactionSidecar, Transaction, TransactionTrait};
+#[cfg(feature = "seismic")]
+use alloy_consensus::transaction::TxSeismic;
 use alloy_consensus::{
-    transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip4844WithSidecar, TxEip7702, TxEnvelope, TxLegacy, TxType, Typed2718, TypedTransaction
+    TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip4844WithSidecar, TxEip7702, TxEnvelope,
+    TxLegacy, TxType, Typed2718, TypedTransaction,
 };
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
@@ -446,6 +449,7 @@ impl TransactionRequest {
     ///
     /// Returns an error if required fields are missing.
     /// Use `complete_legacy` to check if the request can be built.
+    #[cfg(feature = "seismic")]
     fn build_seismic(self) -> Result<TxSeismic, &'static str> {
         let checked_to = self.to.ok_or("Missing 'to' field for seismic transaction.")?;
 
@@ -530,6 +534,7 @@ impl TransactionRequest {
                 self.blob_versioned_hashes = None;
                 self.sidecar = None;
             }
+            #[cfg(feature = "seismic")]
             TxType::Seismic => {
                 self.gas_price = None;
                 self.max_fee_per_gas = None;
@@ -575,6 +580,7 @@ impl TransactionRequest {
         let pref = self.preferred_type();
         if let Err(missing) = match pref {
             TxType::Legacy => self.complete_legacy(),
+            #[cfg(feature = "seismic")]
             TxType::Seismic => self.complete_legacy(),
             TxType::Eip2930 => self.complete_2930(),
             TxType::Eip1559 => self.complete_1559(),
@@ -679,6 +685,7 @@ impl TransactionRequest {
         let pref = self.preferred_type();
         match pref {
             TxType::Legacy => self.complete_legacy().ok(),
+            #[cfg(feature = "seismic")]
             TxType::Seismic => self.complete_legacy().ok(), // the same as legacy
             TxType::Eip2930 => self.complete_2930().ok(),
             TxType::Eip1559 => self.complete_1559().ok(),
@@ -699,6 +706,7 @@ impl TransactionRequest {
 
         Ok(match tx_type {
             TxType::Legacy => self.build_legacy().expect("checked)").into(),
+            #[cfg(feature = "seismic")]
             TxType::Seismic => self.build_legacy().expect("checked)").into(),
             TxType::Eip2930 => self.build_2930().expect("checked)").into(),
             TxType::Eip1559 => self.build_1559().expect("checked)").into(),
@@ -722,6 +730,7 @@ impl TransactionRequest {
     pub fn build_consensus_tx(self) -> Result<TypedTransaction, BuildTransactionErr> {
         match self.preferred_type() {
             TxType::Legacy => self.clone().build_legacy().map(Into::into),
+            #[cfg(feature = "seismic")]
             TxType::Seismic => self.clone().build_seismic().map(Into::into),
             TxType::Eip2930 => self.clone().build_2930().map(Into::into),
             TxType::Eip1559 => self.clone().build_1559().map(Into::into),
@@ -923,6 +932,7 @@ impl From<TxEip7702> for TransactionRequest {
     }
 }
 
+#[cfg(feature = "seismic")]
 impl From<TxSeismic> for TransactionRequest {
     fn from(tx: TxSeismic) -> Self {
         let ty = tx.ty();
@@ -945,6 +955,7 @@ impl From<TypedTransaction> for TransactionRequest {
     fn from(tx: TypedTransaction) -> Self {
         match tx {
             TypedTransaction::Legacy(tx) => tx.into(),
+            #[cfg(feature = "seismic")]
             TypedTransaction::Seismic(tx) => tx.into(),
             TypedTransaction::Eip2930(tx) => tx.into(),
             TypedTransaction::Eip1559(tx) => tx.into(),
