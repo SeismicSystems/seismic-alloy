@@ -42,7 +42,7 @@ pub enum TxType {
     Eip4844 = 3,
     /// EIP-7702 transaction type.
     Eip7702 = 4,
-    // Seismic transaction type
+    /// Seismic transaction type
     Seismic = 0x4A,
 }
 
@@ -753,7 +753,7 @@ mod serde_from {
         Eip4844(Signed<TxEip4844Variant>),
         #[serde(rename = "0x4", alias = "0x04")]
         Eip7702(Signed<TxEip7702>),
-        #[serde(rename = "0x0", alias = "0x4A")]
+        #[serde(rename = "0x4A", alias = "0x4A")]
         Seismic(Signed<TxSeismic>),
     }
 
@@ -1335,7 +1335,7 @@ mod tests {
     #[cfg(feature = "serde")]
     fn test_serde_roundtrip_seismic() {
         let tx = TxSeismic {
-            chain_id: Some(1),
+            chain_id: 1,
             nonce: 100,
             gas_price: 3_000_000_000,
             gas_limit: 50_000,
