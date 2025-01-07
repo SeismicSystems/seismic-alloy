@@ -42,7 +42,7 @@ pub enum TxType {
     Eip4844 = 3,
     /// EIP-7702 transaction type.
     Eip7702 = 4,
-    // Seismic transaction type
+    /// Seismic transaction type
     Seismic = 0x4A,
 }
 
@@ -726,7 +726,10 @@ mod serde_from {
     //!
     //! We serialize via [`TaggedTxEnvelope`] and deserialize via
     //! [`MaybeTaggedTxEnvelope`].
-    use crate::{transaction::TxSeismic, Signed, TxEip1559, TxEip2930, TxEip4844Variant, TxEip7702, TxEnvelope, TxLegacy};
+    use crate::{
+        transaction::TxSeismic, Signed, TxEip1559, TxEip2930, TxEip4844Variant, TxEip7702,
+        TxEnvelope, TxLegacy,
+    };
 
     #[derive(Debug, serde::Deserialize)]
     #[serde(untagged)]
