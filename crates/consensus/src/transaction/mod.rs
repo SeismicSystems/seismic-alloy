@@ -1,5 +1,6 @@
 //! Transaction types.
-use crate::Signed; use alloc::vec::Vec;
+use crate::Signed;
+use alloc::vec::Vec;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{keccak256, Address, Bytes, ChainId, TxKind, B256, U256};
 use core::{any, fmt};
@@ -52,6 +53,7 @@ pub mod serde_bincode_compat {
     pub use super::{
         eip1559::serde_bincode_compat::*, eip2930::serde_bincode_compat::*,
         eip7702::serde_bincode_compat::*, legacy::serde_bincode_compat::*,
+        seismic::serde_bincode_compat::*,
     };
 }
 
