@@ -1,7 +1,6 @@
 use alloy_node_bindings::Anvil;
 
 #[test]
-#[ignore]
 fn can_launch_anvil() {
     if !ci_info::is_ci() {
         return;
@@ -11,7 +10,6 @@ fn can_launch_anvil() {
 }
 
 #[test]
-#[ignore]
 fn can_launch_anvil_with_more_accounts() {
     if !ci_info::is_ci() {
         return;
@@ -21,7 +19,6 @@ fn can_launch_anvil_with_more_accounts() {
 }
 
 #[test]
-#[ignore]
 fn assert_chain_id() {
     if !ci_info::is_ci() {
         return;
@@ -33,7 +30,6 @@ fn assert_chain_id() {
 }
 
 #[test]
-#[ignore]
 fn assert_chain_id_without_rpc() {
     if !ci_info::is_ci() {
         return;
