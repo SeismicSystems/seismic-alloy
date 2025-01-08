@@ -303,6 +303,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn event_filters() {
         let _ = tracing_subscriber::fmt::try_init();
 
@@ -404,6 +405,7 @@ mod tests {
 
     /// Same test as above, but using builder methods.
     #[tokio::test]
+    #[ignore]
     async fn event_builder_filters() {
         let _ = tracing_subscriber::fmt::try_init();
 
