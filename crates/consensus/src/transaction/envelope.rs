@@ -1338,7 +1338,7 @@ mod tests {
     #[cfg(feature = "serde")]
     fn test_serde_roundtrip_seismic() {
         let tx = TxSeismic {
-            chain_id: Some(1),
+            chain_id: 1,
             nonce: 100,
             gas_price: 3_000_000_000,
             gas_limit: 50_000,
