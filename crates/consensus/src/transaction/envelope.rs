@@ -726,7 +726,10 @@ mod serde_from {
     //!
     //! We serialize via [`TaggedTxEnvelope`] and deserialize via
     //! [`MaybeTaggedTxEnvelope`].
-    use crate::{transaction::TxSeismic, Signed, TxEip1559, TxEip2930, TxEip4844Variant, TxEip7702, TxEnvelope, TxLegacy};
+    use crate::{
+        transaction::TxSeismic, Signed, TxEip1559, TxEip2930, TxEip4844Variant, TxEip7702,
+        TxEnvelope, TxLegacy,
+    };
 
     #[derive(Debug, serde::Deserialize)]
     #[serde(untagged)]

@@ -45,7 +45,6 @@ pub enum ReceiptEnvelope<T = Log> {
     #[cfg_attr(feature = "serde", serde(rename = "0x4", alias = "0x04"))]
     Eip7702(ReceiptWithBloom<Receipt<T>>),
     /// Receipt envelope with type flag 4A, containing a [Seismic] receipt.
-    ///
     #[cfg_attr(feature = "serde", serde(rename = "0x4A", alias = "0x04A"))]
     Seismic(ReceiptWithBloom<Receipt<T>>),
 }

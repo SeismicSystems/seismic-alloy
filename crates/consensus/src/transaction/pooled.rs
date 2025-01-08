@@ -188,7 +188,6 @@ impl PooledTransaction {
             _ => None,
         }
     }
-
 }
 
 impl From<Signed<TxLegacy>> for PooledTransaction {
