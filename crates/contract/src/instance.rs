@@ -129,7 +129,6 @@ mod tests {
     use alloy_rpc_types_eth::TransactionRequest;
 
     #[tokio::test]
-    #[ignore]
     async fn contract_interface() {
         let provider = ProviderBuilder::new().on_anvil();
 

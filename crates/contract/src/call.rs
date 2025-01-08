@@ -576,7 +576,6 @@ mod tests {
     use alloy_sol_types::sol;
 
     #[test]
-    #[ignore]
     fn empty_constructor() {
         sol! {
             #[sol(rpc, bytecode = "6942")]
@@ -634,7 +633,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn change_chain_id() {
         let call_builder = build_call_builder().chain_id(1337);
         assert_eq!(
@@ -645,7 +643,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn change_max_fee_per_gas() {
         let call_builder = build_call_builder().max_fee_per_gas(42);
         assert_eq!(
@@ -656,7 +653,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn change_max_priority_fee_per_gas() {
         let call_builder = build_call_builder().max_priority_fee_per_gas(45);
         assert_eq!(
@@ -670,7 +666,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn change_max_fee_per_blob_gas() {
         let call_builder = build_call_builder().max_fee_per_blob_gas(50);
         assert_eq!(
@@ -681,7 +676,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn change_access_list() {
         let access_list = AccessList::from(vec![AccessListItem {
             address: Address::ZERO,
@@ -696,7 +690,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn call_encoding() {
         let provider = ProviderBuilder::new().on_anvil();
         let contract = MyContract::new(Address::ZERO, &&provider).with_cloned_provider();
@@ -715,7 +708,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn deploy_encoding() {
         let provider = ProviderBuilder::new().on_anvil();
         let bytecode = &MyContract::BYTECODE[..];
@@ -740,7 +732,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
     async fn deploy_and_call() {
         let provider = ProviderBuilder::new().with_recommended_fillers().on_anvil_with_wallet();
 
@@ -767,7 +758,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
     async fn deploy_and_call_with_priority() {
         let provider = ProviderBuilder::new().on_anvil();
         let counter_contract = Counter::deploy(provider.clone()).await.unwrap();
