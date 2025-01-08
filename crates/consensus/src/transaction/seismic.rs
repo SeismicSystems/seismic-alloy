@@ -54,6 +54,10 @@ pub struct TxSeismic {
 }
 
 impl TxSeismic {
+
+    /// numeric type for the transaction
+    pub const TX_TYPE: u8 = 0x4A;
+
     /// Get the transaction type
     #[doc(alias = "transaction_type")]
     pub(crate) const fn tx_type() -> TxType {
