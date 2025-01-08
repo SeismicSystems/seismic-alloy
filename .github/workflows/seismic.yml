@@ -59,4 +59,5 @@ jobs:
         with:
           shared-key: "test-cache"
       - name: cargo test
-        run: cargo test
+        # Exclude node bindings, since they test spawning a node
+        run: cargo test --exclude alloy-node-bindings
