@@ -161,7 +161,6 @@ impl TypedTransaction {
             _ => None,
         }
     }
-
 }
 
 impl Transaction for TypedTransaction {
@@ -409,7 +408,10 @@ mod serde_from {
     //!
     //! We serialize via [`TaggedTypedTransaction`] and deserialize via
     //! [`MaybeTaggedTypedTransaction`].
-    use crate::{transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844Variant, TxEip7702, TxLegacy, TypedTransaction};
+    use crate::{
+        transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844Variant, TxEip7702, TxLegacy,
+        TypedTransaction,
+    };
 
     #[derive(Debug, serde::Deserialize)]
     #[serde(untagged)]

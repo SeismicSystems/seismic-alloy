@@ -1,5 +1,6 @@
 //! Transaction types.
-use crate::Signed; use alloc::vec::Vec;
+use crate::Signed;
+use alloc::vec::Vec;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{keccak256, Address, Bytes, ChainId, TxKind, B256, U256};
 use core::{any, fmt};
