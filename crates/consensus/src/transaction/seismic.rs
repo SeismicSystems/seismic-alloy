@@ -54,7 +54,6 @@ pub struct TxSeismic {
 }
 
 impl TxSeismic {
-
     /// numeric type for the transaction
     pub const TX_TYPE: u8 = 0x4A;
 
