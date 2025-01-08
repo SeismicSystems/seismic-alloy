@@ -261,6 +261,119 @@ impl Decodable for TxSeismic {
     }
 }
 
+/// Bincode-compatible [`TxSeismic`] serde implementation.
+#[cfg(all(feature = "serde", feature = "serde-bincode-compat"))]
+pub(super) mod serde_bincode_compat {
+    use alloc::borrow::Cow;
+    use alloy_primitives::{Bytes, ChainId, TxKind, U256};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde_with::{DeserializeAs, SerializeAs};
+
+    /// Bincode-compatible [`super::TxSeismic`] serde implementation.
+    ///
+    /// Intended to use with the [`serde_with::serde_as`] macro in the following way:
+    /// ```rust
+    /// use alloy_consensus::{serde_bincode_compat, TxSeismic};
+    /// use serde::{Deserialize, Serialize};
+    /// use serde_with::serde_as;
+    ///
+    /// #[serde_as]
+    /// #[derive(Serialize, Deserialize)]
+    /// struct Data {
+    ///     #[serde_as(as = "serde_bincode_compat::transaction::TxSeismic")]
+    ///     header: TxSeismic,
+    /// }
+    /// ```
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct TxSeismic<'a> {
+        chain_id: ChainId,
+        nonce: u64,
+        gas_price: u128,
+        gas_limit: u64,
+        #[serde(default)]
+        to: TxKind,
+        value: U256,
+        input: Cow<'a, Bytes>,
+    }
+
+    impl<'a> From<&'a super::TxSeismic> for TxSeismic<'a> {
+        fn from(value: &'a super::TxSeismic) -> Self {
+            Self {
+                chain_id: value.chain_id,
+                nonce: value.nonce,
+                gas_price: value.gas_price,
+                gas_limit: value.gas_limit,
+                to: value.to,
+                value: value.value,
+                input: Cow::Borrowed(&value.input),
+            }
+        }
+    }
+
+    impl<'a> From<TxSeismic<'a>> for super::TxSeismic {
+        fn from(value: TxSeismic<'a>) -> Self {
+            Self {
+                chain_id: value.chain_id,
+                nonce: value.nonce,
+                gas_price: value.gas_price,
+                gas_limit: value.gas_limit,
+                to: value.to,
+                value: value.value,
+                input: value.input.into_owned(),
+            }
+        }
+    }
+
+    impl SerializeAs<super::TxSeismic> for TxSeismic<'_> {
+        fn serialize_as<S>(source: &super::TxSeismic, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            TxSeismic::from(source).serialize(serializer)
+        }
+    }
+
+    impl<'de> DeserializeAs<'de, super::TxSeismic> for TxSeismic<'de> {
+        fn deserialize_as<D>(deserializer: D) -> Result<super::TxSeismic, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            TxSeismic::deserialize(deserializer).map(Into::into)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use arbitrary::Arbitrary;
+        use rand::Rng;
+        use serde::{Deserialize, Serialize};
+        use serde_with::serde_as;
+
+        use super::super::{serde_bincode_compat, TxSeismic};
+
+        #[test]
+        fn test_tx_legacy_bincode_roundtrip() {
+            #[serde_as]
+            #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+            struct Data {
+                #[serde_as(as = "serde_bincode_compat::TxSeismic")]
+                transaction: TxSeismic,
+            }
+
+            let mut bytes = [0u8; 1024];
+            rand::thread_rng().fill(bytes.as_mut_slice());
+            let data = Data {
+                transaction: TxSeismic::arbitrary(&mut arbitrary::Unstructured::new(&bytes))
+                    .unwrap(),
+            };
+
+            let encoded = bincode::serialize(&data).unwrap();
+            let decoded: Data = bincode::deserialize(&encoded).unwrap();
+            assert_eq!(decoded, data);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloy_primitives::{b256, hex, Address};
