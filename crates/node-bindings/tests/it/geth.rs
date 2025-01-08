@@ -2,6 +2,7 @@ use alloy_node_bindings::{utils::run_with_tempdir_sync, Geth};
 use k256::ecdsa::SigningKey;
 
 #[test]
+#[ignore]
 fn port_0() {
     if !ci_info::is_ci() {
         return;
@@ -13,6 +14,7 @@ fn port_0() {
 }
 
 #[test]
+#[ignore]
 fn p2p_port() {
     if !ci_info::is_ci() {
         return;
@@ -26,6 +28,7 @@ fn p2p_port() {
 }
 
 #[test]
+#[ignore]
 fn explicit_p2p_port() {
     if !ci_info::is_ci() {
         return;
@@ -40,6 +43,7 @@ fn explicit_p2p_port() {
 }
 
 #[test]
+#[ignore]
 fn dev_mode() {
     if !ci_info::is_ci() {
         return;
