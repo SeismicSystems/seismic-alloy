@@ -9,7 +9,7 @@ use alloy_consensus::{
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, B256, U256};
-use core::{any::Any, hash::Hash};
+use core::hash::Hash;
 
 use alloc::{
     string::{String, ToString},
@@ -447,7 +447,7 @@ impl TransactionRequest {
     /// Build a seismic transaction.
     ///
     /// Returns an error if required fields are missing.
-    /// Use `complete_legacy` to check if the request can be built.
+    /// Use `complete_seismic` to check if the request can be built.
     fn build_seismic(self) -> Result<TxSeismic, &'static str> {
         let checked_to = self.to.ok_or("Missing 'to' field for seismic transaction.")?;
 
@@ -479,6 +479,15 @@ impl TransactionRequest {
     fn check_legacy_fields(&self, missing: &mut Vec<&'static str>) {
         if self.gas_price.is_none() {
             missing.push("gas_price");
+        }
+    }
+
+    fn check_seismic_fields(&self, missing: &mut Vec<&'static str>) {
+        if self.gas_price.is_none() {
+            missing.push("gas_price");
+        }
+        if self.chain_id.is_none() {
+            missing.push("chain_id");
         }
     }
 
@@ -579,7 +588,7 @@ impl TransactionRequest {
         let pref = self.preferred_type();
         if let Err(missing) = match pref {
             TxType::Legacy => self.complete_legacy(),
-            TxType::Seismic => self.complete_legacy(),
+            TxType::Seismic => self.complete_seismic(),
             TxType::Eip2930 => self.complete_2930(),
             TxType::Eip1559 => self.complete_1559(),
             TxType::Eip4844 => self.complete_4844(),
@@ -677,13 +686,26 @@ impl TransactionRequest {
         }
     }
 
+    /// Check if all necessary keys are present to build a seismic transaction,
+    /// returning a list of keys that are missing.
+    pub fn complete_seismic(&self) -> Result<(), Vec<&'static str>> {
+        let mut missing = self.check_reqd_fields();
+        self.check_seismic_fields(&mut missing);
+
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            Err(missing)
+        }
+    }
+
     /// Return the tx type this request can be built as. Computed by checking
     /// the preferred type, and then checking for completeness.
     pub fn buildable_type(&self) -> Option<TxType> {
         let pref = self.preferred_type();
         match pref {
             TxType::Legacy => self.complete_legacy().ok(),
-            TxType::Seismic => self.complete_legacy().ok(), // the same as legacy
+            TxType::Seismic => self.complete_seismic().ok(), // the same as legacy
             TxType::Eip2930 => self.complete_2930().ok(),
             TxType::Eip1559 => self.complete_1559().ok(),
             TxType::Eip4844 => self.complete_4844().ok(),
