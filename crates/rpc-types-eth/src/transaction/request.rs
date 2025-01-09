@@ -2,13 +2,14 @@
 
 use crate::{transaction::AccessList, BlobTransactionSidecar, Transaction, TransactionTrait};
 use alloy_consensus::{
-    transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant,
-    TxEip4844WithSidecar, TxEip7702, TxEnvelope, TxLegacy, TxType, Typed2718, TypedTransaction,
+    constants::SEISMIC_TX_TYPE_ID, transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844,
+    TxEip4844Variant, TxEip4844WithSidecar, TxEip7702, TxEnvelope, TxLegacy, TxType, Typed2718,
+    TypedTransaction,
 };
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, B256, U256};
-use core::hash::Hash;
+use core::{any::Any, hash::Hash};
 
 use alloc::{
     string::{String, ToString},
@@ -451,10 +452,10 @@ impl TransactionRequest {
         let checked_to = self.to.ok_or("Missing 'to' field for seismic transaction.")?;
 
         Ok(TxSeismic {
-            chain_id: self.chain_id.unwrap_or(1),
-            nonce: self.nonce.ok_or("Missing 'nonce' field for legacy transaction.")?,
-            gas_price: self.gas_price.ok_or("Missing 'gas_price' for legacy transaction.")?,
-            gas_limit: self.gas.ok_or("Missing 'gas_limit' for legacy transaction.")?,
+            chain_id: self.chain_id.ok_or("Missing 'chain_id' field for seismic transaction.")?,
+            nonce: self.nonce.ok_or("Missing 'nonce' field for seismic transaction.")?,
+            gas_price: self.gas_price.ok_or("Missing 'gas_price' for seismic transaction.")?,
+            gas_limit: self.gas.ok_or("Missing 'gas_limit' for seismic transaction.")?,
             to: checked_to,
             value: self.value.unwrap_or_default(),
             input: self.input.into_input().unwrap_or_default(),
@@ -553,7 +554,9 @@ impl TransactionRequest {
     /// - Legacy if gas_price is set and access_list is unset
     /// - EIP-1559 in all other cases
     pub const fn preferred_type(&self) -> TxType {
-        if self.authorization_list.is_some() {
+        if let Some(SEISMIC_TX_TYPE_ID) = self.transaction_type {
+            return TxType::Seismic;
+        } else if self.authorization_list.is_some() {
             TxType::Eip7702
         } else if self.sidecar.is_some() || self.max_fee_per_blob_gas.is_some() {
             TxType::Eip4844
