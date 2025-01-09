@@ -700,7 +700,7 @@ impl TransactionRequest {
 
         Ok(match tx_type {
             TxType::Legacy => self.build_legacy().expect("checked)").into(),
-            TxType::Seismic => self.build_legacy().expect("checked)").into(),
+            TxType::Seismic => self.build_seismic().expect("checked)").into(),
             TxType::Eip2930 => self.build_2930().expect("checked)").into(),
             TxType::Eip1559 => self.build_1559().expect("checked)").into(),
             // `sidecar` is a hard requirement since this must be a _sendable_ transaction.
