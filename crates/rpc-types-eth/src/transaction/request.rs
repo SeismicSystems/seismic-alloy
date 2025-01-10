@@ -2,8 +2,9 @@
 
 use crate::{transaction::AccessList, BlobTransactionSidecar, Transaction, TransactionTrait};
 use alloy_consensus::{
-    transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant,
-    TxEip4844WithSidecar, TxEip7702, TxEnvelope, TxLegacy, TxType, Typed2718, TypedTransaction,
+    constants::SEISMIC_TX_TYPE_ID, transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844,
+    TxEip4844Variant, TxEip4844WithSidecar, TxEip7702, TxEnvelope, TxLegacy, TxType, Typed2718,
+    TypedTransaction,
 };
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
@@ -446,15 +447,15 @@ impl TransactionRequest {
     /// Build a seismic transaction.
     ///
     /// Returns an error if required fields are missing.
-    /// Use `complete_legacy` to check if the request can be built.
+    /// Use `complete_seismic` to check if the request can be built.
     fn build_seismic(self) -> Result<TxSeismic, &'static str> {
         let checked_to = self.to.ok_or("Missing 'to' field for seismic transaction.")?;
 
         Ok(TxSeismic {
-            chain_id: self.chain_id.unwrap_or(1),
-            nonce: self.nonce.ok_or("Missing 'nonce' field for legacy transaction.")?,
-            gas_price: self.gas_price.ok_or("Missing 'gas_price' for legacy transaction.")?,
-            gas_limit: self.gas.ok_or("Missing 'gas_limit' for legacy transaction.")?,
+            chain_id: self.chain_id.ok_or("Missing 'chain_id' field for seismic transaction.")?,
+            nonce: self.nonce.ok_or("Missing 'nonce' field for seismic transaction.")?,
+            gas_price: self.gas_price.ok_or("Missing 'gas_price' for seismic transaction.")?,
+            gas_limit: self.gas.ok_or("Missing 'gas_limit' for seismic transaction.")?,
             to: checked_to,
             value: self.value.unwrap_or_default(),
             input: self.input.into_input().unwrap_or_default(),
@@ -478,6 +479,15 @@ impl TransactionRequest {
     fn check_legacy_fields(&self, missing: &mut Vec<&'static str>) {
         if self.gas_price.is_none() {
             missing.push("gas_price");
+        }
+    }
+
+    fn check_seismic_fields(&self, missing: &mut Vec<&'static str>) {
+        if self.gas_price.is_none() {
+            missing.push("gas_price");
+        }
+        if self.chain_id.is_none() {
+            missing.push("chain_id");
         }
     }
 
@@ -553,7 +563,9 @@ impl TransactionRequest {
     /// - Legacy if gas_price is set and access_list is unset
     /// - EIP-1559 in all other cases
     pub const fn preferred_type(&self) -> TxType {
-        if self.authorization_list.is_some() {
+        if let Some(SEISMIC_TX_TYPE_ID) = self.transaction_type {
+            return TxType::Seismic;
+        } else if self.authorization_list.is_some() {
             TxType::Eip7702
         } else if self.sidecar.is_some() || self.max_fee_per_blob_gas.is_some() {
             TxType::Eip4844
@@ -576,7 +588,7 @@ impl TransactionRequest {
         let pref = self.preferred_type();
         if let Err(missing) = match pref {
             TxType::Legacy => self.complete_legacy(),
-            TxType::Seismic => self.complete_legacy(),
+            TxType::Seismic => self.complete_seismic(),
             TxType::Eip2930 => self.complete_2930(),
             TxType::Eip1559 => self.complete_1559(),
             TxType::Eip4844 => self.complete_4844(),
@@ -674,13 +686,26 @@ impl TransactionRequest {
         }
     }
 
+    /// Check if all necessary keys are present to build a seismic transaction,
+    /// returning a list of keys that are missing.
+    pub fn complete_seismic(&self) -> Result<(), Vec<&'static str>> {
+        let mut missing = self.check_reqd_fields();
+        self.check_seismic_fields(&mut missing);
+
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            Err(missing)
+        }
+    }
+
     /// Return the tx type this request can be built as. Computed by checking
     /// the preferred type, and then checking for completeness.
     pub fn buildable_type(&self) -> Option<TxType> {
         let pref = self.preferred_type();
         match pref {
             TxType::Legacy => self.complete_legacy().ok(),
-            TxType::Seismic => self.complete_legacy().ok(), // the same as legacy
+            TxType::Seismic => self.complete_seismic().ok(), // the same as legacy
             TxType::Eip2930 => self.complete_2930().ok(),
             TxType::Eip1559 => self.complete_1559().ok(),
             TxType::Eip4844 => self.complete_4844().ok(),
