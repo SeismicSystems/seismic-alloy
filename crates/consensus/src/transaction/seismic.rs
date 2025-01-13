@@ -95,7 +95,7 @@ impl RlpEcdsaTx for TxSeismic {
             + self.to.length()
             + self.value.length()
             + self.input.length()
-            + self.encryption_pubkey.len()
+            + self.encryption_pubkey.length()
     }
 
     /// Encodes only the transaction's fields into the desired buffer, without
@@ -124,7 +124,7 @@ impl RlpEcdsaTx for TxSeismic {
     /// - `to`
     /// - `value`
     /// - `data` (`input`)
-    /// - `access_list`
+    /// - `encryption_pubkey`
     fn rlp_decode_fields(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         Ok(Self {
             chain_id: Decodable::decode(buf)?,
@@ -223,6 +223,11 @@ impl Transaction for TxSeismic {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
+
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&Bytes> {
+        Some(&self.encryption_pubkey)
+    }
 }
 
 impl Typed2718 for TxSeismic {
@@ -276,7 +281,7 @@ mod tests {
 
     #[test]
     fn encode_decode_seismic() {
-        let hash: B256 = b256!("c80f9caf9386f53a40439875725c73524aa261c90cb2e70cf6e4fb17084df333");
+        let hash: B256 = b256!("ffd93383034710825540c4442e145373527004c42f20595cab5e33423a9637f9");
 
         let tx = TxSeismic {
             chain_id: 4u64,
@@ -286,7 +291,7 @@ mod tests {
             to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
             value: U256::from(1000000000000000u64),
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
-            encryption_pubkey: Bytes::new(),
+            encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
         };
 
         let sig = Signature::from_scalars_and_parity(
