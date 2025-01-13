@@ -176,6 +176,11 @@ pub trait Transaction: Typed2718 + fmt::Debug + any::Any + Send + Sync + 'static
     ///
     /// Returns `None` if this transaction is not EIP-7702.
     fn authorization_list(&self) -> Option<&[SignedAuthorization]>;
+
+    /// For Seismic transactions, the encryption public key
+    fn encryption_pubkey(&self) -> Option<&Bytes> {
+        None
+    }
 }
 
 /// A signable transaction.

@@ -1345,6 +1345,7 @@ mod tests {
             to: Address::default().into(),
             value: U256::from(10e18),
             input: Bytes::new(),
+            encryption_pubkey: Bytes::new(),
         };
         test_serde_roundtrip(tx);
     }

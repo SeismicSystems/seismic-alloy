@@ -51,6 +51,8 @@ pub struct TxSeismic {
     /// data: An unlimited size byte array specifying the
     /// input data of the message call, formally Td.
     pub input: Bytes,
+    /// The public key we will decrypt to
+    pub encryption_pubkey: Bytes,
 }
 
 impl TxSeismic {
@@ -76,7 +78,8 @@ impl TxSeismic {
         mem::size_of::<u128>() + // max_priority_fee_per_gas
         self.to.size() + // to
         mem::size_of::<U256>() + // value
-        self.input.len() // input
+        self.input.len() + // input
+        self.encryption_pubkey.len() // encryption public key
     }
 }
 
@@ -92,6 +95,7 @@ impl RlpEcdsaTx for TxSeismic {
             + self.to.length()
             + self.value.length()
             + self.input.length()
+            + self.encryption_pubkey.len()
     }
 
     /// Encodes only the transaction's fields into the desired buffer, without
@@ -104,6 +108,7 @@ impl RlpEcdsaTx for TxSeismic {
         self.to.encode(out);
         self.value.encode(out);
         self.input.encode(out);
+        self.encryption_pubkey.encode(out);
     }
 
     /// Decodes the inner [TxSeismic] fields from RLP bytes.
@@ -129,6 +134,7 @@ impl RlpEcdsaTx for TxSeismic {
             to: Decodable::decode(buf)?,
             value: Decodable::decode(buf)?,
             input: Decodable::decode(buf)?,
+            encryption_pubkey: Decodable::decode(buf)?,
         })
     }
 }
@@ -265,7 +271,6 @@ impl Decodable for TxSeismic {
 mod tests {
     use alloy_primitives::{b256, hex, Address};
     use derive_more::FromStr;
-    use rand::Rng;
 
     use super::*;
 
@@ -281,6 +286,7 @@ mod tests {
             to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
             value: U256::from(1000000000000000u64),
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
+            encryption_pubkey: Bytes::new(),
         };
 
         let sig = Signature::from_scalars_and_parity(
