@@ -1,6 +1,8 @@
 use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, TxType, Typed2718};
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
-use alloy_primitives::{Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256};
+use alloy_primitives::{
+    Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
+};
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
 
