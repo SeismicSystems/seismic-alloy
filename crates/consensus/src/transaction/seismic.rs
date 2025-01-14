@@ -307,6 +307,7 @@ pub(super) mod serde_bincode_compat {
         #[serde(default)]
         to: TxKind,
         value: U256,
+        encryption_pubkey: Cow<'a, crate::transaction::EncryptionPublicKey>,
         input: Cow<'a, Bytes>,
     }
 
@@ -319,6 +320,7 @@ pub(super) mod serde_bincode_compat {
                 gas_limit: value.gas_limit,
                 to: value.to,
                 value: value.value,
+                encryption_pubkey: Cow::Borrowed(&value.encryption_pubkey),
                 input: Cow::Borrowed(&value.input),
             }
         }
@@ -333,8 +335,8 @@ pub(super) mod serde_bincode_compat {
                 gas_limit: value.gas_limit,
                 to: value.to,
                 value: value.value,
+                encryption_pubkey: value.encryption_pubkey.into_owned(),
                 input: value.input.into_owned(),
-                encryption_pubkey: value.encryption_pubkey
             }
         }
     }
