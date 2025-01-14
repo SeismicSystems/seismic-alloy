@@ -334,6 +334,7 @@ pub(super) mod serde_bincode_compat {
                 to: value.to,
                 value: value.value,
                 input: value.input.into_owned(),
+                encryption_pubkey: value.encryption_pubkey
             }
         }
     }
