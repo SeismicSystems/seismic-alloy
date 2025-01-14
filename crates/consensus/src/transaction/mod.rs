@@ -2,7 +2,7 @@
 use crate::Signed;
 use alloc::vec::Vec;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
-use alloy_primitives::{keccak256, Address, Bytes, ChainId, TxKind, B256, U256};
+use alloy_primitives::{keccak256, Address, Bytes, ChainId, FixedBytes, TxKind, B256, U256};
 use core::{any, fmt};
 
 mod eip1559;
@@ -57,7 +57,7 @@ pub mod serde_bincode_compat {
 }
 
 mod seismic;
-pub use seismic::TxSeismic;
+pub use seismic::{TxSeismic, EncryptionPublicKey};
 
 /// Represents a minimal EVM transaction.
 #[doc(alias = "Tx")]
@@ -178,7 +178,7 @@ pub trait Transaction: Typed2718 + fmt::Debug + any::Any + Send + Sync + 'static
     fn authorization_list(&self) -> Option<&[SignedAuthorization]>;
 
     /// For Seismic transactions, the encryption public key
-    fn encryption_pubkey(&self) -> Option<&Bytes> {
+    fn encryption_pubkey(&self) -> Option<&FixedBytes<33>> {
         None
     }
 }

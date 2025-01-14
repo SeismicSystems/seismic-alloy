@@ -1,8 +1,11 @@
 use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, TxType, Typed2718};
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
-use alloy_primitives::{Bytes, ChainId, PrimitiveSignature as Signature, TxKind, B256, U256};
+use alloy_primitives::{Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256};
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
+
+/// Compressed secp256k1 public key
+pub type EncryptionPublicKey = FixedBytes<33>;
 
 /// Basic encrypted transaction type
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
@@ -45,14 +48,14 @@ pub struct TxSeismic {
     /// in the case of contract creation, as an endowment
     /// to the newly created account; formally Tv.
     pub value: U256,
+    /// The public key we will decrypt to
+    pub encryption_pubkey: EncryptionPublicKey,
     /// Input has two uses depending if transaction is Create or Call (if `to` field is None or
     /// Some). pub init: An unlimited size byte array specifying the
     /// EVM-code for the account initialisation procedure CREATE,
     /// data: An unlimited size byte array specifying the
     /// input data of the message call, formally Td.
     pub input: Bytes,
-    /// The public key we will decrypt to
-    pub encryption_pubkey: Bytes,
 }
 
 impl TxSeismic {
@@ -225,7 +228,7 @@ impl Transaction for TxSeismic {
     }
 
     #[inline]
-    fn encryption_pubkey(&self) -> Option<&Bytes> {
+    fn encryption_pubkey(&self) -> Option<&FixedBytes<33>> {
         Some(&self.encryption_pubkey)
     }
 }

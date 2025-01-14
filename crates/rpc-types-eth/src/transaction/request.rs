@@ -134,7 +134,7 @@ pub struct TransactionRequest {
     pub authorization_list: Option<Vec<SignedAuthorization>>,
     /// Seismic tx encryption public key
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
-    pub encryption_pubkey: Option<Bytes>,
+    pub encryption_pubkey: Option<alloy_consensus::transaction::EncryptionPublicKey>,
 }
 
 impl TransactionRequest {
