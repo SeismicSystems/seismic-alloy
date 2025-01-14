@@ -1337,6 +1337,8 @@ mod tests {
     #[test]
     #[cfg(feature = "serde")]
     fn test_serde_roundtrip_seismic() {
+        use crate::transaction::seismic::EncryptionPublicKey;
+
         let tx = TxSeismic {
             chain_id: 1,
             nonce: 100,
@@ -1345,6 +1347,7 @@ mod tests {
             to: Address::default().into(),
             value: U256::from(10e18),
             input: Bytes::new(),
+            encryption_pubkey: EncryptionPublicKey::new([0u8; 33]),
         };
         test_serde_roundtrip(tx);
     }

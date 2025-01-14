@@ -133,6 +133,9 @@ pub struct TransactionRequest {
     /// Authorization list for for EIP-7702 transactions.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
     pub authorization_list: Option<Vec<SignedAuthorization>>,
+    /// Seismic tx encryption public key
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    pub encryption_pubkey: Option<alloy_consensus::transaction::EncryptionPublicKey>,
 }
 
 impl TransactionRequest {
@@ -184,6 +187,7 @@ impl TransactionRequest {
             transaction_type: Some(tx_type),
             sidecar: None,
             authorization_list,
+            encryption_pubkey: tx.encryption_pubkey().cloned(),
         }
     }
 
@@ -459,6 +463,9 @@ impl TransactionRequest {
             to: checked_to,
             value: self.value.unwrap_or_default(),
             input: self.input.into_input().unwrap_or_default(),
+            encryption_pubkey: self
+                .encryption_pubkey
+                .ok_or("Missing 'encryption_pubkey' for seismic transaction")?,
         })
     }
 
@@ -952,7 +959,16 @@ impl From<TxEip7702> for TransactionRequest {
 impl From<TxSeismic> for TransactionRequest {
     fn from(tx: TxSeismic) -> Self {
         let ty = tx.ty();
-        let TxSeismic { chain_id, nonce, gas_price, gas_limit, to, value, input } = tx;
+        let TxSeismic {
+            chain_id,
+            nonce,
+            gas_price,
+            gas_limit,
+            to,
+            value,
+            input,
+            encryption_pubkey: _,
+        } = tx;
         Self {
             to: if let TxKind::Call(to) = to { Some(to.into()) } else { None },
             gas_price: Some(gas_price),
