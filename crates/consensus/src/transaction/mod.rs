@@ -179,9 +179,12 @@ pub trait Transaction: Typed2718 + fmt::Debug + any::Any + Send + Sync + 'static
     fn authorization_list(&self) -> Option<&[SignedAuthorization]>;
 
     /// For Seismic transactions, the encryption public key
-    fn encryption_pubkey(&self) -> Option<&EncryptionPublicKey> {
-        None
-    }
+    // #[inline]
+    // fn encryption_pubkey(&self) -> Option<&EncryptionPublicKey> {
+    //     None
+    // }
+    /// For Seismic transactions, the encryption public key
+    fn encryption_pubkey(&self) -> Option<&EncryptionPublicKey>;
 }
 
 /// A signable transaction.
@@ -347,6 +350,7 @@ impl<T: Transaction> Transaction for alloy_serde::WithOtherFields<T> {
         self.inner.authorization_list()
     }
 
+    #[inline]
     fn encryption_pubkey(&self) -> Option<&EncryptionPublicKey> {
         self.inner.encryption_pubkey()
     }

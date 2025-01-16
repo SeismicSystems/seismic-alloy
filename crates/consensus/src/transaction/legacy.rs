@@ -317,6 +317,12 @@ impl Transaction for TxLegacy {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
+
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
+        None
+    }
+
 }
 
 impl SignableTransaction<Signature> for TxLegacy {

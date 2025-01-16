@@ -504,7 +504,7 @@ impl Transaction for PooledTransaction {
         }
     }
 
-    fn encryption_pubkey(&self) -> Option<&crate::transaction::seismic::EncryptionPublicKey> {
+    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
         match self {
             Self::Seismic(tx) => tx.tx().encryption_pubkey(),
             _ => None,

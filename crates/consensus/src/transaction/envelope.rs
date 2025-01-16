@@ -701,7 +701,8 @@ impl Transaction for TxEnvelope {
         }
     }
 
-    fn encryption_pubkey(&self) -> Option<&crate::transaction::seismic::EncryptionPublicKey> {
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
         match self {
             Self::Seismic(tx) => tx.tx().encryption_pubkey(),
             _ => None,
@@ -1344,7 +1345,7 @@ mod tests {
     #[test]
     #[cfg(feature = "serde")]
     fn test_serde_roundtrip_seismic() {
-        use crate::transaction::seismic::EncryptionPublicKey;
+        use crate::transaction::EncryptionPublicKey;
 
         let tx = TxSeismic {
             chain_id: 1,

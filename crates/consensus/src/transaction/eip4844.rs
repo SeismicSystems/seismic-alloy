@@ -277,6 +277,12 @@ impl Transaction for TxEip4844Variant {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
+
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
+        None
+    }
+
 }
 impl Typed2718 for TxEip4844 {
     fn ty(&self) -> u8 {
@@ -705,6 +711,11 @@ impl Transaction for TxEip4844 {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
+
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
+        None
+    }
 }
 
 impl Encodable for TxEip4844 {
@@ -919,6 +930,12 @@ impl Transaction for TxEip4844WithSidecar {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
+
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
+        None
+    }
+
 }
 
 impl Typed2718 for TxEip4844WithSidecar {
