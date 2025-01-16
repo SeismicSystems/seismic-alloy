@@ -700,6 +700,13 @@ impl Transaction for TxEnvelope {
             Self::Eip7702(tx) => tx.tx().authorization_list(),
         }
     }
+
+    fn encryption_pubkey(&self) -> Option<&crate::transaction::seismic::EncryptionPublicKey> {
+        match self {
+            Self::Seismic(tx) => tx.tx().encryption_pubkey(),
+            _ => None,
+        }
+    }
 }
 
 impl Typed2718 for TxEnvelope {
