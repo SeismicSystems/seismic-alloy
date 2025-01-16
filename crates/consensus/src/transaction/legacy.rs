@@ -318,11 +318,6 @@ impl Transaction for TxLegacy {
         None
     }
 
-    #[inline]
-    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
-        None
-    }
-
 }
 
 impl SignableTransaction<Signature> for TxLegacy {

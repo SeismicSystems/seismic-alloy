@@ -247,11 +247,6 @@ impl Transaction for TxEip7702 {
         Some(&self.authorization_list)
     }
 
-    #[inline]
-    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
-        None
-    }
-
 }
 
 impl SignableTransaction<Signature> for TxEip7702 {

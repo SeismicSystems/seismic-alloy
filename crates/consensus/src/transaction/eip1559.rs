@@ -248,11 +248,6 @@ impl Transaction for TxEip1559 {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
-
-    #[inline]
-    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
-        None
-    }
 }
 
 impl Typed2718 for TxEip1559 {
