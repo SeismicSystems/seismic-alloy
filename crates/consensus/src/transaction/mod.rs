@@ -347,7 +347,7 @@ impl<T: Transaction> Transaction for alloy_serde::WithOtherFields<T> {
         self.inner.authorization_list()
     }
 
-    fn encryption_pubkey(&self) -> Option< &EncryptionPublicKey> {
+    fn encryption_pubkey(&self) -> Option<&EncryptionPublicKey> {
         self.inner.encryption_pubkey()
     }
 }
