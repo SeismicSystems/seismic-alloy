@@ -277,7 +277,6 @@ impl Transaction for TxEip4844Variant {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
-
 }
 impl Typed2718 for TxEip4844 {
     fn ty(&self) -> u8 {

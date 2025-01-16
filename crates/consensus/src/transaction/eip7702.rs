@@ -246,7 +246,6 @@ impl Transaction for TxEip7702 {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         Some(&self.authorization_list)
     }
-
 }
 
 impl SignableTransaction<Signature> for TxEip7702 {

@@ -317,7 +317,6 @@ impl Transaction for TxLegacy {
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
     }
-
 }
 
 impl SignableTransaction<Signature> for TxLegacy {
