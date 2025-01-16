@@ -2,7 +2,7 @@
 use crate::Signed;
 use alloc::vec::Vec;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
-use alloy_primitives::{keccak256, Address, Bytes, ChainId, FixedBytes, TxKind, B256, U256};
+use alloy_primitives::{keccak256, Address, Bytes, ChainId, TxKind, B256, U256};
 use core::{any, fmt};
 
 mod eip1559;
@@ -179,7 +179,8 @@ pub trait Transaction: Typed2718 + fmt::Debug + any::Any + Send + Sync + 'static
     fn authorization_list(&self) -> Option<&[SignedAuthorization]>;
 
     /// For Seismic transactions, the encryption public key
-    fn encryption_pubkey(&self) -> Option<&FixedBytes<33>> {
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&EncryptionPublicKey> {
         None
     }
 }
@@ -345,6 +346,11 @@ impl<T: Transaction> Transaction for alloy_serde::WithOtherFields<T> {
     #[inline]
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         self.inner.authorization_list()
+    }
+
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&EncryptionPublicKey> {
+        self.inner.encryption_pubkey()
     }
 }
 

@@ -366,6 +366,14 @@ impl Transaction for TypedTransaction {
             Self::Eip7702(tx) => tx.authorization_list(),
         }
     }
+
+    #[inline]
+    fn encryption_pubkey(&self) -> Option<&crate::transaction::EncryptionPublicKey> {
+        match self {
+            Self::Seismic(tx) => tx.encryption_pubkey(),
+            _ => None,
+        }
+    }
 }
 
 impl Typed2718 for TypedTransaction {
