@@ -51,6 +51,7 @@ pub struct TxSeismic {
     /// to the newly created account; formally Tv.
     pub value: U256,
     /// The public key we will decrypt to
+    #[cfg_attr(feature = "serde", serde(alias = "encryptionPubkey"))]
     pub encryption_pubkey: EncryptionPublicKey,
     /// Input has two uses depending if transaction is Create or Call (if `to` field is None or
     /// Some). pub init: An unlimited size byte array specifying the
