@@ -970,7 +970,7 @@ impl From<TxSeismic> for TransactionRequest {
             encryption_pubkey,
         } = tx;
         Self {
-            to: if let TxKind::Call(to) = to { Some(to.into()) } else { None },
+            to: Some(to.into()),
             gas_price: Some(gas_price),
             gas: Some(gas_limit),
             value: Some(value),
