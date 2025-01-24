@@ -501,14 +501,18 @@ mod tests {
         let mut buf = vec![];
         tx.rlp_encode_signed(&sig, &mut buf);
         let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
-        let signer = decoded.recover_signer().unwrap();
-        assert_eq!(
-            signer,
-            Address::from_str("0xe71a5dd0b0471f425f48ca05376f2251d58af0ea").unwrap()
-        );
         assert_eq!(decoded, tx.clone().into_signed(sig));
         assert_eq!(*decoded.hash(), hash);
         assert_eq!(decoded.tx().clone(), tx.clone());
+
+        #[cfg(feature = "k256")]
+        {
+            let signer = decoded.recover_signer().unwrap();
+            assert_eq!(
+                signer,
+                Address::from_str("0xe71a5dd0b0471f425f48ca05376f2251d58af0ea").unwrap()
+            );
+        }
     }
 
     #[test]
@@ -534,14 +538,18 @@ mod tests {
         );
         let mut buf = vec![];
         tx.rlp_encode_signed(&sig, &mut buf);
-        let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
-        let signer = decoded.recover_signer().unwrap();
-        assert_eq!(
-            signer,
-            Address::from_str("0x69e069c42cb8a5332276613dfbd4823c0ed8043d").unwrap()
-        );
-
+        
         let hash = tx.tx_hash(&sig);
         assert_eq!(hash, b256!("539439da42159d6f7220ad3e5590a05c2193a99d8b9ba0316b2c6f622f9cf7c6"));
+
+        #[cfg(feature = "k256")]{
+            let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
+            let signer = decoded.recover_signer().unwrap();
+            assert_eq!(
+                signer,
+                Address::from_str("0x69e069c42cb8a5332276613dfbd4823c0ed8043d").unwrap()
+            );
+    
+        }
     }
 }
