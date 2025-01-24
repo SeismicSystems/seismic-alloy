@@ -106,7 +106,10 @@ impl TransactionBuilder<AnyNetwork> for WithOtherFields<TransactionRequest> {
         self.deref().encryption_pubkey()
     }
 
-    fn set_encryption_pubkey(&mut self, encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey) {
+    fn set_encryption_pubkey(
+        &mut self,
+        encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey,
+    ) {
         self.deref_mut().set_encryption_pubkey(encryption_pubkey);
     }
 

@@ -103,7 +103,10 @@ impl TransactionBuilder<Ethereum> for TransactionRequest {
         self.encryption_pubkey.as_ref()
     }
 
-    fn set_encryption_pubkey(&mut self, encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey) {
+    fn set_encryption_pubkey(
+        &mut self,
+        encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey,
+    ) {
         self.encryption_pubkey = Some(encryption_pubkey);
     }
 

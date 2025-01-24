@@ -253,10 +253,16 @@ pub trait TransactionBuilder<N: Network>: Default + Sized + Send + Sync + 'stati
     fn encryption_pubkey(&self) -> Option<&alloy_consensus::transaction::EncryptionPublicKey>;
 
     /// Set the encryption pubkey for the transaction.
-    fn set_encryption_pubkey(&mut self, encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey);
+    fn set_encryption_pubkey(
+        &mut self,
+        encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey,
+    );
 
     /// Builder pattern for setting the encryption pubkey.
-    fn with_encryption_pubkey(mut self, encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey) -> Self {
+    fn with_encryption_pubkey(
+        mut self,
+        encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey,
+    ) -> Self {
         self.set_encryption_pubkey(encryption_pubkey);
         self
     }
