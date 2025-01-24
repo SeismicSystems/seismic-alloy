@@ -146,6 +146,14 @@ impl TxSeismic {
     }
 }
 
+impl TryFrom<TypedData> for TxSeismic {
+    type Error = serde_json::Error;
+
+    fn try_from(value: TypedData) -> Result<Self, Self::Error> {
+        serde_json::from_value(value.message)
+    }
+}
+
 impl RlpEcdsaTx for TxSeismic {
     const DEFAULT_TX_TYPE: u8 = { Self::tx_type() as u8 };
 
