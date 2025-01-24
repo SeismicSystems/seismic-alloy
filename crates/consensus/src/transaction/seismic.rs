@@ -329,6 +329,8 @@ impl SignableTransaction<Signature> for TxSeismic {
     fn signature_hash(&self) -> B256 {
         match self.eip712_version {
             0 => keccak256(self.encoded_for_signing()),
+            // TODO: reserved for supporting personal_sign
+            1 => keccak256(self.encoded_for_signing()),
             _ => self.eip712_signature_hash(),
         }
     }
@@ -525,7 +527,7 @@ mod tests {
             to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
             value: U256::from(1000000000000000u64),
             encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
-            eip712_version: 1,
+            eip712_version: 2,
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
         let hash = tx.eip712_signature_hash();
