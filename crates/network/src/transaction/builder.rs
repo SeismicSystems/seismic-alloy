@@ -268,14 +268,14 @@ pub trait TransactionBuilder<N: Network>: Default + Sized + Send + Sync + 'stati
     }
 
     /// Get the EIP712 version for the transaction.
-    fn eip712_version(&self) -> Option<u8>;
+    fn message_version(&self) -> Option<u8>;
 
     /// Set the EIP712 version for the transaction.
-    fn set_eip712_version(&mut self, eip712_version: u8);
+    fn set_message_version(&mut self, message_version: u8);
 
     /// Builder pattern for setting the EIP712 version.
-    fn with_eip712_version(mut self, eip712_version: u8) -> Self {
-        self.set_eip712_version(eip712_version);
+    fn with_message_version(mut self, message_version: u8) -> Self {
+        self.set_message_version(message_version);
         self
     }
 

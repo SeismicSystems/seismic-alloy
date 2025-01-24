@@ -253,8 +253,8 @@ impl<T: TransactionTrait> TransactionTrait for Transaction<T> {
         self.inner.encryption_pubkey()
     }
 
-    fn eip712_version(&self) -> Option<u8> {
-        self.inner.eip712_version()
+    fn message_version(&self) -> Option<u8> {
+        self.inner.message_version()
     }
 }
 

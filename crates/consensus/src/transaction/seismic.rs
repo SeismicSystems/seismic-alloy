@@ -56,8 +56,8 @@ pub struct TxSeismic {
     pub encryption_pubkey: EncryptionPublicKey,
     /// The EIP712 version of the transaction when the user submitted it using signTypedDataV4.
     /// A value of 0 means the transaction was not signed using EIP712
-    #[cfg_attr(feature = "serde", serde(alias = "eip712Version", default))]
-    pub eip712_version: u8,
+    #[cfg_attr(feature = "serde", serde(alias = "messageVersion", default))]
+    pub message_version: u8,
     /// Input has two uses depending if transaction is Create or Call (if `to` field is None or
     /// Some). pub init: An unlimited size byte array specifying the
     /// EVM-code for the account initialisation procedure CREATE,
@@ -90,7 +90,7 @@ impl TxSeismic {
         self.to.size() + // to
         mem::size_of::<U256>() + // value
         self.encryption_pubkey.len() + // encryption public key
-        mem::size_of::<u8>() + // eip712_version
+        mem::size_of::<u8>() + // message_version
         self.input.len() // input
     }
 
@@ -113,14 +113,14 @@ impl TxSeismic {
                   { "name": "value", "type": "uint256" },
                   // compressed secp256k1 public key (33 bytes)
                   { "name": "encryptionPubkey", "type": "bytes" },
-                  { "name": "eip712Version", "type": "uint8" },
+                  { "name": "messageVersion", "type": "uint8" },
                   { "name": "input", "type": "bytes" },
                 ],
             },
             "primaryType": "TxSeismic",
             "domain": {
                 "name": "Seismic Transaction",
-                "version": self.eip712_version.to_string(),
+                "version": self.message_version.to_string(),
                 "chainId": self.chain_id,
                 // no verifying contract since this happens in RPC
                 "verifyingContract": "0x0000000000000000000000000000000000000000",
@@ -134,7 +134,7 @@ impl TxSeismic {
                 "value": self.value,
                 "input": self.input,
                 "encryptionPubkey": self.encryption_pubkey,
-                "eip712Version": self.eip712_version,
+                "messageVersion": self.message_version,
             }
         });
         serde_json::from_value(typed_data_json).unwrap()
@@ -158,7 +158,7 @@ impl RlpEcdsaTx for TxSeismic {
             + self.to.length()
             + self.value.length()
             + self.encryption_pubkey.length()
-            + self.eip712_version.length()
+            + self.message_version.length()
             + self.input.length()
     }
 
@@ -172,7 +172,7 @@ impl RlpEcdsaTx for TxSeismic {
         self.to.encode(out);
         self.value.encode(out);
         self.encryption_pubkey.encode(out);
-        self.eip712_version.encode(out);
+        self.message_version.encode(out);
         self.input.encode(out);
     }
 
@@ -199,7 +199,7 @@ impl RlpEcdsaTx for TxSeismic {
             to: Decodable::decode(buf)?,
             value: Decodable::decode(buf)?,
             encryption_pubkey: Decodable::decode(buf)?,
-            eip712_version: Decodable::decode(buf)?,
+            message_version: Decodable::decode(buf)?,
             input: Decodable::decode(buf)?,
         })
     }
@@ -296,8 +296,8 @@ impl Transaction for TxSeismic {
     }
 
     #[inline]
-    fn eip712_version(&self) -> Option<u8> {
-        Some(self.eip712_version)
+    fn message_version(&self) -> Option<u8> {
+        Some(self.message_version)
     }
 }
 
@@ -327,7 +327,7 @@ impl SignableTransaction<Signature> for TxSeismic {
     }
 
     fn signature_hash(&self) -> B256 {
-        match self.eip712_version {
+        match self.message_version {
             0 => keccak256(self.encoded_for_signing()),
             // TODO: reserved for supporting personal_sign
             1 => keccak256(self.encoded_for_signing()),
@@ -385,7 +385,7 @@ pub(super) mod serde_bincode_compat {
         to: TxKind,
         value: U256,
         encryption_pubkey: Cow<'a, crate::transaction::EncryptionPublicKey>,
-        eip712_version: u8,
+        message_version: u8,
         input: Cow<'a, Bytes>,
     }
 
@@ -399,7 +399,7 @@ pub(super) mod serde_bincode_compat {
                 to: value.to,
                 value: value.value,
                 encryption_pubkey: Cow::Borrowed(&value.encryption_pubkey),
-                eip712_version: value.eip712_version,
+                message_version: value.message_version,
                 input: Cow::Borrowed(&value.input),
             }
         }
@@ -415,7 +415,7 @@ pub(super) mod serde_bincode_compat {
                 to: value.to,
                 value: value.value,
                 encryption_pubkey: value.encryption_pubkey.into_owned(),
-                eip712_version: value.eip712_version,
+                message_version: value.message_version,
                 input: value.input.into_owned(),
             }
         }
@@ -490,7 +490,7 @@ mod tests {
             to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
             value: U256::from(1000000000000000u64),
             encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
-            eip712_version: 0,
+            message_version: 0,
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
 
@@ -527,7 +527,7 @@ mod tests {
             to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
             value: U256::from(1000000000000000u64),
             encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
-            eip712_version: 2,
+            message_version: 2,
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
         let hash = tx.eip712_signature_hash();

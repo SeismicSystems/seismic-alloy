@@ -710,9 +710,9 @@ impl Transaction for TxEnvelope {
     }
 
     #[inline]
-    fn eip712_version(&self) -> Option<u8> {
+    fn message_version(&self) -> Option<u8> {
         match self {
-            Self::Seismic(tx) => tx.tx().eip712_version(),
+            Self::Seismic(tx) => tx.tx().message_version(),
             _ => None,
         }
     }
@@ -1363,7 +1363,7 @@ mod tests {
             to: Address::default().into(),
             value: U256::from(10e18),
             encryption_pubkey: EncryptionPublicKey::new([0u8; 33]),
-            eip712_version: 0,
+            message_version: 0,
             input: Bytes::new(),
         };
         test_serde_roundtrip(tx);

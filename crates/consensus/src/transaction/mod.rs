@@ -186,7 +186,7 @@ pub trait Transaction: Typed2718 + fmt::Debug + any::Any + Send + Sync + 'static
 
     /// For Seismic transactions, the EIP712 version
     #[inline]
-    fn eip712_version(&self) -> Option<u8> {
+    fn message_version(&self) -> Option<u8> {
         None
     }
 }

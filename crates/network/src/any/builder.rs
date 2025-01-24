@@ -113,12 +113,12 @@ impl TransactionBuilder<AnyNetwork> for WithOtherFields<TransactionRequest> {
         self.deref_mut().set_encryption_pubkey(encryption_pubkey);
     }
 
-    fn eip712_version(&self) -> Option<u8> {
-        self.deref().eip712_version()
+    fn message_version(&self) -> Option<u8> {
+        self.deref().message_version()
     }
 
-    fn set_eip712_version(&mut self, eip712_version: u8) {
-        self.deref_mut().set_eip712_version(eip712_version);
+    fn set_message_version(&mut self, message_version: u8) {
+        self.deref_mut().set_message_version(message_version);
     }
 
     fn complete_type(&self, ty: <AnyNetwork as Network>::TxType) -> Result<(), Vec<&'static str>> {
