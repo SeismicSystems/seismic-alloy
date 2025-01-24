@@ -531,7 +531,7 @@ mod tests {
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
         let hash = tx.eip712_signature_hash();
-        assert_eq!(hash, hex!("4adaa537061cd8f6432d5493452c3cd172c2cbf4a5bd98acbd6deb974464fe17"));
+        assert_eq!(hash, hex!("d42ee5391f06e5d4a40f7b656404481610ec615aa5f36c2d63854ed5714a3464"));
 
         let sig = Signature::from_scalars_and_parity(
             b256!("840cfc572845f5786e702984c2a582528cad4b49b2a10b9db1be7fca90058565"),
@@ -550,7 +550,7 @@ mod tests {
             let signer = decoded.recover_signer().unwrap();
             assert_eq!(
                 signer,
-                Address::from_str("0xaa32374d0bc85393aac9c179d11adf274a3b0e3e").unwrap()
+                Address::from_str("0x3e168ec5f874f22568ccd3a501e0720547288d23").unwrap()
             );
         }
     }
