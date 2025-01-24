@@ -110,6 +110,14 @@ impl TransactionBuilder<Ethereum> for TransactionRequest {
         self.encryption_pubkey = Some(encryption_pubkey);
     }
 
+    fn eip712_version(&self) -> Option<u8> {
+        self.eip712_version
+    }
+
+    fn set_eip712_version(&mut self, eip712_version: u8) {
+        self.eip712_version = Some(eip712_version);
+    }
+
     fn complete_type(&self, ty: TxType) -> Result<(), Vec<&'static str>> {
         match ty {
             TxType::Legacy => self.complete_legacy(),

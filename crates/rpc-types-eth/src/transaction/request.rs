@@ -136,6 +136,9 @@ pub struct TransactionRequest {
     /// Seismic tx encryption public key
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
     pub encryption_pubkey: Option<alloy_consensus::transaction::EncryptionPublicKey>,
+    /// EIP712 version for Seismic transactions
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    pub eip712_version: Option<u8>,
 }
 
 impl TransactionRequest {
@@ -188,6 +191,7 @@ impl TransactionRequest {
             sidecar: None,
             authorization_list,
             encryption_pubkey: tx.encryption_pubkey().cloned(),
+            eip712_version: tx.eip712_version(),
         }
     }
 
@@ -466,6 +470,7 @@ impl TransactionRequest {
             encryption_pubkey: self
                 .encryption_pubkey
                 .ok_or("Missing 'encryption_pubkey' for seismic transaction")?,
+            eip712_version: self.eip712_version.unwrap_or(0),
         })
     }
 
@@ -966,8 +971,9 @@ impl From<TxSeismic> for TransactionRequest {
             gas_limit,
             to,
             value,
-            input,
             encryption_pubkey,
+            eip712_version,
+            input,
         } = tx;
         Self {
             to: Some(to.into()),
@@ -979,6 +985,7 @@ impl From<TxSeismic> for TransactionRequest {
             chain_id: Some(chain_id),
             transaction_type: Some(ty),
             encryption_pubkey: Some(encryption_pubkey),
+            eip712_version: Some(eip712_version),
             ..Default::default()
         }
     }
