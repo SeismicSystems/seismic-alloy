@@ -967,7 +967,7 @@ impl From<TxSeismic> for TransactionRequest {
             to,
             value,
             input,
-            encryption_pubkey: _,
+            encryption_pubkey,
         } = tx;
         Self {
             to: if let TxKind::Call(to) = to { Some(to.into()) } else { None },
@@ -978,6 +978,7 @@ impl From<TxSeismic> for TransactionRequest {
             nonce: Some(nonce),
             chain_id: Some(chain_id),
             transaction_type: Some(ty),
+            encryption_pubkey: Some(encryption_pubkey),
             ..Default::default()
         }
     }

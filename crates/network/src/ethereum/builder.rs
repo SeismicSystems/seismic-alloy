@@ -99,6 +99,17 @@ impl TransactionBuilder<Ethereum> for TransactionRequest {
         self.access_list = Some(access_list);
     }
 
+    fn encryption_pubkey(&self) -> Option<&alloy_consensus::transaction::EncryptionPublicKey> {
+        self.encryption_pubkey.as_ref()
+    }
+
+    fn set_encryption_pubkey(
+        &mut self,
+        encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey,
+    ) {
+        self.encryption_pubkey = Some(encryption_pubkey);
+    }
+
     fn complete_type(&self, ty: TxType) -> Result<(), Vec<&'static str>> {
         match ty {
             TxType::Legacy => self.complete_legacy(),

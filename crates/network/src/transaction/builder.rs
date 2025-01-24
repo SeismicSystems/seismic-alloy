@@ -248,6 +248,25 @@ pub trait TransactionBuilder<N: Network>: Default + Sized + Send + Sync + 'stati
         self.set_max_priority_fee_per_gas(max_priority_fee_per_gas);
         self
     }
+
+    /// Get the encryption pubkey for the transaction.
+    fn encryption_pubkey(&self) -> Option<&alloy_consensus::transaction::EncryptionPublicKey>;
+
+    /// Set the encryption pubkey for the transaction.
+    fn set_encryption_pubkey(
+        &mut self,
+        encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey,
+    );
+
+    /// Builder pattern for setting the encryption pubkey.
+    fn with_encryption_pubkey(
+        mut self,
+        encryption_pubkey: alloy_consensus::transaction::EncryptionPublicKey,
+    ) -> Self {
+        self.set_encryption_pubkey(encryption_pubkey);
+        self
+    }
+
     /// Get the gas limit for the transaction.
     fn gas_limit(&self) -> Option<u64>;
 
