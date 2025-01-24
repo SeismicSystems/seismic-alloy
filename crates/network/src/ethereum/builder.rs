@@ -110,6 +110,14 @@ impl TransactionBuilder<Ethereum> for TransactionRequest {
         self.encryption_pubkey = Some(encryption_pubkey);
     }
 
+    fn message_version(&self) -> Option<u8> {
+        self.message_version
+    }
+
+    fn set_message_version(&mut self, message_version: u8) {
+        self.message_version = Some(message_version);
+    }
+
     fn complete_type(&self, ty: TxType) -> Result<(), Vec<&'static str>> {
         match ty {
             TxType::Legacy => self.complete_legacy(),

@@ -252,6 +252,10 @@ impl<T: TransactionTrait> TransactionTrait for Transaction<T> {
     fn encryption_pubkey(&self) -> Option<&alloy_consensus::transaction::EncryptionPublicKey> {
         self.inner.encryption_pubkey()
     }
+
+    fn message_version(&self) -> Option<u8> {
+        self.inner.message_version()
+    }
 }
 
 impl<T: TransactionTrait + Encodable2718> TransactionResponse for Transaction<T> {

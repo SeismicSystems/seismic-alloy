@@ -113,6 +113,14 @@ impl TransactionBuilder<AnyNetwork> for WithOtherFields<TransactionRequest> {
         self.deref_mut().set_encryption_pubkey(encryption_pubkey);
     }
 
+    fn message_version(&self) -> Option<u8> {
+        self.deref().message_version()
+    }
+
+    fn set_message_version(&mut self, message_version: u8) {
+        self.deref_mut().set_message_version(message_version);
+    }
+
     fn complete_type(&self, ty: <AnyNetwork as Network>::TxType) -> Result<(), Vec<&'static str>> {
         self.deref().complete_type(ty.try_into().map_err(|_| vec!["supported tx type"])?)
     }

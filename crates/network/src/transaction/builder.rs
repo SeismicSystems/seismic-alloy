@@ -267,6 +267,18 @@ pub trait TransactionBuilder<N: Network>: Default + Sized + Send + Sync + 'stati
         self
     }
 
+    /// Get the EIP712 version for the transaction.
+    fn message_version(&self) -> Option<u8>;
+
+    /// Set the EIP712 version for the transaction.
+    fn set_message_version(&mut self, message_version: u8);
+
+    /// Builder pattern for setting the EIP712 version.
+    fn with_message_version(mut self, message_version: u8) -> Self {
+        self.set_message_version(message_version);
+        self
+    }
+
     /// Get the gas limit for the transaction.
     fn gas_limit(&self) -> Option<u64>;
 
