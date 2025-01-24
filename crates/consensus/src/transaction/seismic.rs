@@ -479,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_seismic() {
-        let hash: B256 = b256!("ffd93383034710825540c4442e145373527004c42f20595cab5e33423a9637f9");
+        let hash: B256 = b256!("1ecf0fb8b70b4e94745ac04bd99f07321199fce3a8f58b3bc3f9c9c837e47a73");
 
         let tx = TxSeismic {
             chain_id: 4u64,
@@ -502,6 +502,8 @@ mod tests {
         let mut buf = vec![];
         tx.rlp_encode_signed(&sig, &mut buf);
         let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
+        let signer = decoded.recover_signer().unwrap();
+        assert_eq!(signer, Address::from_str("0xe71a5dd0b0471f425f48ca05376f2251d58af0ea").unwrap());
         assert_eq!(decoded, tx.clone().into_signed(sig));
         assert_eq!(*decoded.hash(), hash);
         assert_eq!(decoded.tx().clone(), tx.clone());
@@ -522,5 +524,19 @@ mod tests {
         };
         let hash = tx.eip712_signature_hash();
         assert_eq!(hash, hex!("261fbcf5298b1f7583525a9e29d6766dfcd97b379915b0b95e98d4face1d9182"));
+
+        let sig = Signature::from_scalars_and_parity(
+            b256!("840cfc572845f5786e702984c2a582528cad4b49b2a10b9db1be7fca90058565"),
+            b256!("25e7109ceb98168d95b09b18bbf6b685130e0562f233877d492b94eee0c5b6d1"),
+            false,
+        );
+        let mut buf = vec![];
+        tx.rlp_encode_signed(&sig, &mut buf);
+        let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
+        let signer = decoded.recover_signer().unwrap();
+        assert_eq!(signer, Address::from_str("0x69e069c42cb8a5332276613dfbd4823c0ed8043d").unwrap());
+
+        let hash = tx.tx_hash(&sig);
+        assert_eq!(hash, b256!("539439da42159d6f7220ad3e5590a05c2193a99d8b9ba0316b2c6f622f9cf7c6"));
     }
 }
