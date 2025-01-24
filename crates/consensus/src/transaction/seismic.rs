@@ -1,9 +1,8 @@
 use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, TxType, Typed2718};
-use alloy_dyn_abi::{Eip712Domain, Resolver, TypedData};
+use alloy_dyn_abi::TypedData;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
-    keccak256, Address, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256,
-    U256,
+    keccak256, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
@@ -503,7 +502,10 @@ mod tests {
         tx.rlp_encode_signed(&sig, &mut buf);
         let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
         let signer = decoded.recover_signer().unwrap();
-        assert_eq!(signer, Address::from_str("0xe71a5dd0b0471f425f48ca05376f2251d58af0ea").unwrap());
+        assert_eq!(
+            signer,
+            Address::from_str("0xe71a5dd0b0471f425f48ca05376f2251d58af0ea").unwrap()
+        );
         assert_eq!(decoded, tx.clone().into_signed(sig));
         assert_eq!(*decoded.hash(), hash);
         assert_eq!(decoded.tx().clone(), tx.clone());
@@ -534,7 +536,10 @@ mod tests {
         tx.rlp_encode_signed(&sig, &mut buf);
         let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
         let signer = decoded.recover_signer().unwrap();
-        assert_eq!(signer, Address::from_str("0x69e069c42cb8a5332276613dfbd4823c0ed8043d").unwrap());
+        assert_eq!(
+            signer,
+            Address::from_str("0x69e069c42cb8a5332276613dfbd4823c0ed8043d").unwrap()
+        );
 
         let hash = tx.tx_hash(&sig);
         assert_eq!(hash, b256!("539439da42159d6f7220ad3e5590a05c2193a99d8b9ba0316b2c6f622f9cf7c6"));
