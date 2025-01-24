@@ -1,6 +1,5 @@
 use super::signer::NetworkWallet;
 use crate::Network;
-use alloy_consensus::transaction::EncryptionPublicKey;
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_rpc_types_eth::AccessList;
 use alloy_sol_types::SolCall;
