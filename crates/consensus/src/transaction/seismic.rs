@@ -55,8 +55,7 @@ pub struct TxSeismic {
     /// The public key we will decrypt to
     #[cfg_attr(feature = "serde", serde(alias = "encryptionPubkey"))]
     pub encryption_pubkey: EncryptionPublicKey,
-    /// The EIP712 version of the transaction,
-    /// if the user submitted it using signTypedDataV4,
+    /// The EIP712 version of the transaction when the user submitted it using signTypedDataV4.
     /// A value of 0 means the transaction was not signed using EIP712
     #[cfg_attr(feature = "serde", serde(alias = "eip712Version", default))]
     pub eip712_version: u8,
