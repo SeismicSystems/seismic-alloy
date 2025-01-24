@@ -53,6 +53,11 @@ pub struct TxSeismic {
     /// The public key we will decrypt to
     #[cfg_attr(feature = "serde", serde(alias = "encryptionPubkey"))]
     pub encryption_pubkey: EncryptionPublicKey,
+    /// The EIP712 version of the transaction,
+    /// if the user submitted it using signTypedDataV4,
+    /// A value of 0 means the transaction was not signed using EIP712
+    #[cfg_attr(feature = "serde", serde(alias = "eip712Version", default))]
+    pub eip712_version: u8,
     /// Input has two uses depending if transaction is Create or Call (if `to` field is None or
     /// Some). pub init: An unlimited size byte array specifying the
     /// EVM-code for the account initialisation procedure CREATE,
@@ -84,8 +89,9 @@ impl TxSeismic {
         mem::size_of::<u128>() + // max_priority_fee_per_gas
         self.to.size() + // to
         mem::size_of::<U256>() + // value
-        self.input.len() + // input
-        self.encryption_pubkey.len() // encryption public key
+        self.encryption_pubkey.len() + // encryption public key
+        mem::size_of::<u8>() + // eip712_version
+        self.input.len() // input
     }
 }
 
@@ -100,8 +106,9 @@ impl RlpEcdsaTx for TxSeismic {
             + self.gas_limit.length()
             + self.to.length()
             + self.value.length()
-            + self.input.length()
             + self.encryption_pubkey.length()
+            + self.eip712_version.length()
+            + self.input.length()
     }
 
     /// Encodes only the transaction's fields into the desired buffer, without
@@ -113,8 +120,9 @@ impl RlpEcdsaTx for TxSeismic {
         self.gas_limit.encode(out);
         self.to.encode(out);
         self.value.encode(out);
-        self.input.encode(out);
         self.encryption_pubkey.encode(out);
+        self.eip712_version.encode(out);
+        self.input.encode(out);
     }
 
     /// Decodes the inner [TxSeismic] fields from RLP bytes.
@@ -139,8 +147,9 @@ impl RlpEcdsaTx for TxSeismic {
             gas_limit: Decodable::decode(buf)?,
             to: Decodable::decode(buf)?,
             value: Decodable::decode(buf)?,
-            input: Decodable::decode(buf)?,
             encryption_pubkey: Decodable::decode(buf)?,
+            eip712_version: Decodable::decode(buf)?,
+            input: Decodable::decode(buf)?,
         })
     }
 }
@@ -234,6 +243,11 @@ impl Transaction for TxSeismic {
     fn encryption_pubkey(&self) -> Option<&FixedBytes<33>> {
         Some(&self.encryption_pubkey)
     }
+
+    #[inline]
+    fn eip712_version(&self) -> Option<u8> {
+        Some(self.eip712_version)   
+    }
 }
 
 impl Typed2718 for TxSeismic {
@@ -311,6 +325,7 @@ pub(super) mod serde_bincode_compat {
         to: TxKind,
         value: U256,
         encryption_pubkey: Cow<'a, crate::transaction::EncryptionPublicKey>,
+        eip712_version: u8,
         input: Cow<'a, Bytes>,
     }
 
@@ -324,6 +339,7 @@ pub(super) mod serde_bincode_compat {
                 to: value.to,
                 value: value.value,
                 encryption_pubkey: Cow::Borrowed(&value.encryption_pubkey),
+                eip712_version: value.eip712_version,
                 input: Cow::Borrowed(&value.input),
             }
         }
@@ -339,6 +355,7 @@ pub(super) mod serde_bincode_compat {
                 to: value.to,
                 value: value.value,
                 encryption_pubkey: value.encryption_pubkey.into_owned(),
+                eip712_version: value.eip712_version,
                 input: value.input.into_owned(),
             }
         }
@@ -412,8 +429,9 @@ mod tests {
             gas_limit: 100000,
             to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
             value: U256::from(1000000000000000u64),
-            input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
             encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
+            eip712_version: 0,
+            input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
 
         let sig = Signature::from_scalars_and_parity(

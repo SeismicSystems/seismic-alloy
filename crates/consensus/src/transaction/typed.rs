@@ -374,6 +374,14 @@ impl Transaction for TypedTransaction {
             _ => None,
         }
     }
+
+    #[inline]
+    fn eip712_version(&self) -> Option<u8> {
+        match self {
+            Self::Seismic(tx) => tx.eip712_version(),
+            _ => None,
+        }
+    }
 }
 
 impl Typed2718 for TypedTransaction {
