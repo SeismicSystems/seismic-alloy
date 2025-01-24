@@ -246,7 +246,7 @@ impl Transaction for TxSeismic {
 
     #[inline]
     fn eip712_version(&self) -> Option<u8> {
-        Some(self.eip712_version)   
+        Some(self.eip712_version)
     }
 }
 
