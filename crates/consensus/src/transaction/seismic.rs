@@ -1,7 +1,9 @@
 use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, TxType, Typed2718};
+use alloy_dyn_abi::{Eip712Domain, Resolver, TypedData};
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
-    Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
+    keccak256, Address, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256,
+    U256,
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
@@ -92,6 +94,57 @@ impl TxSeismic {
         self.encryption_pubkey.len() + // encryption public key
         mem::size_of::<u8>() + // eip712_version
         self.input.len() // input
+    }
+
+    fn eip712_typed_data(&self) -> TypedData {
+        let typed_data_json = serde_json::json!({
+            "types": {
+                "EIP712Domain": [
+                  { "name": "name", "type": "string" },
+                  { "name": "version", "type": "string" },
+                  { "name": "chainId", "type": "uint256" },
+                  { "name": "verifyingContract", "type": "address" },
+                ],
+                "TxSeismic": [
+                  { "name": "chainId", "type": "uint64" },
+                  { "name": "nonce", "type": "uint64" },
+                  { "name": "gasPrice", "type": "uint128" },
+                  { "name": "gasLimit", "type": "uint64" },
+                  // if blank, we assume it's a create
+                  { "name": "to", "type": "address" },
+                  { "name": "value", "type": "uint256" },
+                  // compressed secp256k1 public key (33 bytes)
+                  { "name": "encryptionPubkey", "type": "bytes" },
+                  { "name": "eip712Version", "type": "uint8" },
+                  { "name": "input", "type": "bytes" },
+                ],
+            },
+            "primaryType": "TxSeismic",
+            "domain": {
+                "name": "Seismic Transaction",
+                "version": self.eip712_version.to_string(),
+                "chainId": self.chain_id,
+                // no verifying contract since this happens in RPC
+                "verifyingContract": "0x0000000000000000000000000000000000000000",
+            },
+            "message": {
+                "chainId": self.chain_id,
+                "nonce": self.nonce,
+                "gasPrice": self.gas_price,
+                "gasLimit": self.gas_limit,
+                "to": self.to,
+                "value": self.value,
+                "input": self.input,
+                "encryptionPubkey": self.encryption_pubkey,
+                "eip712Version": self.eip712_version,
+            }
+        });
+        serde_json::from_value(typed_data_json).unwrap()
+    }
+
+    fn eip712_signature_hash(&self) -> B256 {
+        let typed_data = self.eip712_typed_data();
+        typed_data.eip712_signing_hash().unwrap()
     }
 }
 
@@ -274,6 +327,13 @@ impl SignableTransaction<Signature> for TxSeismic {
         let tx_hash = self.tx_hash(&signature);
         Signed::new_unchecked(self, signature, tx_hash)
     }
+
+    fn signature_hash(&self) -> B256 {
+        match self.eip712_version {
+            0 => keccak256(self.encoded_for_signing()),
+            _ => self.eip712_signature_hash(),
+        }
+    }
 }
 
 impl Encodable for TxSeismic {
@@ -419,7 +479,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encode_decode_seismic() {
+    fn test_encode_decode_seismic() {
         let hash: B256 = b256!("ffd93383034710825540c4442e145373527004c42f20595cab5e33423a9637f9");
 
         let tx = TxSeismic {
@@ -446,5 +506,22 @@ mod tests {
         assert_eq!(decoded, tx.clone().into_signed(sig));
         assert_eq!(*decoded.hash(), hash);
         assert_eq!(decoded.tx().clone(), tx.clone());
+    }
+
+    #[test]
+    fn test_eip712_signature_hash() {
+        let tx = TxSeismic {
+            chain_id: 4u64,
+            nonce: 2,
+            gas_price: 1000000000,
+            gas_limit: 100000,
+            to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
+            value: U256::from(1000000000000000u64),
+            encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
+            eip712_version: 1,
+            input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
+        };
+        let hash = tx.eip712_signature_hash();
+        assert_eq!(hash, hex!("261fbcf5298b1f7583525a9e29d6766dfcd97b379915b0b95e98d4face1d9182"));
     }
 }
