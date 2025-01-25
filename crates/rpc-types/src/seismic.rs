@@ -47,6 +47,12 @@ impl Into<SeismicCallRequest> for WithOtherFields<TransactionRequest> {
     }
 }
 
+impl Into<SeismicCallRequest> for TransactionRequest {
+    fn into(self) -> SeismicCallRequest {
+        SeismicCallRequest::TransactionRequest(WithOtherFields::new(self))
+    }
+}
+
 impl Into<SeismicCallRequest> for Bytes {
     fn into(self) -> SeismicCallRequest {
         SeismicCallRequest::Bytes(self)
