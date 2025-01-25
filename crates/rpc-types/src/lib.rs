@@ -39,3 +39,6 @@ pub use alloy_rpc_types_trace as trace;
 
 #[cfg(feature = "txpool")]
 pub use alloy_rpc_types_txpool as txpool;
+
+mod seismic;
+pub use seismic::*;
