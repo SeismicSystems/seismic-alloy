@@ -1,6 +1,6 @@
+use crate::TransactionRequest;
 use alloy_dyn_abi::TypedData;
 use alloy_primitives::{Bytes, PrimitiveSignature};
-use crate::TransactionRequest;
 use alloy_serde::WithOtherFields;
 use serde::{Deserialize, Serialize};
 
