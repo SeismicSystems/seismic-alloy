@@ -708,6 +708,14 @@ impl Transaction for TxEnvelope {
             _ => None,
         }
     }
+
+    #[inline]
+    fn message_version(&self) -> Option<u8> {
+        match self {
+            Self::Seismic(tx) => tx.tx().message_version(),
+            _ => None,
+        }
+    }
 }
 
 impl Typed2718 for TxEnvelope {
@@ -1354,8 +1362,9 @@ mod tests {
             gas_limit: 50_000,
             to: Address::default().into(),
             value: U256::from(10e18),
-            input: Bytes::new(),
             encryption_pubkey: EncryptionPublicKey::new([0u8; 33]),
+            message_version: 0,
+            input: Bytes::new(),
         };
         test_serde_roundtrip(tx);
     }

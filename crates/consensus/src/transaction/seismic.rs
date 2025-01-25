@@ -1,7 +1,8 @@
 use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, TxType, Typed2718};
+use alloy_dyn_abi::TypedData;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
-    Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
+    keccak256, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
@@ -53,6 +54,10 @@ pub struct TxSeismic {
     /// The public key we will decrypt to
     #[cfg_attr(feature = "serde", serde(alias = "encryptionPubkey"))]
     pub encryption_pubkey: EncryptionPublicKey,
+    /// The EIP712 version of the transaction when the user submitted it using signTypedDataV4.
+    /// A value of 0 means the transaction was not signed using EIP712
+    #[cfg_attr(feature = "serde", serde(alias = "messageVersion", default))]
+    pub message_version: u8,
     /// Input has two uses depending if transaction is Create or Call (if `to` field is None or
     /// Some). pub init: An unlimited size byte array specifying the
     /// EVM-code for the account initialisation procedure CREATE,
@@ -84,8 +89,68 @@ impl TxSeismic {
         mem::size_of::<u128>() + // max_priority_fee_per_gas
         self.to.size() + // to
         mem::size_of::<U256>() + // value
-        self.input.len() + // input
-        self.encryption_pubkey.len() // encryption public key
+        self.encryption_pubkey.len() + // encryption public key
+        mem::size_of::<u8>() + // message_version
+        self.input.len() // input
+    }
+
+    fn eip712_typed_data(&self) -> TypedData {
+        let typed_data_json = serde_json::json!({
+            "types": {
+                "EIP712Domain": [
+                  { "name": "name", "type": "string" },
+                  { "name": "version", "type": "string" },
+                  { "name": "chainId", "type": "uint256" },
+                  { "name": "verifyingContract", "type": "address" },
+                ],
+                "TxSeismic": [
+                  { "name": "chainId", "type": "uint64" },
+                  { "name": "nonce", "type": "uint64" },
+                  { "name": "gasPrice", "type": "uint128" },
+                  { "name": "gasLimit", "type": "uint64" },
+                  // if blank, we assume it's a create
+                  { "name": "to", "type": "address" },
+                  { "name": "value", "type": "uint256" },
+                  // compressed secp256k1 public key (33 bytes)
+                  { "name": "encryptionPubkey", "type": "bytes" },
+                  { "name": "messageVersion", "type": "uint8" },
+                  { "name": "input", "type": "bytes" },
+                ],
+            },
+            "primaryType": "TxSeismic",
+            "domain": {
+                "name": "Seismic Transaction",
+                "version": self.message_version.to_string(),
+                "chainId": self.chain_id,
+                // no verifying contract since this happens in RPC
+                "verifyingContract": "0x0000000000000000000000000000000000000000",
+            },
+            "message": {
+                "chainId": self.chain_id,
+                "nonce": self.nonce,
+                "gasPrice": self.gas_price,
+                "gasLimit": self.gas_limit,
+                "to": self.to,
+                "value": self.value,
+                "input": self.input,
+                "encryptionPubkey": self.encryption_pubkey,
+                "messageVersion": self.message_version,
+            }
+        });
+        serde_json::from_value(typed_data_json).unwrap()
+    }
+
+    fn eip712_signature_hash(&self) -> B256 {
+        let typed_data = self.eip712_typed_data();
+        typed_data.eip712_signing_hash().unwrap()
+    }
+}
+
+impl TryFrom<TypedData> for TxSeismic {
+    type Error = serde_json::Error;
+
+    fn try_from(value: TypedData) -> Result<Self, Self::Error> {
+        serde_json::from_value(value.message)
     }
 }
 
@@ -100,8 +165,9 @@ impl RlpEcdsaTx for TxSeismic {
             + self.gas_limit.length()
             + self.to.length()
             + self.value.length()
-            + self.input.length()
             + self.encryption_pubkey.length()
+            + self.message_version.length()
+            + self.input.length()
     }
 
     /// Encodes only the transaction's fields into the desired buffer, without
@@ -113,8 +179,9 @@ impl RlpEcdsaTx for TxSeismic {
         self.gas_limit.encode(out);
         self.to.encode(out);
         self.value.encode(out);
-        self.input.encode(out);
         self.encryption_pubkey.encode(out);
+        self.message_version.encode(out);
+        self.input.encode(out);
     }
 
     /// Decodes the inner [TxSeismic] fields from RLP bytes.
@@ -139,8 +206,9 @@ impl RlpEcdsaTx for TxSeismic {
             gas_limit: Decodable::decode(buf)?,
             to: Decodable::decode(buf)?,
             value: Decodable::decode(buf)?,
-            input: Decodable::decode(buf)?,
             encryption_pubkey: Decodable::decode(buf)?,
+            message_version: Decodable::decode(buf)?,
+            input: Decodable::decode(buf)?,
         })
     }
 }
@@ -234,6 +302,11 @@ impl Transaction for TxSeismic {
     fn encryption_pubkey(&self) -> Option<&FixedBytes<33>> {
         Some(&self.encryption_pubkey)
     }
+
+    #[inline]
+    fn message_version(&self) -> Option<u8> {
+        Some(self.message_version)
+    }
 }
 
 impl Typed2718 for TxSeismic {
@@ -259,6 +332,15 @@ impl SignableTransaction<Signature> for TxSeismic {
     fn into_signed(self, signature: Signature) -> Signed<Self> {
         let tx_hash = self.tx_hash(&signature);
         Signed::new_unchecked(self, signature, tx_hash)
+    }
+
+    fn signature_hash(&self) -> B256 {
+        match self.message_version {
+            0 => keccak256(self.encoded_for_signing()),
+            // TODO: reserved for supporting personal_sign
+            1 => keccak256(self.encoded_for_signing()),
+            _ => self.eip712_signature_hash(),
+        }
     }
 }
 
@@ -311,6 +393,7 @@ pub(super) mod serde_bincode_compat {
         to: TxKind,
         value: U256,
         encryption_pubkey: Cow<'a, crate::transaction::EncryptionPublicKey>,
+        message_version: u8,
         input: Cow<'a, Bytes>,
     }
 
@@ -324,6 +407,7 @@ pub(super) mod serde_bincode_compat {
                 to: value.to,
                 value: value.value,
                 encryption_pubkey: Cow::Borrowed(&value.encryption_pubkey),
+                message_version: value.message_version,
                 input: Cow::Borrowed(&value.input),
             }
         }
@@ -339,6 +423,7 @@ pub(super) mod serde_bincode_compat {
                 to: value.to,
                 value: value.value,
                 encryption_pubkey: value.encryption_pubkey.into_owned(),
+                message_version: value.message_version,
                 input: value.input.into_owned(),
             }
         }
@@ -402,8 +487,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encode_decode_seismic() {
-        let hash: B256 = b256!("ffd93383034710825540c4442e145373527004c42f20595cab5e33423a9637f9");
+    fn test_encode_decode_seismic() {
+        let hash: B256 = b256!("1ecf0fb8b70b4e94745ac04bd99f07321199fce3a8f58b3bc3f9c9c837e47a73");
 
         let tx = TxSeismic {
             chain_id: 4u64,
@@ -412,8 +497,9 @@ mod tests {
             gas_limit: 100000,
             to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
             value: U256::from(1000000000000000u64),
-            input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
             encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
+            message_version: 0,
+            input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
 
         let sig = Signature::from_scalars_and_parity(
@@ -428,5 +514,52 @@ mod tests {
         assert_eq!(decoded, tx.clone().into_signed(sig));
         assert_eq!(*decoded.hash(), hash);
         assert_eq!(decoded.tx().clone(), tx.clone());
+
+        #[cfg(feature = "k256")]
+        {
+            let signer = decoded.recover_signer().unwrap();
+            assert_eq!(
+                signer,
+                Address::from_str("0xe71a5dd0b0471f425f48ca05376f2251d58af0ea").unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn test_eip712_signature_hash() {
+        let tx = TxSeismic {
+            chain_id: 4u64,
+            nonce: 2,
+            gas_price: 1000000000,
+            gas_limit: 100000,
+            to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
+            value: U256::from(1000000000000000u64),
+            encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
+            message_version: 2,
+            input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
+        };
+        let hash = tx.eip712_signature_hash();
+        assert_eq!(hash, hex!("d42ee5391f06e5d4a40f7b656404481610ec615aa5f36c2d63854ed5714a3464"));
+
+        let sig = Signature::from_scalars_and_parity(
+            b256!("840cfc572845f5786e702984c2a582528cad4b49b2a10b9db1be7fca90058565"),
+            b256!("25e7109ceb98168d95b09b18bbf6b685130e0562f233877d492b94eee0c5b6d1"),
+            false,
+        );
+        let mut buf = vec![];
+        tx.rlp_encode_signed(&sig, &mut buf);
+
+        let hash = tx.tx_hash(&sig);
+        assert_eq!(hash, b256!("bea70b50e74af223e058172d9296d40f03b95d61c28ef13424077c08c6832089"));
+
+        #[cfg(feature = "k256")]
+        {
+            let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
+            let signer = decoded.recover_signer().unwrap();
+            assert_eq!(
+                signer,
+                Address::from_str("0x3e168ec5f874f22568ccd3a501e0720547288d23").unwrap()
+            );
+        }
     }
 }

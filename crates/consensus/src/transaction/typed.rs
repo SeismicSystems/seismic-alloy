@@ -374,6 +374,14 @@ impl Transaction for TypedTransaction {
             _ => None,
         }
     }
+
+    #[inline]
+    fn message_version(&self) -> Option<u8> {
+        match self {
+            Self::Seismic(tx) => tx.message_version(),
+            _ => None,
+        }
+    }
 }
 
 impl Typed2718 for TypedTransaction {
