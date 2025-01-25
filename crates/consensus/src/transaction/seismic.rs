@@ -2,7 +2,7 @@ use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, T
 use alloy_dyn_abi::TypedData;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
-    keccak256, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
+    keccak256, Address, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, SignatureError, TxKind, B256, U256
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
@@ -94,7 +94,7 @@ impl TxSeismic {
         self.input.len() // input
     }
 
-    fn eip712_typed_data(&self) -> TypedData {
+    fn eip712_typed_data(&self, domain_name: &str) -> TypedData {
         let typed_data_json = serde_json::json!({
             "types": {
                 "EIP712Domain": [
@@ -119,7 +119,7 @@ impl TxSeismic {
             },
             "primaryType": "TxSeismic",
             "domain": {
-                "name": "Seismic Transaction",
+                "name": domain_name,
                 "version": self.message_version.to_string(),
                 "chainId": self.chain_id,
                 // no verifying contract since this happens in RPC
@@ -140,8 +140,12 @@ impl TxSeismic {
         serde_json::from_value(typed_data_json).unwrap()
     }
 
-    fn eip712_signature_hash(&self) -> B256 {
-        let typed_data = self.eip712_typed_data();
+    fn eip712_signature_hash(&self, is_signed_call: bool) -> B256 {
+        let domain_name = match is_signed_call {
+            false => "Seismic Transaction",
+            true => "Signed Call",
+        };
+        let typed_data = self.eip712_typed_data(domain_name);
         typed_data.eip712_signing_hash().unwrap()
     }
 }
@@ -339,8 +343,22 @@ impl SignableTransaction<Signature> for TxSeismic {
             0 => keccak256(self.encoded_for_signing()),
             // TODO: reserved for supporting personal_sign
             1 => keccak256(self.encoded_for_signing()),
-            _ => self.eip712_signature_hash(),
+            _ => self.eip712_signature_hash(false),
         }
+    }
+}
+
+impl Signed<TxSeismic> {
+    /// If this was a signed call, recover the caller's address
+    /// Main difference is we have to change the EIP domain name
+    /// to be "Signed Call" instead of "Seismic Transaction"
+    pub fn recover_caller(&self) -> Result<Address, SignatureError> {
+        let tx = self.tx();        
+        if tx.message_version < 2 {
+            return self.recover_signer();
+        }
+        let tx_hash: FixedBytes<32> = tx.eip712_signature_hash(true);
+        self.signature().recover_address_from_prehash(&tx_hash)
     }
 }
 
@@ -538,7 +556,7 @@ mod tests {
             message_version: 2,
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
-        let hash = tx.eip712_signature_hash();
+        let hash = tx.eip712_signature_hash(false);
         assert_eq!(hash, hex!("d42ee5391f06e5d4a40f7b656404481610ec615aa5f36c2d63854ed5714a3464"));
 
         let sig = Signature::from_scalars_and_parity(
