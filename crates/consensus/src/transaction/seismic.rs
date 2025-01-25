@@ -2,7 +2,8 @@ use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, T
 use alloy_dyn_abi::TypedData;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
-    keccak256, Address, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, SignatureError, TxKind, B256, U256
+    keccak256, Address, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature,
+    SignatureError, TxKind, B256, U256,
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
@@ -348,12 +349,13 @@ impl SignableTransaction<Signature> for TxSeismic {
     }
 }
 
+#[cfg(feature = "k256")]
 impl Signed<TxSeismic> {
     /// If this was a signed call, recover the caller's address
     /// Main difference is we have to change the EIP domain name
     /// to be "Signed Call" instead of "Seismic Transaction"
     pub fn recover_caller(&self) -> Result<Address, SignatureError> {
-        let tx = self.tx();        
+        let tx = self.tx();
         if tx.message_version < 2 {
             return self.recover_signer();
         }
