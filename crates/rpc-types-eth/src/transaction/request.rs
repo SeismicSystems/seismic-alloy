@@ -485,6 +485,9 @@ impl TransactionRequest {
         if self.to.is_none() {
             missing.push("to");
         }
+        if self.encryption_pubkey.is_none() {
+            missing.push("encryption_pubkey");
+        }
         missing
     }
 

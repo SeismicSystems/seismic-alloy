@@ -25,6 +25,7 @@ alloy-consensus-any.workspace = true
 alloy-network-primitives.workspace = true
 alloy-rlp = { workspace = true, features = ["arrayvec", "derive"] }
 alloy-primitives = { workspace = true, features = ["rlp", "map"] }
+alloy-dyn-abi.workspace = true
 
 itertools.workspace = true
 derive_more = { workspace = true, features = ["display"] }

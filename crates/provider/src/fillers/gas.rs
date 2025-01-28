@@ -151,6 +151,7 @@ impl<N: Network> TxFiller<N> for GasFiller {
         P: Provider<T, N>,
         T: Transport + Clone,
     {
+        println!("gas filler prepare: gas_price: {:?}", tx.gas_price());
         if tx.gas_price().is_some() {
             self.prepare_legacy(provider, tx).await
         } else {

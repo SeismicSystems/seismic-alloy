@@ -1,0 +1,185 @@
+//! A provider layer that uses for filling sesimic transactions
+
+use crate::{
+    EthCall, PendingTransactionBuilder, Provider, ProviderLayer, RootProvider, SendableTx,
+};
+use alloy_consensus::{transaction::EncryptionPublicKey, TxSeismic, TxType};
+use alloy_network::{Network, TransactionBuilder};
+use alloy_primitives::{hex_literal, Bytes, FixedBytes};
+use alloy_rpc_client::NoParams;
+use alloy_transport::{Transport, TransportResult};
+use async_trait::async_trait;
+use std::marker::PhantomData;
+use tee_service_api::{ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1, SecretKey};
+
+#[derive(Debug, Clone)]
+pub struct SeismicLayer {}
+
+impl<P, T, N> ProviderLayer<P, T, N> for SeismicLayer
+where
+    P: Provider<T, N>,
+    T: Transport + Clone,
+    N: Network,
+{
+    type Provider = SeismicProvider<P, T, N>;
+
+    fn layer(&self, inner: P) -> Self::Provider {
+        SeismicProvider::new(inner)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SeismicProvider<P, T, N> {
+    /// Inner provider.
+    inner: P,
+    /// Phantom data
+    _pd: PhantomData<(T, N)>,
+}
+
+impl<P, T, N> SeismicProvider<P, T, N>
+where
+    P: Provider<T, N>,
+    T: Transport + Clone,
+    N: Network,
+{
+    fn new(inner: P) -> Self {
+        Self { inner, _pd: PhantomData }
+    }
+
+    /// Get the encryption private key
+    pub fn get_encryption_keypair(&self) -> Keypair {
+        let secp = Secp256k1::new();
+        Keypair::new(&secp, &mut rand::thread_rng())
+    }
+
+    async fn build_seismic_tx(&self, tx: &mut SendableTx<N>) {
+        println!("build_seismic_tx: tx: {:?}", tx.as_builder());
+
+        if let Some(builder) = tx.as_mut_builder() {
+            if builder.output_tx_type().into() == TxSeismic::TX_TYPE
+                && builder.input().is_some()
+                && builder.nonce().is_some()
+            {
+                let tee_pubkey =
+                    PublicKey::from_slice(self.inner.get_tee_pubkey().await.unwrap().as_slice())
+                        .unwrap();
+                let encryption_keypair = self.get_encryption_keypair();
+
+                // Generate new public/private keypair for this transaction
+                let pubkey_bytes = FixedBytes(encryption_keypair.public_key().serialize());
+                builder.set_encryption_pubkey(pubkey_bytes);
+
+                // Encrypt using recipient's public key and generated private key
+                let plaintext_input = builder.input().unwrap();
+                let encrypted_input = ecdh_encrypt(
+                    &tee_pubkey,
+                    &encryption_keypair.secret_key(),
+                    plaintext_input.to_vec(),
+                    builder.nonce().unwrap(),
+                )
+                .unwrap();
+                builder.set_input(Bytes::from(encrypted_input));
+            }
+        }
+        println!("build_seismic_tx after: tx: {:?}", tx);
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl<P, T, N> Provider<T, N> for SeismicProvider<P, T, N>
+where
+    P: Provider<T, N>,
+    T: Transport + Clone,
+    N: Network,
+{
+    fn root(&self) -> &RootProvider<T, N> {
+        self.inner.root()
+    }
+
+    // fn call<'req>(&self, tx: &'req N::TransactionRequest) -> EthCall<'req, T, N, Bytes> {
+    //     self.build_seismic_tx(tx).await;
+    //     EthCall::new(self.weak_client(), tx).block(BlockNumberOrTag::Pending.into())
+    // }
+
+    async fn send_transaction_internal(
+        &self,
+        mut tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<T, N>> {
+        self.build_seismic_tx(&mut tx).await;
+        let res = self.inner.send_transaction_internal(tx).await;
+        res
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        fillers::{NonceFiller, RecommendedFillers, SimpleNonceManager},
+        Identity,
+    };
+    use alloy_network::{Ethereum, EthereumWallet};
+    use alloy_node_bindings::{Anvil, AnvilInstance};
+    use alloy_primitives::{hex, Address, Bytes, TxKind};
+    use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
+    use alloy_signer_local::PrivateKeySigner;
+
+    use super::*;
+    use crate::{
+        fillers::{JoinFill, WalletFiller},
+        ProviderBuilder, WalletProvider,
+    };
+
+    #[tokio::test]
+    async fn test_get_tee_pubkey() {
+        let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
+        let provider = ProviderBuilder::new().with_seismic().on_http(anvil.endpoint_url());
+        let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
+        println!("test_get_tee_pubkey: tee_pubkey: {:?}", tee_pubkey);
+    }
+
+    #[tokio::test]
+    async fn test_send_transaction_internal() {
+        let plaintext = Bytes::from_static(&hex!("60806040525f5f8190b150610285806100175f395ff3fe608060405234801561000f575f5ffd5b506004361061003f575f3560e01c806324a7f0b71461004357806343bd0d701461005f578063d09de08a1461007d575b5f5ffd5b61005d600480360381019061005891906100f6565b610087565b005b610067610090565b604051610074919061013b565b60405180910390f35b6100856100a7565b005b805f8190b15050565b5f600160025fb06100a19190610181565b14905090565b5f5f81b0809291906100b8906101de565b919050b150565b5f5ffd5b5f819050919050565b6100d5816100c3565b81146100df575f5ffd5b50565b5f813590506100f0816100cc565b92915050565b5f6020828403121561010b5761010a6100bf565b5b5f610118848285016100e2565b91505092915050565b5f8115159050919050565b61013581610121565b82525050565b5f60208201905061014e5f83018461012c565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601260045260245ffd5b5f61018b826100c3565b9150610196836100c3565b9250826101a6576101a5610154565b5b828206905092915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f6101e8826100c3565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361021a576102196101b1565b5b60018201905091905056fea2646970667358221220ea421d58b6748a9089335034d76eb2f01bceafe3dfac2e57d9d2e766852904df64736f6c63782c302e382e32382d646576656c6f702e323032342e31322e392b636f6d6d69742e39383863313261662e6d6f64005d"));
+        // let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
+        let anvil = Anvil::new().spawn();
+        let wallet = get_wallet(&anvil);
+        let from = wallet.default_signer().address();
+        let wallet_layer =
+            JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet));
+        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+            JoinFill::new(Identity, NonceFiller::default());
+
+        let provider = ProviderBuilder::new()
+            .layer(nonce_layer)
+            .with_seismic()
+            .layer(wallet_layer)
+            .on_http(reqwest::Url::parse("http://localhost:8545").unwrap());
+
+        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
+
+        println!("test_send_transaction_internal: tx: {:?}", tx);
+        let res = provider.send_transaction(tx).await.unwrap();
+        println!("test_send_transaction_internal: res: {:?}", res);
+
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    }
+
+    fn build_seismic_tx(plaintext: Bytes, to: TxKind, from: Address) -> TransactionRequest {
+        TransactionRequest {
+            from: Some(from),
+            to: Some(to),
+            input: TransactionInput { input: Some(plaintext), data: None },
+            transaction_type: Some(TxSeismic::TX_TYPE),
+            gas_price: Some(20e9 as u128), /* make seismic tx treated as legacy tx when estimate
+                                            * for gas */
+            ..Default::default()
+        }
+    }
+
+    fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {
+        let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
+        let wallet = EthereumWallet::from(bob.clone());
+        wallet
+    }
+}

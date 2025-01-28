@@ -14,8 +14,8 @@ use alloy_json_rpc::{RpcError, RpcParam, RpcReturn};
 use alloy_network::{Ethereum, Network};
 use alloy_network_primitives::{BlockResponse, BlockTransactionsKind, ReceiptResponse};
 use alloy_primitives::{
-    hex, Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, B256, U128,
-    U256, U64,
+    hex, Address, BlockHash, BlockNumber, Bytes, FixedBytes, StorageKey, StorageValue, TxHash,
+    B256, U128, U256, U64,
 };
 use alloy_rpc_client::{ClientRef, NoParams, PollerBuilder, WeakClient};
 use alloy_rpc_types_eth::{
@@ -23,6 +23,7 @@ use alloy_rpc_types_eth::{
     AccessListResult, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter,
     FilterChanges, Index, Log, SyncStatus,
 };
+use alloy_signer::k256::PublicKey;
 use alloy_transport::{BoxTransport, Transport, TransportResult};
 use serde_json::value::RawValue;
 use std::borrow::Cow;
@@ -733,6 +734,7 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         encoded_tx: &[u8],
     ) -> TransportResult<PendingTransactionBuilder<T, N>> {
         let rlp_hex = hex::encode_prefixed(encoded_tx);
+        println!("root send_raw_transaction: rlp_hex: {:?}", rlp_hex);
         let tx_hash = self.client().request("eth_sendRawTransaction", (rlp_hex,)).await?;
         Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
     }
@@ -793,11 +795,13 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
 
         match tx {
             SendableTx::Builder(mut tx) => {
+                println!("root send_transaction_internal: buildertx: {:?}", tx);
                 alloy_network::TransactionBuilder::prep_for_submission(&mut tx);
                 let tx_hash = self.client().request("eth_sendTransaction", (tx,)).await?;
                 Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
             }
             SendableTx::Envelope(tx) => {
+                println!("root send_transaction_internal: envelope tx: {:?}", tx);
                 let encoded_tx = tx.encoded_2718();
                 self.send_raw_transaction(&encoded_tx).await
             }
@@ -1064,6 +1068,12 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
     fn transaction_request(&self) -> N::TransactionRequest {
         Default::default()
     }
+
+    /// Get the tee public key.
+    #[inline]
+    fn get_tee_pubkey(&self) -> ProviderCall<T, NoParams, FixedBytes<33>> {
+        self.client().request_noparams("seismic_getTeePublicKey").into()
+    }
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -1179,7 +1189,7 @@ mod tests {
             }
         }
 
-        #[derive(Clone)] // required
+        #[derive(Clone)] // requiret
         struct LoggingService<S> {
             inner: S,
         }
