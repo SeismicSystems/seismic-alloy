@@ -180,16 +180,10 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
-        let wallet_layer =
-            JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet.clone()));
-        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-            JoinFill::new(Identity, NonceFiller::default());
-
-        let provider = ProviderBuilder::new()
-            .layer(nonce_layer)
-            .with_seismic()
-            .layer(wallet_layer) // wallet layer signs the transaction
-            .on_http(reqwest::Url::parse("http://localhost:8545").unwrap());
+        let provider = create_seismic_provider(
+            wallet.clone(),
+            reqwest::Url::parse("http://localhost:8545").unwrap(),
+        );
 
         let from = wallet.default_signer().address();
         let tx = build_seismic_tx(plaintext, TxKind::Create, from);
@@ -203,13 +197,10 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
-        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-            JoinFill::new(Identity, NonceFiller::default());
-
-        let provider = ProviderBuilder::new()
-            .layer(nonce_layer)
-            .with_seismic()
-            .on_http(reqwest::Url::parse("http://localhost:8545").unwrap());
+        let provider = create_seismic_provider(
+            wallet.clone(),
+            reqwest::Url::parse("http://localhost:8545").unwrap(),
+        );
 
         let from = wallet.default_signer().address();
         let tx = build_seismic_tx(plaintext, TxKind::Create, from);
