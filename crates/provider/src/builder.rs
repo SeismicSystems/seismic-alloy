@@ -255,11 +255,6 @@ impl<L, F, N> ProviderBuilder<L, F, N> {
         self.layer(chain_layer)
     }
 
-    pub fn with_seismic(self) -> ProviderBuilder<Stack<crate::layers::SeismicLayer, L>, F, N> {
-        let seismic_layer = crate::layers::SeismicLayer {};
-        self.layer(seismic_layer)
-    }
-
     /// Finish the layer stack by providing a root [`Provider`], outputting
     /// the final [`Provider`] type with all stack components.
     pub fn on_provider<P, T>(self, provider: P) -> F::Provider

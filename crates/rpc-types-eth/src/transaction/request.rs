@@ -485,9 +485,6 @@ impl TransactionRequest {
         if self.to.is_none() {
             missing.push("to");
         }
-        if self.encryption_pubkey.is_none() {
-            missing.push("encryption_pubkey");
-        }
         missing
     }
 
@@ -579,7 +576,7 @@ impl TransactionRequest {
     /// - EIP-1559 in all other cases
     pub const fn preferred_type(&self) -> TxType {
         if let Some(SEISMIC_TX_TYPE_ID) = self.transaction_type {
-            return TxType::Seismic;
+            TxType::Seismic
         } else if self.authorization_list.is_some() {
             TxType::Eip7702
         } else if self.sidecar.is_some() || self.max_fee_per_blob_gas.is_some() {

@@ -92,7 +92,9 @@ where
     type Fillable = (Option<L::Fillable>, Option<R::Fillable>);
 
     fn status(&self, tx: &N::TransactionRequest) -> FillerControlFlow {
-        self.left.status(tx).absorb(self.right.status(tx))
+        let left_status = self.left.status(tx);
+        let right_status = self.right.status(tx);
+        left_status.absorb(right_status)
     }
 
     fn fill_sync(&self, tx: &mut SendableTx<N>) {
