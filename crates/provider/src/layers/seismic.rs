@@ -10,9 +10,9 @@ use crate::{
 use alloy_consensus::TxSeismic;
 use alloy_network::{Ethereum, EthereumWallet, Network, TransactionBuilder};
 use alloy_primitives::{Bytes, FixedBytes};
-use alloy_transport::{Transport, TransportResult};
+use alloy_transport::{Transport, TransportErrorKind, TransportResult};
 use std::marker::PhantomData;
-use tee_service_api::{ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
+use tee_service_api::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
 
 /// Creates a new provider with seismic and wallet capabilities
 pub fn create_seismic_provider(
@@ -95,11 +95,78 @@ where
         let secp = Secp256k1::new();
         Keypair::new(&secp, &mut rand::thread_rng())
     }
+}
 
-    /// Build a seismic transaction with encrypted input
-    async fn build_seismic_tx(&self, tx: &mut SendableTx<N>) {
-        println!("build_seismic_tx: tx: {:?}", tx.as_builder());
+/// Implement the Provider trait for the SeismicProvider
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl<P, T, N> Provider<T, N> for SeismicProvider<P, T, N>
+where
+    P: Provider<T, N>,
+    T: Transport + Clone,
+    N: Network,
+{
+    fn root(&self) -> &RootProvider<T, N> {
+        self.inner.root()
+    }
 
+    async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
+        if let Some(builder) = tx.as_mut_builder() {
+            if builder.output_tx_type().into() == TxSeismic::TX_TYPE
+                && builder.input().is_some()
+                && builder.nonce().is_some()
+            {
+                let tee_pubkey =
+                    PublicKey::from_slice(self.inner.get_tee_pubkey().await.unwrap().as_slice())
+                        .unwrap();
+                let encryption_keypair = self.get_encryption_keypair();
+
+                // Generate new public/private keypair for this transaction
+                let pubkey_bytes = FixedBytes(encryption_keypair.public_key().serialize());
+                builder.set_encryption_pubkey(pubkey_bytes);
+
+                // Encrypt using recipient's public key and generated private key
+                let plaintext_input = builder.input().unwrap();
+                let encrypted_input = ecdh_encrypt(
+                    &tee_pubkey,
+                    &encryption_keypair.secret_key(),
+                    plaintext_input.to_vec(),
+                    builder.nonce().unwrap(),
+                )
+                .unwrap();
+                builder.set_input(Bytes::from(encrypted_input));
+
+                // decrypting output
+                return self
+                    .inner
+                    .seismic_call(SendableTx::Builder(builder.clone()))
+                    .await
+                    .and_then(|encrypted_output| {
+                        // Decrypt the output using the encryption keypair
+                        let decrypted_output = ecdh_decrypt(
+                            &tee_pubkey,
+                            &encryption_keypair.secret_key(),
+                            encrypted_output.to_vec(),
+                            builder.nonce().unwrap(),
+                        )
+                        .map_err(|e| {
+                            TransportErrorKind::custom_str(&format!(
+                                "Error decrypting output: {:?}",
+                                e
+                            ))
+                        })?;
+                        Ok(Bytes::from(decrypted_output))
+                    });
+            }
+        }
+        let res = self.inner.seismic_call(tx).await;
+        res
+    }
+
+    async fn send_transaction_internal(
+        &self,
+        mut tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<T, N>> {
         if let Some(builder) = tx.as_mut_builder() {
             if builder.output_tx_type().into() == TxSeismic::TX_TYPE
                 && builder.input().is_some()
@@ -126,34 +193,6 @@ where
                 builder.set_input(Bytes::from(encrypted_input));
             }
         }
-        println!("build_seismic_tx after: tx: {:?}", tx);
-    }
-}
-
-/// Implement the Provider trait for the SeismicProvider
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-impl<P, T, N> Provider<T, N> for SeismicProvider<P, T, N>
-where
-    P: Provider<T, N>,
-    T: Transport + Clone,
-    N: Network,
-{
-    fn root(&self) -> &RootProvider<T, N> {
-        self.inner.root()
-    }
-
-    async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
-        self.build_seismic_tx(&mut tx).await;
-        println!("seismic_call in seismic layer: tx: {:?}", tx);
-        self.inner.seismic_call(tx).await
-    }
-
-    async fn send_transaction_internal(
-        &self,
-        mut tx: SendableTx<N>,
-    ) -> TransportResult<PendingTransactionBuilder<T, N>> {
-        self.build_seismic_tx(&mut tx).await;
         let res = self.inner.send_transaction_internal(tx).await;
         res
     }
