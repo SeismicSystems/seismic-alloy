@@ -1,18 +1,9 @@
-use alloy_dyn_abi::TypedData;
-use alloy_primitives::{Bytes, PrimitiveSignature};
+use alloy_eips::eip712::TypedDataRequest;
+use alloy_primitives::Bytes;
 use alloy_serde::WithOtherFields;
 use serde::{Deserialize, Serialize};
 
 use crate::TransactionRequest;
-
-/// An EIP-712 typed data request with a signature
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct TypedDataRequest {
-    /// The EIP-712 typed data
-    pub data: TypedData,
-    /// The signature
-    pub signature: PrimitiveSignature,
-}
 
 /// Either normal raw tx or typed data with signature
 #[derive(Debug, Deserialize, Serialize, Clone)]

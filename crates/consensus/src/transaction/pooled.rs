@@ -9,6 +9,7 @@ use crate::{
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
     eip2930::AccessList,
+    eip712::{Decodable712, Eip712Result, TypedDataRequest},
     eip7702::SignedAuthorization,
 };
 use alloy_primitives::{
