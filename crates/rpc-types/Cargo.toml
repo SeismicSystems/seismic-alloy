@@ -31,7 +31,6 @@ alloy-rpc-types-mev = { workspace = true, optional = true }
 alloy-rpc-types-trace = { workspace = true, optional = true }
 alloy-rpc-types-txpool = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive", "std"] }
-alloy-dyn-abi.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

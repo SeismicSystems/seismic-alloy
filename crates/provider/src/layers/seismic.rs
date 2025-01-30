@@ -2,20 +2,17 @@
 
 use crate::{
     fillers::{
-        FillProvider, JoinFill, NonceFiller, RecommendedFillers, SimpleNonceManager, TxFiller,
-        WalletFiller,
+        FillProvider, JoinFill, NonceFiller, RecommendedFillers, SimpleNonceManager, WalletFiller,
     },
     Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider,
-    SendableTx, WalletProvider,
+    SendableTx,
 };
-use alloy_consensus::{transaction::EncryptionPublicKey, TxSeismic, TxType};
+use alloy_consensus::TxSeismic;
 use alloy_network::{Ethereum, EthereumWallet, Network, TransactionBuilder};
-use alloy_primitives::{hex_literal, Bytes, FixedBytes};
-use alloy_rpc_client::NoParams;
+use alloy_primitives::{Bytes, FixedBytes};
 use alloy_transport::{Transport, TransportResult};
-use async_trait::async_trait;
 use std::marker::PhantomData;
-use tee_service_api::{ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1, SecretKey};
+use tee_service_api::{ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
 
 /// Creates a new provider with seismic and wallet capabilities
 pub fn create_seismic_provider(
@@ -56,6 +53,7 @@ pub fn create_seismic_provider(
         .on_http(url)
 }
 
+/// Seismic middlware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
 pub struct SeismicLayer {}
 
@@ -72,6 +70,7 @@ where
     }
 }
 
+/// Seismic middlware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
 pub struct SeismicProvider<P, T, N> {
     /// Inner provider.
@@ -86,6 +85,7 @@ where
     T: Transport + Clone,
     N: Network,
 {
+    /// Create a new seismic provider
     fn new(inner: P) -> Self {
         Self { inner, _pd: PhantomData }
     }
@@ -96,6 +96,7 @@ where
         Keypair::new(&secp, &mut rand::thread_rng())
     }
 
+    /// Build a seismic transaction with encrypted input
     async fn build_seismic_tx(&self, tx: &mut SendableTx<N>) {
         println!("build_seismic_tx: tx: {:?}", tx.as_builder());
 
@@ -129,8 +130,9 @@ where
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+/// Implement the Provider trait for the SeismicProvider
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl<P, T, N> Provider<T, N> for SeismicProvider<P, T, N>
 where
     P: Provider<T, N>,
@@ -159,10 +161,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        fillers::{NonceFiller, RecommendedFillers, SimpleNonceManager},
-        Identity,
-    };
     use alloy_network::{Ethereum, EthereumWallet};
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::{hex, Address, Bytes, TxKind};
@@ -170,10 +168,6 @@ mod tests {
     use alloy_signer_local::PrivateKeySigner;
 
     use super::*;
-    use crate::{
-        fillers::{JoinFill, WalletFiller},
-        ProviderBuilder, WalletProvider,
-    };
 
     #[tokio::test]
     async fn test_seismic_signed_call() {
@@ -301,7 +295,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_tee_pubkey() {
         let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
-        let provider = ProviderBuilder::new().with_seismic().on_http(anvil.endpoint_url());
+        let provider = ProviderBuilder::new()
+            .network::<Ethereum>()
+            .layer(SeismicLayer {})
+            .on_http(anvil.endpoint_url());
         let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
         println!("test_get_tee_pubkey: tee_pubkey: {:?}", tee_pubkey);
     }

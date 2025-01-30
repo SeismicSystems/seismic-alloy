@@ -23,7 +23,6 @@ use alloy_rpc_types_eth::{
     AccessListResult, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter,
     FilterChanges, Index, Log, SyncStatus,
 };
-use alloy_signer::k256::PublicKey;
 use alloy_transport::{BoxTransport, Transport, TransportResult};
 use serde_json::value::RawValue;
 use std::borrow::Cow;
@@ -156,9 +155,9 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         EthCall::new(self.weak_client(), tx).block(BlockNumberOrTag::Pending.into())
     }
 
-    async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
-            SendableTx::Builder(mut tx) => {
+            SendableTx::Builder(tx) => {
                 let output = self.client().request("eth_call", (tx,)).await?;
                 Ok(output)
             }
