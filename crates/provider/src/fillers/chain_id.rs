@@ -57,9 +57,10 @@ impl<N: Network> TxFiller<N> for ChainIdFiller {
     type Fillable = ChainId;
 
     fn status(&self, tx: &N::TransactionRequest) -> FillerControlFlow {
-        match tx.chain_id() {
-            Some(_) => FillerControlFlow::Finished,
-            None => FillerControlFlow::Ready,
+        if tx.chain_id().is_some() {
+            FillerControlFlow::Finished
+        } else {
+            FillerControlFlow::Ready
         }
     }
 

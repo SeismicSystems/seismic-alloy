@@ -1200,7 +1200,7 @@ mod tests {
             }
         }
 
-        #[derive(Clone)] // requiret
+        #[derive(Clone)] // required
         struct LoggingService<S> {
             inner: S,
         }
