@@ -1,16 +1,60 @@
 //! A provider layer that uses for filling sesimic transactions
 
 use crate::{
-    EthCall, PendingTransactionBuilder, Provider, ProviderLayer, RootProvider, SendableTx,
+    fillers::{
+        FillProvider, JoinFill, NonceFiller, RecommendedFillers, SimpleNonceManager, TxFiller,
+        WalletFiller,
+    },
+    Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider,
+    SendableTx, WalletProvider,
 };
 use alloy_consensus::{transaction::EncryptionPublicKey, TxSeismic, TxType};
-use alloy_network::{Network, TransactionBuilder};
+use alloy_network::{Ethereum, EthereumWallet, Network, TransactionBuilder};
 use alloy_primitives::{hex_literal, Bytes, FixedBytes};
 use alloy_rpc_client::NoParams;
 use alloy_transport::{Transport, TransportResult};
 use async_trait::async_trait;
 use std::marker::PhantomData;
 use tee_service_api::{ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1, SecretKey};
+
+/// Creates a new provider with seismic and wallet capabilities
+pub fn create_seismic_provider(
+    wallet: EthereumWallet,
+    url: reqwest::Url,
+) -> FillProvider<
+    JoinFill<Identity, NonceFiller>,
+    SeismicProvider<
+        FillProvider<
+            JoinFill<
+                <Ethereum as RecommendedFillers>::RecommendedFillers,
+                WalletFiller<EthereumWallet>,
+            >,
+            RootProvider<alloy_transport_http::Http<alloy_transport_http::Client>, Ethereum>,
+            alloy_transport_http::Http<alloy_transport_http::Client>,
+            Ethereum,
+        >,
+        alloy_transport_http::Http<alloy_transport_http::Client>,
+        Ethereum,
+    >,
+    alloy_transport_http::Http<alloy_transport_http::Client>,
+    Ethereum,
+> {
+    // Create wallet layer with recommended fillers
+    let wallet_layer =
+        JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet.clone()));
+
+    // Create nonce management layer
+    let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+        JoinFill::new(Identity, NonceFiller::default());
+
+    // Build and return the provider
+    ProviderBuilder::new()
+        .network::<Ethereum>()
+        .layer(nonce_layer)
+        .with_seismic()
+        .layer(wallet_layer)
+        .on_http(url)
+}
 
 #[derive(Debug, Clone)]
 pub struct SeismicLayer {}
@@ -97,10 +141,11 @@ where
         self.inner.root()
     }
 
-    // fn call<'req>(&self, tx: &'req N::TransactionRequest) -> EthCall<'req, T, N, Bytes> {
-    //     self.build_seismic_tx(tx).await;
-    //     EthCall::new(self.weak_client(), tx).block(BlockNumberOrTag::Pending.into())
-    // }
+    async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
+        self.build_seismic_tx(&mut tx).await;
+        println!("seismic_call in seismic layer: tx: {:?}", tx);
+        self.inner.seismic_call(tx).await
+    }
 
     async fn send_transaction_internal(
         &self,
@@ -131,31 +176,60 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_get_tee_pubkey() {
-        let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
-        let provider = ProviderBuilder::new().with_seismic().on_http(anvil.endpoint_url());
-        let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
-        println!("test_get_tee_pubkey: tee_pubkey: {:?}", tee_pubkey);
-    }
-
-    #[tokio::test]
-    async fn test_send_transaction_internal() {
-        let plaintext = Bytes::from_static(&hex!("60806040525f5f8190b150610285806100175f395ff3fe608060405234801561000f575f5ffd5b506004361061003f575f3560e01c806324a7f0b71461004357806343bd0d701461005f578063d09de08a1461007d575b5f5ffd5b61005d600480360381019061005891906100f6565b610087565b005b610067610090565b604051610074919061013b565b60405180910390f35b6100856100a7565b005b805f8190b15050565b5f600160025fb06100a19190610181565b14905090565b5f5f81b0809291906100b8906101de565b919050b150565b5f5ffd5b5f819050919050565b6100d5816100c3565b81146100df575f5ffd5b50565b5f813590506100f0816100cc565b92915050565b5f6020828403121561010b5761010a6100bf565b5b5f610118848285016100e2565b91505092915050565b5f8115159050919050565b61013581610121565b82525050565b5f60208201905061014e5f83018461012c565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601260045260245ffd5b5f61018b826100c3565b9150610196836100c3565b9250826101a6576101a5610154565b5b828206905092915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f6101e8826100c3565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361021a576102196101b1565b5b60018201905091905056fea2646970667358221220ea421d58b6748a9089335034d76eb2f01bceafe3dfac2e57d9d2e766852904df64736f6c63782c302e382e32382d646576656c6f702e323032342e31322e392b636f6d6d69742e39383863313261662e6d6f64005d"));
-        // let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
+    async fn test_seismic_signed_call() {
+        let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
-        let from = wallet.default_signer().address();
         let wallet_layer =
-            JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet));
+            JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet.clone()));
         let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
             JoinFill::new(Identity, NonceFiller::default());
 
         let provider = ProviderBuilder::new()
             .layer(nonce_layer)
             .with_seismic()
-            .layer(wallet_layer)
+            .layer(wallet_layer) // wallet layer signs the transaction
             .on_http(reqwest::Url::parse("http://localhost:8545").unwrap());
 
+        let from = wallet.default_signer().address();
+        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
+
+        let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
+        println!("test_seismic_call: res: {:?}", res);
+    }
+
+    #[tokio::test]
+    async fn test_seismic_unsigned_call() {
+        let plaintext = ContractTestContext::get_deploy_input_plaintext();
+        let anvil = Anvil::new().spawn();
+        let wallet = get_wallet(&anvil);
+        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+            JoinFill::new(Identity, NonceFiller::default());
+
+        let provider = ProviderBuilder::new()
+            .layer(nonce_layer)
+            .with_seismic()
+            .on_http(reqwest::Url::parse("http://localhost:8545").unwrap());
+
+        let from = wallet.default_signer().address();
+        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
+
+        let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
+        println!("test_seismic_call: res: {:?}", res);
+    }
+
+    #[tokio::test]
+    async fn test_send_transaction() {
+        let plaintext = ContractTestContext::get_deploy_input_plaintext();
+        // let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
+        let anvil = Anvil::new().spawn();
+        let wallet = get_wallet(&anvil);
+        let provider = create_seismic_provider(
+            wallet.clone(),
+            reqwest::Url::parse("http://localhost:8545").unwrap(),
+        );
+
+        let from = wallet.default_signer().address();
         let tx = build_seismic_tx(plaintext, TxKind::Create, from);
 
         println!("test_send_transaction_internal: tx: {:?}", tx);
@@ -181,5 +255,63 @@ mod tests {
         let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
         let wallet = EthereumWallet::from(bob.clone());
         wallet
+    }
+
+    /// Artificats for contract tests
+    #[derive(Debug)]
+    pub struct ContractTestContext;
+    impl ContractTestContext {
+        // ==================== first block for encrypted transaction ====================
+        // Contract deployed
+        //     pragma solidity ^0.8.13;
+        // contract SeismicCounter {
+        //     suint256 number;
+        //     constructor() payable {
+        //         number = 0;
+        //     }
+        //     function setNumber(suint256 newNumber) public {
+        //         number = newNumber;
+        //     }
+        //     function increment() public {
+        //         number++;
+        //     }
+        //     function isOdd() public view returns (bool) {
+        //         return number % 2 == 1;
+        //     }
+        // }
+        /// Get the is odd input plaintext
+        pub fn get_is_odd_input_plaintext() -> Bytes {
+            Bytes::from_static(&hex!("43bd0d70"))
+        }
+
+        /// Get the set number input plaintext
+        pub fn get_set_number_input_plaintext() -> Bytes {
+            Bytes::from_static(&hex!(
+                "24a7f0b70000000000000000000000000000000000000000000000000000000000000003"
+            ))
+        }
+
+        /// Get the increment input plaintext
+        pub fn get_increment_input_plaintext() -> Bytes {
+            Bytes::from_static(&hex!("d09de08a"))
+        }
+
+        /// Get the deploy input plaintext
+        pub fn get_deploy_input_plaintext() -> Bytes {
+            Bytes::from_static(&hex!("60806040525f5f8190b150610285806100175f395ff3fe608060405234801561000f575f5ffd5b506004361061003f575f3560e01c806324a7f0b71461004357806343bd0d701461005f578063d09de08a1461007d575b5f5ffd5b61005d600480360381019061005891906100f6565b610087565b005b610067610090565b604051610074919061013b565b60405180910390f35b6100856100a7565b005b805f8190b15050565b5f600160025fb06100a19190610181565b14905090565b5f5f81b0809291906100b8906101de565b919050b150565b5f5ffd5b5f819050919050565b6100d5816100c3565b81146100df575f5ffd5b50565b5f813590506100f0816100cc565b92915050565b5f6020828403121561010b5761010a6100bf565b5b5f610118848285016100e2565b91505092915050565b5f8115159050919050565b61013581610121565b82525050565b5f60208201905061014e5f83018461012c565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601260045260245ffd5b5f61018b826100c3565b9150610196836100c3565b9250826101a6576101a5610154565b5b828206905092915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f6101e8826100c3565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361021a576102196101b1565b5b60018201905091905056fea2646970667358221220ea421d58b6748a9089335034d76eb2f01bceafe3dfac2e57d9d2e766852904df64736f6c63782c302e382e32382d646576656c6f702e323032342e31322e392b636f6d6d69742e39383863313261662e6d6f64005d"))
+        }
+
+        /// Results from solc compilation
+        pub fn get_code() -> Bytes {
+            Bytes::from_static(&hex!("608060405234801561000f575f5ffd5b506004361061003f575f3560e01c806324a7f0b71461004357806343bd0d701461005f578063d09de08a1461007d575b5f5ffd5b61005d600480360381019061005891906100f6565b610087565b005b610067610090565b604051610074919061013b565b60405180910390f35b6100856100a7565b005b805f8190b15050565b5f600160025fb06100a19190610181565b14905090565b5f5f81b0809291906100b8906101de565b919050b150565b5f5ffd5b5f819050919050565b6100d5816100c3565b81146100df575f5ffd5b50565b5f813590506100f0816100cc565b92915050565b5f6020828403121561010b5761010a6100bf565b5b5f610118848285016100e2565b91505092915050565b5f8115159050919050565b61013581610121565b82525050565b5f60208201905061014e5f83018461012c565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601260045260245ffd5b5f61018b826100c3565b9150610196836100c3565b9250826101a6576101a5610154565b5b828206905092915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f6101e8826100c3565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361021a576102196101b1565b5b60018201905091905056fea2646970667358221220ea421d58b6748a9089335034d76eb2f01bceafe3dfac2e57d9d2e766852904df64736f6c63782c302e382e32382d646576656c6f702e323032342e31322e392b636f6d6d69742e39383863313261662e6d6f64005d"))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_tee_pubkey() {
+        let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
+        let provider = ProviderBuilder::new().with_seismic().on_http(anvil.endpoint_url());
+        let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
+        println!("test_get_tee_pubkey: tee_pubkey: {:?}", tee_pubkey);
     }
 }

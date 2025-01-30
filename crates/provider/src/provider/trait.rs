@@ -156,6 +156,20 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         EthCall::new(self.weak_client(), tx).block(BlockNumberOrTag::Pending.into())
     }
 
+    async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
+        match tx {
+            SendableTx::Builder(mut tx) => {
+                let output = self.client().request("eth_call", (tx,)).await?;
+                Ok(output)
+            }
+            SendableTx::Envelope(tx) => {
+                let encoded_tx = tx.encoded_2718();
+                let output = self.client().request("eth_call", (encoded_tx,)).await?;
+                Ok(output)
+            }
+        }
+    }
+
     /// Executes an arbitrary number of transactions on top of the requested state.
     ///
     /// The transactions are packed into individual blocks. Overrides can be provided.
