@@ -214,7 +214,12 @@ pub mod test_utils {
         }
     }
 
-    pub fn build_seismic_tx(plaintext: Bytes, to: TxKind, from: Address) -> TransactionRequest {
+    /// Get a seismic transaction builder
+    pub fn get_seismic_tx_builder(
+        plaintext: Bytes,
+        to: TxKind,
+        from: Address,
+    ) -> TransactionRequest {
         TransactionRequest {
             from: Some(from),
             to: Some(to),
@@ -249,7 +254,7 @@ mod tests {
         );
 
         let from = wallet.default_signer().address();
-        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
+        let tx = get_seismic_tx_builder(plaintext, TxKind::Create, from);
 
         let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
         println!("test_seismic_call: res: {:?}", res);
@@ -273,7 +278,7 @@ mod tests {
             .on_http(reqwest::Url::parse("http://localhost:8545").unwrap());
 
         let from = wallet.default_signer().address();
-        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
+        let tx = get_seismic_tx_builder(plaintext, TxKind::Create, from);
 
         let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
         println!("test_seismic_call: res: {:?}", res);
@@ -291,7 +296,7 @@ mod tests {
         );
 
         let from = wallet.default_signer().address();
-        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
+        let tx = get_seismic_tx_builder(plaintext, TxKind::Create, from);
 
         println!("test_send_transaction_internal: tx: {:?}", tx);
         let res = provider.send_transaction(tx).await.unwrap();
