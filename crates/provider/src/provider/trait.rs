@@ -155,6 +155,7 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         EthCall::new(self.weak_client(), tx).block(BlockNumberOrTag::Pending.into())
     }
 
+    /// Simulate a seismic transaction signed or unsigned
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(tx) => {
