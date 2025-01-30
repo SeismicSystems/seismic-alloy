@@ -10,8 +10,7 @@ pub use anvil::{AnvilLayer, AnvilProvider};
 mod chain;
 pub use chain::ChainLayer;
 
-mod seismic;
-pub use seismic::{create_seismic_provider, SeismicLayer, SeismicProvider};
+pub mod seismic;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod cache;
