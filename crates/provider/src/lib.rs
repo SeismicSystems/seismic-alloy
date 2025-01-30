@@ -41,6 +41,7 @@ pub use heart::{
 };
 
 pub mod layers;
+pub use layers::{create_seismic_provider, SeismicLayer, SeismicProvider};
 
 mod provider;
 pub use provider::{
