@@ -51,7 +51,7 @@ pub fn create_seismic_provider(
     ProviderBuilder::new()
         .network::<Ethereum>()
         .layer(nonce_layer)
-        .with_seismic()
+        .layer(SeismicLayer {})
         .layer(wallet_layer)
         .on_http(url)
 }
