@@ -191,10 +191,17 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
-        let provider = create_seismic_provider(
-            wallet.clone(),
-            reqwest::Url::parse("http://localhost:8545").unwrap(),
-        );
+
+        // Create nonce management layer
+        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+            JoinFill::new(Identity, NonceFiller::default());
+
+        // Build and return the provider
+        let provider = ProviderBuilder::new()
+            .network::<Ethereum>()
+            .layer(nonce_layer)
+            .layer(SeismicLayer {})
+            .on_http(reqwest::Url::parse("http://localhost:8545").unwrap());
 
         let from = wallet.default_signer().address();
         let tx = build_seismic_tx(plaintext, TxKind::Create, from);
