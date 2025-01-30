@@ -1,8 +1,9 @@
-use crate::TransactionRequest;
 use alloy_dyn_abi::TypedData;
 use alloy_primitives::{Bytes, PrimitiveSignature};
 use alloy_serde::WithOtherFields;
 use serde::{Deserialize, Serialize};
+
+use crate::TransactionRequest;
 
 /// An EIP-712 typed data request with a signature
 #[derive(Debug, Deserialize, Serialize, Clone)]

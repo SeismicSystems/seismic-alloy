@@ -35,6 +35,9 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace.dependencies]
+# seismic dependencies
+tee_service_api = { git = "ssh://git@github.com/SeismicSystems/TEEService.git", package = "tee_service_api", rev = "21218a3" }
+
 alloy-consensus = { version = "0.8", path = "crates/consensus", default-features = false }
 alloy-consensus-any = { version = "0.8", path = "crates/consensus-any", default-features = false }
 alloy-contract = { version = "0.8", path = "crates/contract", default-features = false }
