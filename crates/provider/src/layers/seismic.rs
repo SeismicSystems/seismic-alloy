@@ -204,6 +204,7 @@ pub mod test_utils {
     use alloy_primitives::{hex, Address, Bytes, TxKind};
     use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
 
+    /// Test context for seismic provider
     #[derive(Debug)]
     pub struct ContractTestContext;
     impl ContractTestContext {
