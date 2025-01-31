@@ -175,8 +175,6 @@ impl TxSeismic {
     fn eip712_signature_hash(&self) -> B256 {
         let typed_data = self.eip712_to_type_data();
 
-        println!("typed_data: {:?}", typed_data);
-
         typed_data.eip712_signing_hash().expect("Failed to hash seismic transaction in eip712")
     }
 }

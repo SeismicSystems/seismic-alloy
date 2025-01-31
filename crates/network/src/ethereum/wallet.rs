@@ -123,7 +123,6 @@ where
                 Ok(t.into_signed(sig).into())
             }
             TypedTransaction::Seismic(mut t) => {
-                println!("sign_transaction_from seismic tx: {:?}", t);
                 let sig = self.sign_transaction_inner(sender, &mut t).await?;
                 Ok(t.into_signed(sig).into())
             }
