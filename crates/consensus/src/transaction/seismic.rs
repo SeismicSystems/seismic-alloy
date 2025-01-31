@@ -2,7 +2,7 @@ use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, T
 use alloy_dyn_abi::TypedData;
 use alloy_eips::{
     eip2930::AccessList,
-    eip712::{Eip712Error, Eip712Result},
+    eip712::{Eip712Error, Eip712Result, TypedDataRequest},
     eip7702::SignedAuthorization,
 };
 use alloy_primitives::{
@@ -168,6 +168,12 @@ impl TxSeismic {
         self.eip712_to_type_data()
             .eip712_signing_hash()
             .expect("Failed to hash seismic transaction in eip712")
+    }
+}
+
+impl From<Signed<TxSeismic>> for TypedDataRequest {
+    fn from(tx: Signed<TxSeismic>) -> Self {
+        TypedDataRequest { data: tx.tx().eip712_to_type_data(), signature: *tx.signature() }
     }
 }
 
@@ -646,5 +652,9 @@ mod tests {
         assert_eq!(signed.tx(), &tx);
         assert_eq!(signed.signature(), &sig);
         assert_eq!(*signed.hash(), signature_hash);
+
+        let typed_data_request: TypedDataRequest = signed.into();
+        assert_eq!(typed_data_request.data, tx.eip712_to_type_data());
+        assert_eq!(typed_data_request.signature, sig);
     }
 }
