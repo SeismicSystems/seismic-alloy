@@ -20,6 +20,8 @@ pub struct TypedDataRequest {
 pub enum Eip712Error {
     /// Error while decoding the typed data.
     DecodeError(String),
+    /// Got an unexpected type flag while decoding.
+    InvalidType,
 }
 
 /// Result type for [EIP-712] decoding.
