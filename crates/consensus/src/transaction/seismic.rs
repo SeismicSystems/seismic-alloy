@@ -1,10 +1,6 @@
 use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, TxType, Typed2718};
 use alloy_dyn_abi::TypedData;
-use alloy_eips::{
-    eip2930::AccessList,
-    eip712::{Decodable712, TypedDataRequest},
-    eip7702::SignedAuthorization,
-};
+use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
     keccak256, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
 };
@@ -639,5 +635,10 @@ mod tests {
             Address::from_public_key(&sig.recover_from_prehash(&signature_hash).unwrap()),
             get_signing_address()
         );
+
+        let signed = tx.clone().into_signed(sig);
+        assert_eq!(signed.tx(), &tx);
+        assert_eq!(signed.signature(), &sig);
+        assert_eq!(*signed.hash(), signature_hash);
     }
 }

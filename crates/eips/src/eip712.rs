@@ -32,5 +32,5 @@ pub type Eip712Result<T, E = Eip712Error> = core::result::Result<T, E>;
 /// [EIP-712]: https://eips.ethereum.org/EIPS/eip-712
 pub trait Decodable712: Sized {
     /// Decode the typed data from the buffer.
-    fn decode_712(buf: &mut &TypedDataRequest) -> Eip712Result<Self>;
+    fn decode_712(buf: &TypedDataRequest) -> Eip712Result<Self>;
 }
