@@ -1,6 +1,10 @@
 use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, TxType, Typed2718};
 use alloy_dyn_abi::TypedData;
-use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
+use alloy_eips::{
+    eip2930::AccessList,
+    eip712::{Eip712Error, Eip712Result},
+    eip7702::SignedAuthorization,
+};
 use alloy_primitives::{
     keccak256, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
 };
@@ -148,12 +152,14 @@ impl TxSeismic {
     }
 
     /// Decodes a [`TypedData`] into a [`TxSeismic`].
-    pub fn eip712_decode(typed_data: &TypedData) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn eip712_decode(typed_data: &TypedData) -> Eip712Result<Self> {
         // Extract the `message` field from TypedData (JSON format)
-        let message: Value = serde_json::to_value(&typed_data.message)?;
+        let message = serde_json::to_value(&typed_data.message)
+            .map_err(|_| Eip712Error::DecodeError("Failed to serialize message".to_string()))?;
 
         // Deserialize JSON `message` into `TxSeismic`
-        let tx = serde_json::from_value(message)?;
+        let tx = serde_json::from_value(message)
+            .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
 
         Ok(tx)
     }

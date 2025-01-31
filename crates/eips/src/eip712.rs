@@ -15,13 +15,11 @@ pub struct TypedDataRequest {
 
 /// [EIP-712] decoding errors.
 /// [EIP-712]: https://eips.ethereum.org/EIPS/eip-712
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive] // NB: non-exhaustive allows us to add a Custom variant later
 pub enum Eip712Error {
-    /// Rlp error from [`alloy_rlp`].
-    RlpError(alloy_rlp::Error),
-    /// Got an unexpected type flag while decoding.
-    UnexpectedType(u8),
+    /// Error while decoding the typed data.
+    DecodeError(String),
 }
 
 /// Result type for [EIP-712] decoding.
