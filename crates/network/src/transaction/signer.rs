@@ -55,8 +55,6 @@ pub trait NetworkWallet<N: Network>: std::fmt::Debug + Send + Sync {
         async move {
             let sender = request.from().unwrap_or_else(|| self.default_signer_address());
             let tx = request.build_unsigned().map_err(alloy_signer::Error::other)?;
-
-            println!("sign_request tx: {:?}", tx);
             self.sign_transaction_from(sender, tx).await
         }
     }
