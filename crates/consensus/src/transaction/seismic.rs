@@ -105,7 +105,7 @@ impl TxSeismic {
     }
 
     /// Encodes a [`TxSeismic`] into a [`TypedData`].
-    pub fn eip712_encode(&self, domain_name: &str) -> TypedData {
+    pub fn eip712_to_type_data(&self) -> TypedData {
         let typed_data_json = serde_json::json!({
             "types": {
                 "EIP712Domain": [
@@ -130,7 +130,7 @@ impl TxSeismic {
             },
             "primaryType": "TxSeismic",
             "domain": {
-                "name": domain_name,
+                "name": "Seismic Transaction",
                 "version": self.message_version.to_string(),
                 "chainId": self.chain_id,
                 // no verifying contract since this happens in RPC
@@ -163,8 +163,9 @@ impl TxSeismic {
     }
 
     fn eip712_signature_hash(&self) -> B256 {
-        let typed_data = self.eip712_encode("Seismic Transaction");
-        typed_data.eip712_signing_hash().expect("Failed to hash seismic transaction in eip712")
+        self.eip712_to_type_data()
+            .eip712_signing_hash()
+            .expect("Failed to hash seismic transaction in eip712")
     }
 }
 
@@ -343,17 +344,34 @@ impl SignableTransaction<Signature> for TxSeismic {
     }
 
     fn encode_for_signing(&self, out: &mut dyn alloy_rlp::BufMut) {
-        out.put_u8(Self::tx_type() as u8);
-        self.encode(out)
+        if self.is_eip712() {
+            let data = self
+                .eip712_to_type_data()
+                .eip712_encode_for_signing()
+                .expect("Failed to encode seismic transaction for signing");
+            out.put_slice(data.as_slice());
+        } else {
+            out.put_u8(Self::tx_type() as u8);
+            self.encode(out)
+        }
     }
 
     fn payload_len_for_signature(&self) -> usize {
-        self.length() + 1
+        if self.is_eip712() {
+            self.eip712_to_type_data().eip712_encode_for_signing_len()
+        } else {
+            self.length() + 1
+        }
     }
 
     fn into_signed(self, signature: Signature) -> Signed<Self> {
-        let tx_hash = self.tx_hash(&signature);
-        Signed::new_unchecked(self, signature, tx_hash)
+        if self.is_eip712() {
+            let tx_hash = self.eip712_signature_hash();
+            Signed::new_unchecked(self, signature, tx_hash)
+        } else {
+            let tx_hash = self.tx_hash(&signature);
+            Signed::new_unchecked(self, signature, tx_hash)
+        }
     }
 
     fn signature_hash(&self) -> B256 {
@@ -608,7 +626,7 @@ mod tests {
             message_version: 2,
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
-        let typed_data = tx.eip712_encode("Seismic Transaction");
+        let typed_data = tx.eip712_to_type_data();
         let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
         assert_eq!(decoded, tx);
 
