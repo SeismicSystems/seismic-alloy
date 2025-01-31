@@ -47,12 +47,12 @@ pub struct TxSeismic {
         serde(with = "alloy_serde::quantity", rename = "gas", alias = "gasLimit")
     )]
     pub gas_limit: u64,
-    /// The 160-bit address of the message call’s recipient or, for a contract creation
+    /// The 160-bit address of the message call's recipient or, for a contract creation
     /// transaction, ∅, used here to denote the only member of B0 ; formally Tt.
     #[cfg_attr(feature = "serde", serde(default))]
     pub to: TxKind,
     /// A scalar value equal to the number of Wei to
-    /// be transferred to the message call’s recipient or,
+    /// be transferred to the message call's recipient or,
     /// in the case of contract creation, as an endowment
     /// to the newly created account; formally Tv.
     pub value: U256,
@@ -141,7 +141,10 @@ impl TxSeismic {
                 "nonce": self.nonce,
                 "gasPrice": self.gas_price,
                 "gasLimit": self.gas_limit,
-                "to": self.to,
+                "to": match self.to {
+                    TxKind::Create => "0x0000000000000000000000000000000000000000".to_string(),
+                    TxKind::Call(to) => to.to_string(),
+                },
                 "value": self.value,
                 "input": self.input,
                 "encryptionPubkey": self.encryption_pubkey,
@@ -630,7 +633,7 @@ mod tests {
             nonce: 2,
             gas_price: 1000000000,
             gas_limit: 100000,
-            to: Address::from_str("d3e8763675e4c425df46cc3b5c0f6cbdac396046").unwrap().into(),
+            to: TxKind::Create,
             value: U256::from(1000000000000000u64),
             encryption_pubkey: hex!("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").into(),
             message_version: 2,
