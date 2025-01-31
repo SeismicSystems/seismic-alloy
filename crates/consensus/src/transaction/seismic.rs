@@ -6,7 +6,8 @@ use alloy_eips::{
     eip7702::SignedAuthorization,
 };
 use alloy_primitives::{
-    keccak256, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
+    keccak256, Address, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256,
+    U256,
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
@@ -47,12 +48,12 @@ pub struct TxSeismic {
         serde(with = "alloy_serde::quantity", rename = "gas", alias = "gasLimit")
     )]
     pub gas_limit: u64,
-    /// The 160-bit address of the message call's recipient or, for a contract creation
+    /// The 160-bit address of the message call’s recipient or, for a contract creation
     /// transaction, ∅, used here to denote the only member of B0 ; formally Tt.
     #[cfg_attr(feature = "serde", serde(default))]
     pub to: TxKind,
     /// A scalar value equal to the number of Wei to
-    /// be transferred to the message call's recipient or,
+    /// be transferred to the message call’s recipient or,
     /// in the case of contract creation, as an endowment
     /// to the newly created account; formally Tv.
     pub value: U256,
@@ -142,7 +143,7 @@ impl TxSeismic {
                 "gasPrice": self.gas_price,
                 "gasLimit": self.gas_limit,
                 "to": match self.to {
-                    TxKind::Create => "0x0000000000000000000000000000000000000000".to_string(),
+                    TxKind::Create => Address::ZERO.to_string(),
                     TxKind::Call(to) => to.to_string(),
                 },
                 "value": self.value,
@@ -161,8 +162,12 @@ impl TxSeismic {
             .map_err(|_| Eip712Error::DecodeError("Failed to serialize message".to_string()))?;
 
         // Deserialize JSON `message` into `TxSeismic`
-        let tx = serde_json::from_value(message)
+        let mut tx: TxSeismic = serde_json::from_value(message)
             .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
+
+        if tx.to == TxKind::Call(Address::ZERO) {
+            tx.to = TxKind::Create;
+        }
 
         Ok(tx)
     }
