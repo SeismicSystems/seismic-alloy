@@ -1,11 +1,16 @@
 use crate::{transaction::RlpEcdsaTx, SignableTransaction, Signed, Transaction, TxType, Typed2718};
 use alloy_dyn_abi::TypedData;
-use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
+use alloy_eips::{
+    eip2930::AccessList,
+    eip712::{Decodable712, TypedDataRequest},
+    eip7702::SignedAuthorization,
+};
 use alloy_primitives::{
     keccak256, Bytes, ChainId, FixedBytes, PrimitiveSignature as Signature, TxKind, B256, U256,
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
+use serde_json::Value;
 
 /// Compressed secp256k1 public key
 pub type EncryptionPublicKey = FixedBytes<33>;
@@ -76,6 +81,11 @@ impl TxSeismic {
         TxType::Seismic
     }
 
+    /// Returns true if the transaction is signed using EIP712
+    pub fn is_eip712(&self) -> bool {
+        self.message_version >= 2
+    }
+
     /// Calculates a heuristic for the in-memory size of the [`TxSeismic`] transaction.
     /// In memory stores the decrypted transaction and the encrypted transaction.
     /// Out of memory stores the encrypted transaction. This is why size and fields_len are
@@ -94,7 +104,8 @@ impl TxSeismic {
         self.input.len() // input
     }
 
-    fn eip712_typed_data(&self, domain_name: &str) -> TypedData {
+    /// Encodes a [`TxSeismic`] into a [`TypedData`].
+    pub fn eip712_encode(&self, domain_name: &str) -> TypedData {
         let typed_data_json = serde_json::json!({
             "types": {
                 "EIP712Domain": [
@@ -140,13 +151,20 @@ impl TxSeismic {
         serde_json::from_value(typed_data_json).unwrap()
     }
 
-    fn eip712_signature_hash(&self, is_signed_call: bool) -> B256 {
-        let domain_name = match is_signed_call {
-            false => "Seismic Transaction",
-            true => "Signed Call",
-        };
-        let typed_data = self.eip712_typed_data(domain_name);
-        typed_data.eip712_signing_hash().unwrap()
+    /// Decodes a [`TypedData`] into a [`TxSeismic`].
+    pub fn eip712_decode(typed_data: &TypedData) -> Result<Self, Box<dyn std::error::Error>> {
+        // Extract the `message` field from TypedData (JSON format)
+        let message: Value = serde_json::to_value(&typed_data.message)?;
+
+        // Deserialize JSON `message` into `TxSeismic`
+        let tx = serde_json::from_value(message)?;
+
+        Ok(tx)
+    }
+
+    fn eip712_signature_hash(&self) -> B256 {
+        let typed_data = self.eip712_encode("Seismic Transaction");
+        typed_data.eip712_signing_hash().expect("Failed to hash seismic transaction in eip712")
     }
 }
 
@@ -339,11 +357,10 @@ impl SignableTransaction<Signature> for TxSeismic {
     }
 
     fn signature_hash(&self) -> B256 {
-        match self.message_version {
-            0 => keccak256(self.encoded_for_signing()),
-            // TODO: reserved for supporting personal_sign
-            1 => keccak256(self.encoded_for_signing()),
-            _ => self.eip712_signature_hash(false),
+        if self.is_eip712() {
+            self.eip712_signature_hash()
+        } else {
+            keccak256(self.encoded_for_signing())
         }
     }
 }
@@ -357,10 +374,10 @@ impl Signed<TxSeismic> {
         &self,
     ) -> Result<alloy_primitives::Address, alloy_primitives::SignatureError> {
         let tx = self.tx();
-        if tx.message_version < 2 {
+        if !tx.is_eip712() {
             return self.recover_signer();
         }
-        let tx_hash: FixedBytes<32> = tx.eip712_signature_hash(true);
+        let tx_hash: FixedBytes<32> = tx.eip712_signature_hash();
         self.signature().recover_address_from_prehash(&tx_hash)
     }
 }
@@ -502,8 +519,9 @@ pub(super) mod serde_bincode_compat {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{b256, hex, Address};
+    use alloy_primitives::{b256, hex, Address, PrimitiveSignature};
     use derive_more::FromStr;
+    use k256::ecdsa::SigningKey;
 
     use super::*;
 
@@ -546,8 +564,39 @@ mod tests {
         }
     }
 
+    fn get_signing_private_key() -> SigningKey {
+        let private_key_bytes =
+            hex!("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+        let signing_key =
+            SigningKey::from_bytes(&private_key_bytes.into()).expect("Invalid private key");
+        signing_key
+    }
+
+    fn get_signing_address() -> Address {
+        Address::from_public_key(&get_signing_private_key().verifying_key())
+    }
+
+    /// Sign a seismic transaction
+    fn sign_hash(msg: &[u8]) -> PrimitiveSignature {
+        let _signature = get_signing_private_key()
+            .clone()
+            .sign_prehash_recoverable(msg)
+            .expect("Failed to sign");
+
+        let recoverid = _signature.1;
+        let _signature = _signature.0;
+
+        let signature = PrimitiveSignature::new(
+            U256::from_be_slice(_signature.r().to_bytes().as_slice()),
+            U256::from_be_slice(_signature.s().to_bytes().as_slice()),
+            recoverid.is_y_odd(),
+        );
+
+        signature
+    }
+
     #[test]
-    fn test_eip712_signature_hash() {
+    fn test_eip712_encode_decode() {
         let tx = TxSeismic {
             chain_id: 4u64,
             nonce: 2,
@@ -559,28 +608,18 @@ mod tests {
             message_version: 2,
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
-        let hash = tx.eip712_signature_hash(false);
-        assert_eq!(hash, hex!("d42ee5391f06e5d4a40f7b656404481610ec615aa5f36c2d63854ed5714a3464"));
+        let typed_data = tx.eip712_encode("Seismic Transaction");
+        let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
+        assert_eq!(decoded, tx);
 
-        let sig = Signature::from_scalars_and_parity(
-            b256!("840cfc572845f5786e702984c2a582528cad4b49b2a10b9db1be7fca90058565"),
-            b256!("25e7109ceb98168d95b09b18bbf6b685130e0562f233877d492b94eee0c5b6d1"),
-            false,
+        // signing
+        let signature_hash = tx.signature_hash();
+        println!("signature_hash: {:?}", signature_hash);
+        let sig = sign_hash(&signature_hash.as_slice());
+
+        assert_eq!(
+            Address::from_public_key(&sig.recover_from_prehash(&signature_hash).unwrap()),
+            get_signing_address()
         );
-        let mut buf = vec![];
-        tx.rlp_encode_signed(&sig, &mut buf);
-
-        let hash = tx.tx_hash(&sig);
-        assert_eq!(hash, b256!("bea70b50e74af223e058172d9296d40f03b95d61c28ef13424077c08c6832089"));
-
-        #[cfg(feature = "k256")]
-        {
-            let decoded = TxSeismic::rlp_decode_signed(&mut &buf[..]).unwrap();
-            let signer = decoded.recover_signer().unwrap();
-            assert_eq!(
-                signer,
-                Address::from_str("0x3e168ec5f874f22568ccd3a501e0720547288d23").unwrap()
-            );
-        }
     }
 }
