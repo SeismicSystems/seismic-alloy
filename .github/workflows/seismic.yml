@@ -39,6 +39,7 @@ jobs:
         with:
           ssh-private-key: |
             ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SALLOYCORE_SSH_ED25519 }}
       - name: cargo build
         run: cargo build
 
@@ -56,6 +57,7 @@ jobs:
         with:
           ssh-private-key: |
             ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SALLOYCORE_SSH_ED25519 }}
       - name: cargo check warnings
         run: RUSTFLAGS="-D warnings" cargo check
 
@@ -73,6 +75,7 @@ jobs:
         with:
           ssh-private-key: |
             ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SALLOYCORE_SSH_ED25519 }}
       - name: cargo test
         # Exclude crates that test connecting to local nodes
         run: cargo test --workspace

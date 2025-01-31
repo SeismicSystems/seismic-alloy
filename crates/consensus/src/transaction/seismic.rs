@@ -11,7 +11,6 @@ use alloy_primitives::{
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
-use serde_json::Value;
 
 /// Compressed secp256k1 public key
 pub type EncryptionPublicKey = FixedBytes<33>;
