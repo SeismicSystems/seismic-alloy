@@ -106,6 +106,7 @@ impl TxSeismic {
 
     /// Encodes a [`TxSeismic`] into a [`TypedData`].
     pub fn eip712_to_type_data(&self) -> TypedData {
+        println!("eip712_to_type_data self: {:?}", self);
         let typed_data_json = serde_json::json!({
             "types": {
                 "EIP712Domain": [
