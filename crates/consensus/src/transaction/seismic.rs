@@ -151,7 +151,9 @@ impl TxSeismic {
                 "messageVersion": self.message_version,
             }
         });
-        serde_json::from_value(typed_data_json).unwrap()
+        serde_json::from_value(typed_data_json)
+            .map_err(|e| format!("Failed to convert seismic transaction to typed data: {e}"))
+            .unwrap()
     }
 
     /// Decodes a [`TypedData`] into a [`TxSeismic`].
