@@ -138,17 +138,17 @@ impl TxSeismic {
                 "verifyingContract": "0x0000000000000000000000000000000000000000",
             },
             "message": {
-                "chainId": self.chain_id,
-                "nonce": self.nonce,
-                "gasPrice": self.gas_price,
-                "gasLimit": self.gas_limit,
+                "chainId": self.chain_id.to_string(),
+                "nonce": self.nonce.to_string(),
+                "gasPrice": self.gas_price.to_string(),
+                "gasLimit": self.gas_limit.to_string(),
                 "to": match self.to {
                     TxKind::Create => Address::ZERO.to_string(),
                     TxKind::Call(to) => to.to_string(),
                 },
-                "value": self.value,
-                "input": self.input,
-                "encryptionPubkey": self.encryption_pubkey,
+                "value": self.value.to_string(),
+                "input": self.input.to_string(),
+                "encryptionPubkey": self.encryption_pubkey.to_string(),
                 "messageVersion": self.message_version,
             }
         });
@@ -667,5 +667,33 @@ mod tests {
         let typed_data_request: TypedDataRequest = signed.into();
         assert_eq!(typed_data_request.data, tx.eip712_to_type_data());
         assert_eq!(typed_data_request.signature, sig);
+    }
+
+    #[test]
+    fn test_eip712_encode_decode_max_value() {
+        // when the value for gas_price is too large, json! macro cannot handle it
+        let tx = TxSeismic {
+            chain_id: u64::max_value(),
+            nonce: u64::max_value(),
+            gas_price: u128::max_value(),
+            gas_limit: u64::max_value(),
+            to: TxKind::Call(Address::from_slice(&hex!(
+                "87d40d7c65ef908b24cf2a0ddf0b620ebca686b5"
+            ))),
+            value: U256::from_str_radix(
+                "84276702774430178212534783894877653947589808445763683694939551066388641561979",
+                10,
+            )
+            .unwrap(),
+            encryption_pubkey: FixedBytes::from_slice(&hex!(
+                "4abaa4e432448c7970aa06f4c6b0bf8a5ae0971f59727e457aca5bb41f575e33a3"
+            )),
+            message_version: u8::max_value(),
+            input: Bytes::default(),
+        };
+        let typed_data = tx.eip712_to_type_data();
+        println!("typed_data: {:?}", typed_data);
+        let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
+        assert_eq!(decoded, tx);
     }
 }
