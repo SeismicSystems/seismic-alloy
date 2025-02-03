@@ -106,7 +106,6 @@ impl TxSeismic {
 
     /// Encodes a [`TxSeismic`] into a [`TypedData`].
     pub fn eip712_to_type_data(&self) -> TypedData {
-        println!("eip712_to_type_data self: {:?}", self);
         let typed_data_json = serde_json::json!({
             "types": {
                 "EIP712Domain": [
@@ -152,10 +151,7 @@ impl TxSeismic {
                 "messageVersion": self.message_version,
             }
         });
-        println!("eip712_to_type_data typed_data_json: {:?}", typed_data_json);
-        let typed_data = serde_json::from_value(typed_data_json).unwrap();
-        println!("eip712_to_type_data typed_data: {:?}", typed_data);
-        typed_data
+        serde_json::from_value(typed_data_json).unwrap()
     }
 
     /// Decodes a [`TypedData`] into a [`TxSeismic`].
