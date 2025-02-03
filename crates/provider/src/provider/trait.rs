@@ -18,6 +18,7 @@ use alloy_primitives::{
     B256, U128, U256, U64,
 };
 use alloy_rpc_client::{ClientRef, NoParams, PollerBuilder, WeakClient};
+use alloy_rpc_types::{SeismicCallRequest, SeismicRawTxRequest};
 use alloy_rpc_types_eth::{
     simulate::{SimulatePayload, SimulatedBlock},
     AccessListResult, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter,
@@ -159,12 +160,18 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(tx) => {
-                let output = self.client().request("eth_call", (tx,)).await?;
+                let output = self
+                    .client()
+                    .request("eth_call", (SeismicCallRequest::TransactionRequest(tx),))
+                    .await?;
                 Ok(output)
             }
             SendableTx::Envelope(tx) => {
                 let encoded_tx = tx.encoded_2718();
-                let output = self.client().request("eth_call", (encoded_tx,)).await?;
+                let output = self
+                    .client()
+                    .request("eth_call", (SeismicCallRequest::Bytes(encoded_tx),))
+                    .await?;
                 Ok(output)
             }
         }
@@ -747,8 +754,10 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         &self,
         encoded_tx: &[u8],
     ) -> TransportResult<PendingTransactionBuilder<T, N>> {
-        let rlp_hex = hex::encode_prefixed(encoded_tx);
-        let tx_hash = self.client().request("eth_sendRawTransaction", (rlp_hex,)).await?;
+        let tx_hash = self
+            .client()
+            .request("eth_sendRawTransaction", (SeismicRawTxRequest::Bytes(encoded_tx),))
+            .await?;
         Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
     }
 
