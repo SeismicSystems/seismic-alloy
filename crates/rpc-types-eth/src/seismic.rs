@@ -7,7 +7,6 @@ use crate::TransactionRequest;
 
 /// Either normal raw tx or typed data with signature
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum SeismicRawTxRequest {
     /// A raw seismic tx
     Bytes(Bytes),
@@ -29,7 +28,6 @@ impl Into<SeismicRawTxRequest> for TypedDataRequest {
 
 /// Either a normal ETH call, raw tx, or typed data with signature
 #[derive(Debug, Deserialize, Serialize, Clone)]
-#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum SeismicCallRequest {
     /// EIP-712 signed typed message with signature
     TypedData(TypedDataRequest),
