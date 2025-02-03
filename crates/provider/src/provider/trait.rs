@@ -18,12 +18,12 @@ use alloy_primitives::{
     B256, U128, U256, U64,
 };
 use alloy_rpc_client::{ClientRef, NoParams, PollerBuilder, WeakClient};
-use alloy_rpc_types::{SeismicCallRequest, SeismicRawTxRequest};
 use alloy_rpc_types_eth::{
     simulate::{SimulatePayload, SimulatedBlock},
     AccessListResult, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter,
-    FilterChanges, Index, Log, SyncStatus,
+    FilterChanges, Index, Log, SeismicCallRequest, SeismicRawTxRequest, SyncStatus,
 };
+use alloy_serde::WithOtherFields;
 use alloy_transport::{BoxTransport, Transport, TransportResult};
 use serde_json::value::RawValue;
 use std::borrow::Cow;
@@ -160,18 +160,12 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(tx) => {
-                let output = self
-                    .client()
-                    .request("eth_call", (SeismicCallRequest::TransactionRequest(tx),))
-                    .await?;
+                let output = self.client().request("eth_call", (tx,)).await?;
                 Ok(output)
             }
             SendableTx::Envelope(tx) => {
                 let encoded_tx = tx.encoded_2718();
-                let output = self
-                    .client()
-                    .request("eth_call", (SeismicCallRequest::Bytes(encoded_tx),))
-                    .await?;
+                let output = self.client().request("eth_call", (encoded_tx,)).await?;
                 Ok(output)
             }
         }
@@ -754,10 +748,8 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         &self,
         encoded_tx: &[u8],
     ) -> TransportResult<PendingTransactionBuilder<T, N>> {
-        let tx_hash = self
-            .client()
-            .request("eth_sendRawTransaction", (SeismicRawTxRequest::Bytes(encoded_tx),))
-            .await?;
+        let tx = SeismicRawTxRequest::Bytes(Bytes::from(encoded_tx.to_vec()));
+        let tx_hash = self.client().request("eth_sendRawTransaction", (tx,)).await?;
         Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
     }
 
