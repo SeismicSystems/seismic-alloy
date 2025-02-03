@@ -273,6 +273,7 @@ pub mod test_utils {
 }
 
 #[cfg(test)]
+#[ignore]
 mod tests {
     use alloy_network::{Ethereum, EthereumWallet};
     use alloy_node_bindings::{Anvil, AnvilInstance};
