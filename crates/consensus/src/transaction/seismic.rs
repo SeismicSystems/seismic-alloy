@@ -151,7 +151,10 @@ impl TxSeismic {
                 "messageVersion": self.message_version,
             }
         });
-        serde_json::from_value(typed_data_json).unwrap()
+        println!("eip712_to_type_data typed_data_json: {:?}", typed_data_json);
+        let typed_data = serde_json::from_value(typed_data_json).unwrap();
+        println!("eip712_to_type_data typed_data: {:?}", typed_data);
+        typed_data
     }
 
     /// Decodes a [`TypedData`] into a [`TxSeismic`].
