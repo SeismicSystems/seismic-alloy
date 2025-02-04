@@ -21,9 +21,8 @@ use alloy_rpc_client::{ClientRef, NoParams, PollerBuilder, WeakClient};
 use alloy_rpc_types_eth::{
     simulate::{SimulatePayload, SimulatedBlock},
     AccessListResult, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter,
-    FilterChanges, Index, Log, SeismicCallRequest, SeismicRawTxRequest, SyncStatus,
+    FilterChanges, Index, Log, SeismicRawTxRequest, SyncStatus,
 };
-use alloy_serde::WithOtherFields;
 use alloy_transport::{BoxTransport, Transport, TransportResult};
 use serde_json::value::RawValue;
 use std::borrow::Cow;
