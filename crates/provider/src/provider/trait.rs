@@ -21,7 +21,7 @@ use alloy_rpc_client::{ClientRef, NoParams, PollerBuilder, WeakClient};
 use alloy_rpc_types_eth::{
     simulate::{SimulatePayload, SimulatedBlock},
     AccessListResult, BlockId, BlockNumberOrTag, EIP1186AccountProofResponse, FeeHistory, Filter,
-    FilterChanges, Index, Log, SeismicRawTxRequest, SyncStatus,
+    FilterChanges, Index, Log, SyncStatus,
 };
 use alloy_transport::{BoxTransport, Transport, TransportResult};
 use serde_json::value::RawValue;
@@ -747,8 +747,8 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         &self,
         encoded_tx: &[u8],
     ) -> TransportResult<PendingTransactionBuilder<T, N>> {
-        let tx = SeismicRawTxRequest::Bytes(Bytes::from(encoded_tx.to_vec()));
-        let tx_hash = self.client().request("eth_sendRawTransaction", (tx,)).await?;
+        let rlp_hex = hex::encode_prefixed(encoded_tx);
+        let tx_hash = self.client().request("eth_sendRawTransaction", (rlp_hex,)).await?;
         Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
     }
 
