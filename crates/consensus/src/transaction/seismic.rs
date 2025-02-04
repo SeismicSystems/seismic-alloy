@@ -383,7 +383,10 @@ impl SignableTransaction<Signature> for TxSeismic {
 
     fn into_signed(self, signature: Signature) -> Signed<Self> {
         if self.is_eip712() {
-            let tx_hash = self.eip712_signature_hash();
+            let mut bytes = vec![];
+            self.encode_for_signing(&mut bytes);
+            self.rlp_encode_signed(&signature, &mut bytes);
+            let tx_hash = keccak256(bytes.as_slice());
             Signed::new_unchecked(self, signature, tx_hash)
         } else {
             let tx_hash = self.tx_hash(&signature);
@@ -649,7 +652,6 @@ mod tests {
 
         // signing
         let signature_hash = tx.signature_hash();
-        println!("signature_hash: {:?}", signature_hash);
         let sig = sign_hash(&signature_hash.as_slice());
 
         assert_eq!(
@@ -660,7 +662,7 @@ mod tests {
         let signed = tx.clone().into_signed(sig);
         assert_eq!(signed.tx(), &tx);
         assert_eq!(signed.signature(), &sig);
-        assert_eq!(*signed.hash(), signature_hash);
+        assert_ne!(*signed.hash(), signature_hash);
 
         let typed_data_request: TypedDataRequest = signed.into();
         assert_eq!(typed_data_request.data, tx.eip712_to_type_data());
