@@ -36,7 +36,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace.dependencies]
 # seismic dependencies
-tee_service_api = { git = "ssh://git@github.com/SeismicSystems/TEEService.git", package = "tee_service_api", rev = "21218a3" }
+tee_service_api = "0.1.0"
 
 alloy-consensus = { version = "0.8", path = "crates/consensus", default-features = false }
 alloy-consensus-any = { version = "0.8", path = "crates/consensus-any", default-features = false }
@@ -174,3 +174,5 @@ alloy-sol-macro-input = { git = "ssh://git@github.com/SeismicSystems/seismic-all
 alloy-sol-types = { git = "ssh://git@github.com/SeismicSystems/seismic-alloy-core.git", rev = "6e1c0e9" }
 alloy-sol-type-parser = { git = "ssh://git@github.com/SeismicSystems/seismic-alloy-core.git", rev = "6e1c0e9" }
 alloy-dyn-abi = { git = "ssh://git@github.com/SeismicSystems/seismic-alloy-core.git", rev = "6e1c0e9" }
+
+tee_service_api = { git = "ssh://git@github.com/SeismicSystems/TEEService.git", package = "tee_service_api", rev = "39b2865" }
