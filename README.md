@@ -7,6 +7,7 @@ The upstream repository lives [here](https://github.com/alloy-rs/alloy). This fo
 You can view all of our changes vs. upstream on this [pull request](https://github.com/SeismicSystems/seismic-alloy/pull/2). The sole purpose of this PR is display our diff; it will never be merged in to the main branch of this repo
 
 ## Main changes
+
 - Adding the `TxSeismic` transaction type (with tx_type `0x4a` or `74`). This transaction type introduces fields that Seismic uses to secure its blockchain.
   - `encryption_pubkey`: this field represents the EOA's ephemerally generated public key. This is NOT the public key associated with their Ethereum address. When a Seismic transaction is sent to the chain, the calldata is encrypted using a shared secret. This secret is generated from the network's key and the aforementioned ephemeral key. We pass this into the transaction so the network to decrypt the EOA's calldata (in the `input` field like other transactions)
   - `message_version`: At least temporarily, Seismic allows transactions to be sent to the network in two ways: (1) the "normal" way, via sending raw transaction bytes, and (2), signing an EIP-712 typed message where the data is a `TxSeismic`. We added support for (2) because we unfortunately couldn't figure out how to get browser extension wallets to sign Seismic Transactions. This may be removed in the future. Permitted values of this field:
@@ -22,13 +23,20 @@ You can view all of our changes vs. upstream on this [pull request](https://gith
   - `SeismicRawTxRequest`. On Seismic, you can send a raw transaction in two ways:
     - The normal way, with raw transaction bytes
     - With EIP-712 typed data, as alluded to in the section discussing `message_version`.
+- Adding support for `TxSeismic` in `Provider`
+  - Support for encrypting TxSeismic transaction calldata. When a TxSeismic transaction is created, we:
+    1. Generate an ephemeral key pair
+    2. Use the ephemeral private key and network's public key to generate a shared secret via ECDH
+    3. Use the shared secret to encrypt the transaction's calldata
+    4. Include the ephemeral public key in the transaction so the network can decrypt the calldata
+  - Support for decrypting `eth_call` output. When a signed `eth_call` is made, the network encrypts the output using the ephemeral public key provided in the request. The client can then decrypt this output using the ephemeral private key it generated
 
 ## Structure
 
 Seismic's forks of the [reth](https://github.com/paradigmxyz/reth) stack all have the same branch structure:
+
 - `main` or `master`: this branch only consists of commits from the upstream repository. However it will rarely be up-to-date with upstream. The latest commit from this branch reflects how recently Seismic has merged in upstream commits to the seismic branch
 - `seismic`: the default and production branch for these repositories. This includes all Seismic-specific code essential to make our network run
-
 
 ## Overview
 
@@ -106,7 +114,6 @@ This repository contains the following crates:
 [`alloy-transport-http`]: https://github.com/SeismicSystems/seismic-alloy/tree/seismic/crates/transport-http
 [`alloy-transport-ipc`]: https://github.com/SeismicSystems/seismic-alloy/tree/seismic/crates/transport-ipc
 [`alloy-transport-ws`]: https://github.com/SeismicSystems/seismic-alloy/tree/seismic/crates/transport-ws
-
 [publish-subscribe]: https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern
 [AWS KMS]: https://aws.amazon.com/kms
 [GCP KMS]: https://cloud.google.com/kms
