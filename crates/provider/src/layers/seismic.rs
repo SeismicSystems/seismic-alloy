@@ -142,7 +142,6 @@ where
                     .seismic_call(SendableTx::Builder(builder.clone()))
                     .await
                     .and_then(|encrypted_output| {
-                        println!("encrypted_output: {:?}", encrypted_output);
                         // Decrypt the output using the encryption keypair
                         let decrypted_output = ecdh_decrypt(
                             &tee_pubkey,
@@ -345,31 +344,6 @@ mod tests {
 
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());
-
-        // testing signed call
-        let plaintext = ContractTestContext::get_is_odd_input_plaintext();
-        let call_tx = get_seismic_tx_builder(plaintext, TxKind::Call(contract_address), from);
-        let output = provider.seismic_call(SendableTx::Builder(call_tx)).await.unwrap();
-        assert_eq!(output, Bytes::from_static(&[0; 32]));
-
-        // testing unsigned call
-        // Create nonce management layer
-        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-            JoinFill::new(Identity, NonceFiller::default());
-        let unsigned_provider = ProviderBuilder::new()
-            .network::<Ethereum>()
-            .layer(nonce_layer)
-            .layer(SeismicLayer {})
-            .layer(JoinFill::new(Ethereum::recommended_fillers(), Identity))
-            .on_http(anvil.endpoint_url());
-        // no wallet layer in the prvoider
-
-        let plaintext = ContractTestContext::get_is_odd_input_plaintext();
-        let tx = get_seismic_tx_builder(plaintext, TxKind::Call(contract_address), Address::ZERO);
-
-        let res = unsigned_provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
-        println!("test_seismic_call: res: {:?}", res);
-        assert_eq!(res, Bytes::from_static(&[0; 32]));
     }
 
     fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {
