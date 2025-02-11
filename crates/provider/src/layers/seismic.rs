@@ -12,7 +12,7 @@ use alloy_network::{Ethereum, EthereumWallet, Network, TransactionBuilder};
 use alloy_primitives::{Bytes, FixedBytes};
 use alloy_transport::{Transport, TransportErrorKind, TransportResult};
 use std::marker::PhantomData;
-use tee_service_api::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
+use seismic_enclave::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
 
 /// Creates a new provider with seismic and wallet capabilities
 pub fn create_seismic_provider(
