@@ -275,14 +275,12 @@ pub mod test_utils {
 #[cfg(test)]
 #[ignore]
 mod tests {
-    use std::io::Read;
-
     use alloy_network::{Ethereum, EthereumWallet};
     use alloy_node_bindings::{Anvil, AnvilInstance};
-    use alloy_primitives::{Address, TxKind, U256};
+    use alloy_primitives::{Address, TxKind};
     use alloy_signer_local::PrivateKeySigner;
 
-    use crate::{provider, test_utils::*};
+    use crate::test_utils::*;
 
     use super::*;
 

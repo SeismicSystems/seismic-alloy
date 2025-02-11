@@ -159,7 +159,6 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(tx) => {
-                println!("seismic_call: tx: {:?}", tx);
                 let output = self.client().request("eth_call", (tx,)).await?;
                 Ok(output)
             }
