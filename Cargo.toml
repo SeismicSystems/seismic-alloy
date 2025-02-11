@@ -8,8 +8,8 @@ edition = "2021"
 rust-version = "1.81"
 authors = ["Alloy Contributors"]
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/alloy-rs/alloy"
-repository = "https://github.com/alloy-rs/alloy"
+homepage = "https://github.com/SeismicSystems/seismic-alloy"
+repository = "https://github.com/SeismicSystems/seismic-alloy"
 exclude = ["benches/", "tests/"]
 
 [workspace.lints.rust]
