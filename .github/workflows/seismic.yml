@@ -62,7 +62,7 @@ jobs:
         run: RUSTFLAGS="-D warnings" cargo check
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: large-github-runner
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -77,10 +77,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SALLOYCORE_SSH_ED25519 }}
+      - name: Install Anvil
+        run: cargo install --git https://github.com/SeismicSystems/seismic-foundry anvil --profile dev --locked
       - name: cargo test
-        # Exclude crates that test connecting to local nodes
         run: cargo nextest run --workspace
-          --exclude alloy-contract
-          --exclude alloy-node-bindings
-          --exclude alloy-provider
-          --exclude alloy-rpc-client
