@@ -77,7 +77,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SALLOYCORE_SSH_ED25519 }}
-            ${{ secrets.ACTIONS_SFOUNDRYFDB_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SFOUNDRYF_SSH_ED25519 }}
       - name: Install sAnvil
         run: |
           git clone git@github.com:SeismicSystems/seismic-foundry.git
