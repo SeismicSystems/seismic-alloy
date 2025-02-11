@@ -82,6 +82,7 @@ jobs:
             ${{ secrets.ACTIONS_SREVM_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SREVMINSPECTORS_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SFOUNDRYFDB_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SFOUNDRY_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SRETH_SSH_ED25519 }}
             ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SCOMPILERS_SSH_ED25519 }}
