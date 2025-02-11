@@ -86,6 +86,12 @@ jobs:
             ${{ secrets.ACTIONS_SRETH_SSH_ED25519 }}
             ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SCOMPILERS_SSH_ED25519 }}
+      - name: Install test binaries
+        shell: bash
+        run: ./.github/scripts/install_test_binaries.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Install sAnvil
         run: |
           git clone git@github.com:SeismicSystems/seismic-foundry.git
