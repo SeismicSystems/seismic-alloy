@@ -67,6 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "test-cache"
@@ -78,7 +79,7 @@ jobs:
             ${{ secrets.ACTIONS_SALLOYCORE_SSH_ED25519 }}
       - name: cargo test
         # Exclude crates that test connecting to local nodes
-        run: cargo test --workspace
+        run: cargo nextest run --workspace
           --exclude alloy-contract
           --exclude alloy-node-bindings
           --exclude alloy-provider
