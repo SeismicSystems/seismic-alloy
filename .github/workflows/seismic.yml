@@ -79,6 +79,9 @@ jobs:
             ${{ secrets.ACTIONS_SALLOYCORE_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SFOUNDRY_SSH_ED25519 }}
       - name: Install Anvil
-        run: cargo install --git https://github.com/SeismicSystems/seismic-foundry anvil --profile dev --locked
+        run: |
+          git clone git@github.com:SeismicSystems/seismic-foundry.git
+          cd seismic-foundry
+          cargo install --profile dev --path crates/anvil --locked
       - name: cargo test
         run: cargo nextest run --workspace
