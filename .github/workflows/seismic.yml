@@ -62,7 +62,7 @@ jobs:
         run: RUSTFLAGS="-D warnings" cargo check
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: large-github-runner
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -75,12 +75,27 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: |
-            ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_MANTLE_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SFORGESTD_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SALLOY_SSH_ED25519 }}
             ${{ secrets.ACTIONS_SALLOYCORE_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SREVM_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SREVMINSPECTORS_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SFOUNDRYFDB_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SFOUNDRY_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SRETH_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_TEESERVICE_SSH_ED25519 }}
+            ${{ secrets.ACTIONS_SCOMPILERS_SSH_ED25519 }}
+      - name: Install test binaries
+        shell: bash
+        run: ./.github/scripts/install_test_binaries.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Install sAnvil
+        run: |
+          git clone git@github.com:SeismicSystems/seismic-foundry.git
+          cd seismic-foundry
+          cargo install --profile dev --path crates/anvil --locked
       - name: cargo test
-        # Exclude crates that test connecting to local nodes
         run: cargo nextest run --workspace
-          --exclude alloy-contract
-          --exclude alloy-node-bindings
-          --exclude alloy-provider
-          --exclude alloy-rpc-client

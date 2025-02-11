@@ -277,7 +277,7 @@ pub mod test_utils {
 mod tests {
     use alloy_network::{Ethereum, EthereumWallet};
     use alloy_node_bindings::{Anvil, AnvilInstance};
-    use alloy_primitives::TxKind;
+    use alloy_primitives::{Address, TxKind};
     use alloy_signer_local::PrivateKeySigner;
 
     use crate::test_utils::*;
@@ -289,61 +289,59 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
-        let provider = create_seismic_provider(
-            wallet.clone(),
-            reqwest::Url::parse("http://localhost:8545").unwrap(),
-        );
+        let provider = create_seismic_provider(wallet.clone(), anvil.endpoint_url());
 
         let from = wallet.default_signer().address();
         let tx = get_seismic_tx_builder(plaintext, TxKind::Create, from);
 
         let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
-        println!("test_seismic_call: res: {:?}", res);
+
+        assert_eq!(res, ContractTestContext::get_code());
     }
 
     #[tokio::test]
     async fn test_seismic_unsigned_call() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
-        let wallet = get_wallet(&anvil);
 
-        // Create nonce management layer
         let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
             JoinFill::new(Identity, NonceFiller::default());
-
-        // Build and return the provider
-        let provider = ProviderBuilder::new()
+        let unsigned_provider = ProviderBuilder::new()
             .network::<Ethereum>()
             .layer(nonce_layer)
             .layer(SeismicLayer {})
-            .on_http(reqwest::Url::parse("http://localhost:8545").unwrap());
+            .layer(JoinFill::new(Ethereum::recommended_fillers(), Identity))
+            .on_http(anvil.endpoint_url());
 
-        let from = wallet.default_signer().address();
-        let tx = get_seismic_tx_builder(plaintext, TxKind::Create, from);
+        let mut tx = get_seismic_tx_builder(plaintext, TxKind::Create, Address::ZERO);
+        tx.gas_price = None;
 
-        let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
-        println!("test_seismic_call: res: {:?}", res);
+        let res = unsigned_provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
+        assert_eq!(res, ContractTestContext::get_code());
     }
 
     #[tokio::test]
     async fn test_send_transaction() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        // let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
-        let provider = create_seismic_provider(
-            wallet.clone(),
-            reqwest::Url::parse("http://localhost:8545").unwrap(),
-        );
-
+        let provider = create_seismic_provider(wallet.clone(), anvil.endpoint_url());
         let from = wallet.default_signer().address();
+
+        // testing send transaction
         let tx = get_seismic_tx_builder(plaintext, TxKind::Create, from);
+        let contract_address = provider
+            .send_transaction(tx)
+            .await
+            .unwrap()
+            .get_receipt()
+            .await
+            .unwrap()
+            .contract_address
+            .unwrap();
 
-        println!("test_send_transaction_internal: tx: {:?}", tx);
-        let res = provider.send_transaction(tx).await.unwrap();
-        println!("test_send_transaction_internal: res: {:?}", res);
-
-        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let code = provider.get_code_at(contract_address).await.unwrap();
+        assert_eq!(code, ContractTestContext::get_code());
     }
 
     fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {
@@ -354,11 +352,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_tee_pubkey() {
-        let anvil = Anvil::at("/Users/phe/repos/seismic-foundry/target/debug/sanvil").spawn();
-        let provider = ProviderBuilder::new()
-            .network::<Ethereum>()
-            .layer(SeismicLayer {})
-            .on_http(anvil.endpoint_url());
+        let provider =
+            ProviderBuilder::new().network::<Ethereum>().layer(SeismicLayer {}).on_anvil();
         let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
         println!("test_get_tee_pubkey: tee_pubkey: {:?}", tee_pubkey);
     }

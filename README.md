@@ -15,23 +15,24 @@ This new EIP-2718 transaction type (`0x4a` or `74`) introduces additional fields
 #### Fields
 
 - **encryption_pubkey**  
-  Represents the EOA's ephemerally generated public key. **Note:** This is *not* the public key associated with the Ethereum address. When a Seismic transaction is sent to the chain, its calldata is encrypted using a shared secret derived from the network's key and the ephemeral key. This shared secret is included in the transaction so the network can decrypt the EOA's calldata (located in the `input` field, as with other transactions).
+  Represents the EOA's ephemerally generated public key. **Note:** This is _not_ the public key associated with the Ethereum address. When a Seismic transaction is sent to the chain, its calldata is encrypted using a shared secret derived from the network's key and the ephemeral key. This shared secret is included in the transaction so the network can decrypt the EOA's calldata (located in the `input` field, as with other transactions).
 
 - **message_version**  
   Determines the method used to send the transaction. Seismic currently supports two approaches:
-  
+
   1. **Standard Method:**  
      The transaction is signed using `signTransaction` and sent as raw transaction bytes (indicated by `0`).
-  
+
   2. **EIP-712 Typed Data:**  
      The transaction is sent as EIP-712 signed typed data (indicated by `2`).
 
   > **Note:**  
-  We added support for EIP-712 because browser extension wallets couldn’t sign Seismic transactions using the traditional method. This support might be removed in the future. The value `1` is reserved for supporting transactions signed via `personal_sign` (for example, by hardware wallets).
+  > We added support for EIP-712 because browser extension wallets couldn’t sign Seismic transactions using the traditional method. This support might be removed in the future. The value `1` is reserved for supporting transactions signed via `personal_sign` (for example, by hardware wallets).
 
 ### New Enums for Seismic RPC Extensions
 
-Seismic extends Ethereum's RPC methods by introducing two new enums: 
+Seismic extends Ethereum's RPC methods by introducing two new enums:
+
 - `SeismicCallRequest` for `eth_call`
 - `SeismicRawTxRequest` for `eth_sendRawTransaction`
 
@@ -44,7 +45,7 @@ On Seismic, you can perform an `eth_call` in two ways:
 
 - **Signed Call:**  
   Submit a transaction request accompanied by a signature. In this case, the `from` field is populated with the signer's address and passed to smart contracts, ensuring that `msg.sender` cannot be spoofed. A signed call can be made using either:
-  
+
   - A raw transaction payload (e.g., bytes)
   - EIP-712 signed typed data (to support browser wallets)
 
@@ -54,16 +55,25 @@ For sending a raw transaction on Seismic, you have two options:
 
 - **Standard Method:**  
   Use raw transaction bytes.
-  
 - **EIP-712 Method:**  
   Send the transaction using EIP-712 signed typed data, as discussed in the `message_version` section.
+
+### New Provider for Shielded Transaction
+
+- When a TxSeismic transaction is created, we:
+  1. Generate an ephemeral key pair
+  2. Use the ephemeral private key and network's public key to generate a shared secret via ECDH
+  3. Use the shared secret to encrypt the transaction's calldata
+  4. Include the ephemeral public key in the transaction so the network can decrypt the calldata
+- Support for decrypting `eth_call` output. When a signed `eth_call` is made, the network encrypts the output using the ephemeral public key provided in the request. The client can then decrypt this output using the ephemeral private key it generated
+- Please see `create_seismic_provider` for detailed provider configuration for shielded transaction.
 
 ## Structure
 
 Seismic's forks of the [reth](https://github.com/paradigmxyz/reth) stack all have the same branch structure:
+
 - `main` or `master`: this branch only consists of commits from the upstream repository. However it will rarely be up-to-date with upstream. The latest commit from this branch reflects how recently Seismic has merged in upstream commits to the seismic branch
 - `seismic`: the default and production branch for these repositories. This includes all Seismic-specific code essential to make our network run
-
 
 ## Overview
 
@@ -141,7 +151,6 @@ This repository contains the following crates:
 [`alloy-transport-http`]: https://github.com/SeismicSystems/seismic-alloy/tree/seismic/crates/transport-http
 [`alloy-transport-ipc`]: https://github.com/SeismicSystems/seismic-alloy/tree/seismic/crates/transport-ipc
 [`alloy-transport-ws`]: https://github.com/SeismicSystems/seismic-alloy/tree/seismic/crates/transport-ws
-
 [publish-subscribe]: https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern
 [AWS KMS]: https://aws.amazon.com/kms
 [GCP KMS]: https://cloud.google.com/kms
