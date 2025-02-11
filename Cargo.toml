@@ -36,7 +36,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace.dependencies]
 # seismic dependencies
-tee_service_api = "0.1.0"
+seismic-enclave = "0.1.0"
 
 alloy-consensus = { version = "0.8", path = "crates/consensus", default-features = false }
 alloy-consensus-any = { version = "0.8", path = "crates/consensus-any", default-features = false }
@@ -175,4 +175,4 @@ alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "6e1c0e9" }
 alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "6e1c0e9" }
 
-tee_service_api = { git = "https://github.com/SeismicSystems/TEEService.git", package = "tee_service_api", rev = "39b2865" }
+seismic-enclave = { git = "https://github.com/SeismicSystems/enclave.git", rev = "f2c0757" }

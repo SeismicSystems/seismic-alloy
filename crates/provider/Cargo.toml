@@ -20,7 +20,7 @@ workspace = true
 
 [dependencies]
 # seismic dependencies
-tee_service_api.workspace = true
+seismic-enclave.workspace = true
 
 alloy-eips.workspace = true
 alloy-consensus.workspace = true
