@@ -6,30 +6,67 @@ The upstream repository lives [here](https://github.com/alloy-rs/alloy). This fo
 
 You can view all of our changes vs. upstream on this [pull request](https://github.com/SeismicSystems/seismic-alloy/pull/2). The sole purpose of this PR is display our diff; it will never be merged in to the main branch of this repo
 
-## Main changes
+## Main Changes
 
-- Adding the `TxSeismic` transaction type (with tx_type `0x4a` or `74`). This transaction type introduces fields that Seismic uses to secure its blockchain.
-  - `encryption_pubkey`: this field represents the EOA's ephemerally generated public key. This is NOT the public key associated with their Ethereum address. When a Seismic transaction is sent to the chain, the calldata is encrypted using a shared secret. This secret is generated from the network's key and the aforementioned ephemeral key. We pass this into the transaction so the network to decrypt the EOA's calldata (in the `input` field like other transactions)
-  - `message_version`: At least temporarily, Seismic allows transactions to be sent to the network in two ways: (1) the "normal" way, via sending raw transaction bytes, and (2), signing an EIP-712 typed message where the data is a `TxSeismic`. We added support for (2) because we unfortunately couldn't figure out how to get browser extension wallets to sign Seismic Transactions. This may be removed in the future. Permitted values of this field:
-    - `0`: marks that this transaction was signed via the standard `signTransaction` way, and therefore sent to the network as raw transaction bytes
-    - `2`: marks that this transaction was sent as EIP-712 typed data
-    - We have reserved the field `1` for when we want to support transactions signed via `personal_sign` (for e.g. hardware wallets)
-- Adding two enums, `SeismicCallRequest` and `SeismicRawTxRequest`. These are types to support Seismic's extensions to the Ethereum's RPC methods `eth_call` and `eth_sendRawTransaction` respectively
-  - `SeismicCallRequest`. On Seismic, you can `eth_call` in two ways
-    - The normal way, by submitting a transaction request. This will behave as normal, except if you set the `from` field, it will be overridden to the zero address. We do this to disallow users from making eth calls from addresses they do not own
-    - By making a "signed call". This is the same as a normal transaction request, but is also associated with a signature. In this case, the `from` field will be populated with the signer's address, and is passed on to smart contracts. Therefore smart contracts can be sure that `msg.sender` cannot be spoofed, as they are authenticated. This is the only way to make an eth_call where the `from` field is specified. You can do this in two ways:
-      - With a raw transaction payload (e.g. bytes)
-      - With EIP-712 signed typed data (for browser wallet support)
-  - `SeismicRawTxRequest`. On Seismic, you can send a raw transaction in two ways:
-    - The normal way, with raw transaction bytes
-    - With EIP-712 typed data, as alluded to in the section discussing `message_version`.
-- Adding support for `TxSeismic` in `Provider`
-  - Support for encrypting TxSeismic transaction calldata. When a TxSeismic transaction is created, we:
-    1. Generate an ephemeral key pair
-    2. Use the ephemeral private key and network's public key to generate a shared secret via ECDH
-    3. Use the shared secret to encrypt the transaction's calldata
-    4. Include the ephemeral public key in the transaction so the network can decrypt the calldata
-  - Support for decrypting `eth_call` output. When a signed `eth_call` is made, the network encrypts the output using the ephemeral public key provided in the request. The client can then decrypt this output using the ephemeral private key it generated
+### Seismic Transaction Type
+
+This new EIP-2718 transaction type (`0x4a` or `74`) introduces additional fields that Seismic uses to secure its blockchain.
+
+#### Fields
+
+- **encryption_pubkey**  
+  Represents the EOA's ephemerally generated public key. **Note:** This is _not_ the public key associated with the Ethereum address. When a Seismic transaction is sent to the chain, its calldata is encrypted using a shared secret derived from the network's key and the ephemeral key. This shared secret is included in the transaction so the network can decrypt the EOA's calldata (located in the `input` field, as with other transactions).
+
+- **message_version**  
+  Determines the method used to send the transaction. Seismic currently supports two approaches:
+
+  1. **Standard Method:**  
+     The transaction is signed using `signTransaction` and sent as raw transaction bytes (indicated by `0`).
+
+  2. **EIP-712 Typed Data:**  
+     The transaction is sent as EIP-712 signed typed data (indicated by `2`).
+
+  > **Note:**  
+  > We added support for EIP-712 because browser extension wallets couldn’t sign Seismic transactions using the traditional method. This support might be removed in the future. The value `1` is reserved for supporting transactions signed via `personal_sign` (for example, by hardware wallets).
+
+### New Enums for Seismic RPC Extensions
+
+Seismic extends Ethereum's RPC methods by introducing two new enums:
+
+- `SeismicCallRequest` for `eth_call`
+- `SeismicRawTxRequest` for `eth_sendRawTransaction`
+
+#### SeismicCallRequest
+
+On Seismic, you can perform an `eth_call` in two ways:
+
+- **Standard Call:**  
+  Submit a transaction request normally. However, if you set the `from` field, it will be overridden to the zero address to prevent users from making calls from addresses they do not own.
+
+- **Signed Call:**  
+  Submit a transaction request accompanied by a signature. In this case, the `from` field is populated with the signer's address and passed to smart contracts, ensuring that `msg.sender` cannot be spoofed. A signed call can be made using either:
+
+  - A raw transaction payload (e.g., bytes)
+  - EIP-712 signed typed data (to support browser wallets)
+
+#### SeismicRawTxRequest
+
+For sending a raw transaction on Seismic, you have two options:
+
+- **Standard Method:**  
+  Use raw transaction bytes.
+- **EIP-712 Method:**  
+  Send the transaction using EIP-712 signed typed data, as discussed in the `message_version` section.
+
+### New Provider for Shielded Transaction
+
+- When a TxSeismic transaction is created, we:
+  1. Generate an ephemeral key pair
+  2. Use the ephemeral private key and network's public key to generate a shared secret via ECDH
+  3. Use the shared secret to encrypt the transaction's calldata
+  4. Include the ephemeral public key in the transaction so the network can decrypt the calldata
+- Support for decrypting `eth_call` output. When a signed `eth_call` is made, the network encrypts the output using the ephemeral public key provided in the request. The client can then decrypt this output using the ephemeral private key it generated
+- Please see `create_seismic_provider` for detailed provider configuration for shielded transaction.
 
 ## Structure
 
