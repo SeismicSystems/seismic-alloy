@@ -16,7 +16,7 @@ use alloy_primitives::{
 use alloy_rlp::{Decodable, Encodable};
 use core::fmt;
 
-use super::TxSeismic;
+use super::{SignableTransaction, TxSeismic};
 
 /// Ethereum `TransactionType` flags as specified in EIPs [2718], [1559], [2930],
 /// [4844], and [7702].
