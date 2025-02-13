@@ -53,6 +53,37 @@ pub fn create_seismic_provider(
         .on_http(url)
 }
 
+/// Creates a new provider with seismic and wallet capabilities
+pub fn create_seismic_provider_without_wallet(
+    url: reqwest::Url,
+) -> FillProvider<
+    JoinFill<Identity, NonceFiller>,
+    SeismicProvider<
+        FillProvider<
+            JoinFill<<Ethereum as RecommendedFillers>::RecommendedFillers, Identity>,
+            RootProvider<alloy_transport_http::Http<alloy_transport_http::Client>, Ethereum>,
+            alloy_transport_http::Http<alloy_transport_http::Client>,
+            Ethereum,
+        >,
+        alloy_transport_http::Http<alloy_transport_http::Client>,
+        Ethereum,
+    >,
+    alloy_transport_http::Http<alloy_transport_http::Client>,
+    Ethereum,
+> {
+    // Create wallet layer with recommended fillers
+    let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
+    let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+        JoinFill::new(Identity, NonceFiller::default());
+
+    ProviderBuilder::new()
+        .network::<Ethereum>()
+        .layer(nonce_layer)
+        .layer(SeismicLayer {})
+        .layer(wallet_layer)
+        .on_http(url)
+}
+
 /// Seismic middlware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
 pub struct SeismicLayer {}
@@ -306,12 +337,7 @@ mod tests {
 
         let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
             JoinFill::new(Identity, NonceFiller::default());
-        let unsigned_provider = ProviderBuilder::new()
-            .network::<Ethereum>()
-            .layer(nonce_layer)
-            .layer(SeismicLayer {})
-            .layer(JoinFill::new(Ethereum::recommended_fillers(), Identity))
-            .on_http(anvil.endpoint_url());
+        let unsigned_provider = create_seismic_provider_without_wallet(anvil.endpoint_url());
 
         let mut tx = get_seismic_tx_builder(plaintext, TxKind::Create, Address::ZERO);
         tx.gas_price = None;
