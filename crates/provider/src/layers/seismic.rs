@@ -14,28 +14,46 @@ use alloy_transport::{Transport, TransportErrorKind, TransportResult};
 use seismic_enclave::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
 use std::marker::PhantomData;
 
-/// Creates a new provider with seismic and wallet capabilities
-pub fn create_seismic_provider(
-    wallet: EthereumWallet,
-    url: reqwest::Url,
-) -> FillProvider<
-    JoinFill<Identity, NonceFiller>,
-    SeismicProvider<
-        FillProvider<
-            JoinFill<
-                <Ethereum as RecommendedFillers>::RecommendedFillers,
-                WalletFiller<EthereumWallet>,
-            >,
-            RootProvider<alloy_transport_http::Http<alloy_transport_http::Client>, Ethereum>,
-            alloy_transport_http::Http<alloy_transport_http::Client>,
-            Ethereum,
+pub type SeismicWalletClient = FillProvider<
+JoinFill<Identity, NonceFiller>,
+SeismicProvider<
+    FillProvider<
+        JoinFill<
+            <Ethereum as RecommendedFillers>::RecommendedFillers,
+            WalletFiller<EthereumWallet>,
         >,
+        RootProvider<alloy_transport_http::Http<alloy_transport_http::Client>, Ethereum>,
         alloy_transport_http::Http<alloy_transport_http::Client>,
         Ethereum,
     >,
     alloy_transport_http::Http<alloy_transport_http::Client>,
     Ethereum,
-> {
+>,
+alloy_transport_http::Http<alloy_transport_http::Client>,
+Ethereum,
+>;
+
+pub type SeismicPublicClient = FillProvider<
+JoinFill<Identity, NonceFiller>,
+SeismicProvider<
+    FillProvider<
+        JoinFill<<Ethereum as RecommendedFillers>::RecommendedFillers, Identity>,
+        RootProvider<alloy_transport_http::Http<alloy_transport_http::Client>, Ethereum>,
+        alloy_transport_http::Http<alloy_transport_http::Client>,
+        Ethereum,
+    >,
+    alloy_transport_http::Http<alloy_transport_http::Client>,
+    Ethereum,
+>,
+alloy_transport_http::Http<alloy_transport_http::Client>,
+Ethereum,
+>;
+
+/// Creates a new provider with seismic and wallet capabilities
+pub fn create_seismic_provider(
+    wallet: EthereumWallet,
+    url: reqwest::Url,
+) -> ShieldedWalletClient {
     // Create wallet layer with recommended fillers
     let wallet_layer =
         JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet.clone()));
@@ -56,21 +74,7 @@ pub fn create_seismic_provider(
 /// Creates a new provider with seismic and wallet capabilities
 pub fn create_seismic_provider_without_wallet(
     url: reqwest::Url,
-) -> FillProvider<
-    JoinFill<Identity, NonceFiller>,
-    SeismicProvider<
-        FillProvider<
-            JoinFill<<Ethereum as RecommendedFillers>::RecommendedFillers, Identity>,
-            RootProvider<alloy_transport_http::Http<alloy_transport_http::Client>, Ethereum>,
-            alloy_transport_http::Http<alloy_transport_http::Client>,
-            Ethereum,
-        >,
-        alloy_transport_http::Http<alloy_transport_http::Client>,
-        Ethereum,
-    >,
-    alloy_transport_http::Http<alloy_transport_http::Client>,
-    Ethereum,
-> {
+) -> SeismicPublicClient {
     // Create wallet layer with recommended fillers
     let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
     let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
