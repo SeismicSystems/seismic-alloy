@@ -23,7 +23,7 @@ workspace = true
 seismic-enclave.workspace = true
 
 alloy-eips.workspace = true
-alloy-consensus.workspace = true
+alloy-consensus = { workspace = true, features = ["kzg", "k256"] }
 alloy-json-rpc.workspace = true
 alloy-network.workspace = true
 alloy-network-primitives.workspace = true
