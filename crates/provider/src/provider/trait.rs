@@ -1858,6 +1858,7 @@ mod tests {
         feature = "reqwest-rustls-tls",
         feature = "reqwest-native-tls",
     ))]
+    #[ignore]
     async fn call_mainnet() {
         use alloy_network::TransactionBuilder;
         use alloy_sol_types::SolValue;
