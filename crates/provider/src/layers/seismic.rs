@@ -14,6 +14,13 @@ use alloy_transport::{Transport, TransportErrorKind, TransportResult};
 use seismic_enclave::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
 use std::marker::PhantomData;
 
+#[cfg(feature = "ws")]
+use crate::fillers::{BlobGasFiller, ChainIdFiller, GasFiller};
+#[cfg(feature = "ws")]
+use alloy_pubsub::PubSubFrontend;
+#[cfg(feature = "ws")]
+use alloy_transport::TransportError;
+
 /// web3 signing client for seismic chain
 pub type SeismicWalletClient = FillProvider<
     JoinFill<Identity, NonceFiller>,
@@ -35,7 +42,7 @@ pub type SeismicWalletClient = FillProvider<
 >;
 
 /// web3 public client for seismic chain
-pub type SeismicPublicClient = FillProvider<
+pub type SeismicPublicHttpClient = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
         FillProvider<
@@ -71,7 +78,7 @@ pub fn create_seismic_provider(wallet: EthereumWallet, url: reqwest::Url) -> Sei
 }
 
 /// Creates a new provider with seismic and wallet capabilities
-pub fn create_seismic_provider_without_wallet(url: reqwest::Url) -> SeismicPublicClient {
+pub fn create_seismic_provider_without_wallet(url: reqwest::Url) -> SeismicPublicHttpClient {
     // Create wallet layer with recommended fillers
     let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
     let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
@@ -83,6 +90,48 @@ pub fn create_seismic_provider_without_wallet(url: reqwest::Url) -> SeismicPubli
         .layer(SeismicLayer {})
         .layer(wallet_layer)
         .on_http(url)
+}
+
+#[cfg(feature = "ws")]
+/// web3 public websocket client
+pub type SeismicPublicWsClient = FillProvider<
+    JoinFill<Identity, NonceFiller>,
+    SeismicProvider<
+        FillProvider<
+            JoinFill<
+                JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+                Identity,
+            >,
+            RootProvider<PubSubFrontend>,
+            PubSubFrontend,
+            Ethereum,
+        >,
+        PubSubFrontend,
+        Ethereum,
+    >,
+    PubSubFrontend,
+    Ethereum,
+>;
+
+/// creates a new websocket provider for a client
+#[cfg(feature = "ws")]
+pub async fn create_seismic_ws_provider(
+    url: impl Into<String>,
+) -> Result<SeismicPublicWsClient, TransportError> {
+    // Create wallet layer with recommended fillers
+
+    let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
+    let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+        JoinFill::new(Identity, NonceFiller::default());
+
+    let ws_connect = alloy_transport_ws::WsConnect::new(url);
+    ProviderBuilder::new()
+        .network::<Ethereum>()
+        .layer(nonce_layer)
+        .layer(SeismicLayer {})
+        .layer(wallet_layer)
+        .on_ws(ws_connect)
+        .await
 }
 
 /// Seismic middlware for encrypting transactions and decrypting responses
