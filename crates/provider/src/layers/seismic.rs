@@ -14,6 +14,7 @@ use alloy_transport::{Transport, TransportErrorKind, TransportResult};
 use seismic_enclave::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
 use std::marker::PhantomData;
 
+/// Seismic provider
 pub type SeismicSignedProvider = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
@@ -33,14 +34,12 @@ pub type SeismicSignedProvider = FillProvider<
     Ethereum,
 >;
 
+/// Seismic unsigned provider
 pub type SeismicUnsignedProvider = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
         FillProvider<
-            JoinFill<
-                <Ethereum as RecommendedFillers>::RecommendedFillers,
-                WalletFiller<EthereumWallet>,
-            >,
+            JoinFill<<Ethereum as RecommendedFillers>::RecommendedFillers, Identity>,
             RootProvider<alloy_transport_http::Http<alloy_transport_http::Client>, Ethereum>,
             alloy_transport_http::Http<alloy_transport_http::Client>,
             Ethereum,
