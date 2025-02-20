@@ -21,8 +21,8 @@ use alloy_pubsub::PubSubFrontend;
 #[cfg(feature = "ws")]
 use alloy_transport::TransportError;
 
-/// web3 signing client for seismic chain
-pub type SeismicWalletClient = FillProvider<
+/// Seismic provider
+pub type SeismicSignedProvider = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
         FillProvider<
@@ -41,8 +41,8 @@ pub type SeismicWalletClient = FillProvider<
     Ethereum,
 >;
 
-/// web3 public client for seismic chain
-pub type SeismicPublicHttpClient = FillProvider<
+/// Seismic unsigned provider
+pub type SeismicUnsignedProvider = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
         FillProvider<
@@ -59,7 +59,7 @@ pub type SeismicPublicHttpClient = FillProvider<
 >;
 
 /// Creates a new provider with seismic and wallet capabilities
-pub fn create_seismic_provider(wallet: EthereumWallet, url: reqwest::Url) -> SeismicWalletClient {
+pub fn create_seismic_provider(wallet: EthereumWallet, url: reqwest::Url) -> SeismicSignedProvider {
     // Create wallet layer with recommended fillers
     let wallet_layer =
         JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet.clone()));
@@ -77,8 +77,8 @@ pub fn create_seismic_provider(wallet: EthereumWallet, url: reqwest::Url) -> Sei
         .on_http(url)
 }
 
-/// Creates a new provider with seismic and wallet capabilities
-pub fn create_seismic_provider_without_wallet(url: reqwest::Url) -> SeismicPublicHttpClient {
+/// Creates a new provider with seismic capabilities
+pub fn create_seismic_provider_without_wallet(url: reqwest::Url) -> SeismicUnsignedProvider {
     // Create wallet layer with recommended fillers
     let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
     let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
