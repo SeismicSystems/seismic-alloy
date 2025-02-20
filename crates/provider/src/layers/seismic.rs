@@ -93,8 +93,8 @@ pub fn create_seismic_provider_without_wallet(url: reqwest::Url) -> SeismicUnsig
 }
 
 #[cfg(feature = "ws")]
-/// web3 public websocket client
-pub type SeismicPublicWsClient = FillProvider<
+/// Seismic unsigned websocket provider
+pub type SeismicUnsignedWsProvider = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
         FillProvider<
@@ -117,7 +117,7 @@ pub type SeismicPublicWsClient = FillProvider<
 #[cfg(feature = "ws")]
 pub async fn create_seismic_ws_provider(
     url: impl Into<String>,
-) -> Result<SeismicPublicWsClient, TransportError> {
+) -> Result<SeismicUnsignedWsProvider, TransportError> {
     // Create wallet layer with recommended fillers
 
     let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
