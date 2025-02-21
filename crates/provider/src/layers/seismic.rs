@@ -22,6 +22,30 @@ use alloy_pubsub::PubSubFrontend;
 #[cfg(feature = "ws")]
 use alloy_transport::TransportError;
 
+pub trait BuildSeismicTx<T: Transport + Clone, N: Network>: Provider<T, N> {
+    async fn send_transaction(
+        &self,
+        input: Bytes,
+        to: TxKind,
+        from: Address,
+    ) -> impl_future!(<Output = Result<PendingTransactionBuilder<T, N>>>) {
+        let tx = build_seismic_tx(input, to, from);
+        self.send_transaction(SendableTx::Builder(tx)).await
+    }
+
+    async fn call(
+        &self,
+        input: Bytes,
+        to: TxKind,
+        from: Address,
+    ) -> impl_future!(<Output = Result<Bytes>>) {
+        let tx = build_seismic_tx(input, to, from);
+        self.seismic_call(SendableTx::Builder(tx)).await
+    }
+}
+
+impl<T: Transport + Clone, N: Network> SeismicProvider<T, N> for SeismicSignedProvider {}
+
 /// Seismic provider
 pub type SeismicSignedProviderInner = FillProvider<
     JoinFill<Identity, NonceFiller>,
