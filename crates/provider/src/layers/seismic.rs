@@ -43,6 +43,7 @@ pub type SeismicSignedProviderInner = FillProvider<
 >;
 
 /// Seismic signed provider
+#[derive(Debug, Clone)]
 pub struct SeismicSignedProvider(SeismicSignedProviderInner);
 
 impl SeismicSignedProvider {
@@ -91,6 +92,8 @@ pub type SeismicUnsignedProviderInner = FillProvider<
     Ethereum,
 >;
 
+/// Seismic unsigned provider
+#[derive(Debug, Clone)]
 pub struct SeismicUnsignedProvider(SeismicUnsignedProviderInner);
 
 impl SeismicUnsignedProvider {
@@ -326,9 +329,7 @@ where
 
 /// Utilities for testing seismic provider
 pub mod test_utils {
-    use super::*;
-    use alloy_primitives::{hex, Address, Bytes, TxKind};
-    use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
+    use alloy_primitives::{hex, Bytes};
 
     /// Test context for seismic provider
     #[derive(Debug)]
