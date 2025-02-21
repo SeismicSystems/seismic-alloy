@@ -244,9 +244,21 @@ where
                 && builder.input().is_some()
                 && builder.nonce().is_some()
             {
-                let tee_pubkey =
-                    PublicKey::from_slice(self.inner.get_tee_pubkey().await.unwrap().as_slice())
-                        .unwrap();
+                let tee_pubkey = PublicKey::from_slice(
+                    self.inner
+                        .get_tee_pubkey()
+                        .await
+                        .map_err(|e| {
+                            TransportErrorKind::custom_str(&format!(
+                                "Error getting tee pubkey from server: {:?}",
+                                e
+                            ))
+                        })?
+                        .as_slice(),
+                )
+                .map_err(|e| {
+                    TransportErrorKind::custom_str(&format!("Error decoding tee pubkey: {:?}", e))
+                })?;
                 let encryption_keypair = self.get_encryption_keypair();
 
                 // Generate new public/private keypair for this transaction
@@ -261,7 +273,9 @@ where
                     plaintext_input.to_vec(),
                     builder.nonce().unwrap(),
                 )
-                .unwrap();
+                .map_err(|e| {
+                    TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+                })?;
                 builder.set_input(Bytes::from(encrypted_input));
 
                 // decrypting output
@@ -300,9 +314,21 @@ where
                 && builder.input().is_some()
                 && builder.nonce().is_some()
             {
-                let tee_pubkey =
-                    PublicKey::from_slice(self.inner.get_tee_pubkey().await.unwrap().as_slice())
-                        .unwrap();
+                let tee_pubkey = PublicKey::from_slice(
+                    self.inner
+                        .get_tee_pubkey()
+                        .await
+                        .map_err(|e| {
+                            TransportErrorKind::custom_str(&format!(
+                                "Error getting tee pubkey from server: {:?}",
+                                e
+                            ))
+                        })?
+                        .as_slice(),
+                )
+                .map_err(|e| {
+                    TransportErrorKind::custom_str(&format!("Error decoding tee pubkey: {:?}", e))
+                })?;
                 let encryption_keypair = self.get_encryption_keypair();
 
                 // Generate new public/private keypair for this transaction
@@ -317,7 +343,9 @@ where
                     plaintext_input.to_vec(),
                     builder.nonce().unwrap(),
                 )
-                .unwrap();
+                .map_err(|e| {
+                    TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+                })?;
                 builder.set_input(Bytes::from(encrypted_input));
             }
         }
