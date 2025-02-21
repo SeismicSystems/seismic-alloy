@@ -9,10 +9,11 @@ use crate::{
 };
 use alloy_consensus::TxSeismic;
 use alloy_network::{Ethereum, EthereumWallet, Network, TransactionBuilder};
-use alloy_primitives::{Bytes, FixedBytes};
+use alloy_primitives::{Address, Bytes, FixedBytes, TxKind};
+use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
 use alloy_transport::{Transport, TransportErrorKind, TransportResult};
 use seismic_enclave::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
 #[cfg(feature = "ws")]
 use crate::fillers::{BlobGasFiller, ChainIdFiller, GasFiller};
@@ -22,7 +23,7 @@ use alloy_pubsub::PubSubFrontend;
 use alloy_transport::TransportError;
 
 /// Seismic provider
-pub type SeismicSignedProvider = FillProvider<
+pub type SeismicSignedProviderInner = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
         FillProvider<
@@ -41,8 +42,41 @@ pub type SeismicSignedProvider = FillProvider<
     Ethereum,
 >;
 
+/// Seismic signed provider
+#[derive(Debug, Clone)]
+pub struct SeismicSignedProvider(SeismicSignedProviderInner);
+
+impl SeismicSignedProvider {
+    /// Creates a new seismic signed provider
+    pub fn new(wallet: EthereumWallet, url: reqwest::Url) -> Self {
+        // Create wallet layer with recommended fillers
+        let wallet_layer =
+            JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet.clone()));
+
+        // Create nonce management layer
+        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+            JoinFill::new(Identity, NonceFiller::default());
+
+        // Build and return the provider
+        let inner = ProviderBuilder::new()
+            .network::<Ethereum>()
+            .layer(nonce_layer)
+            .layer(SeismicLayer {})
+            .layer(wallet_layer)
+            .on_http(url);
+        Self(inner)
+    }
+}
+impl Deref for SeismicSignedProvider {
+    type Target = SeismicSignedProviderInner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Seismic unsigned provider
-pub type SeismicUnsignedProvider = FillProvider<
+pub type SeismicUnsignedProviderInner = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
         FillProvider<
@@ -58,43 +92,39 @@ pub type SeismicUnsignedProvider = FillProvider<
     Ethereum,
 >;
 
-/// Creates a new provider with seismic and wallet capabilities
-pub fn create_seismic_provider(wallet: EthereumWallet, url: reqwest::Url) -> SeismicSignedProvider {
-    // Create wallet layer with recommended fillers
-    let wallet_layer =
-        JoinFill::new(Ethereum::recommended_fillers(), WalletFiller::new(wallet.clone()));
+/// Seismic unsigned provider
+#[derive(Debug, Clone)]
+pub struct SeismicUnsignedProvider(SeismicUnsignedProviderInner);
 
-    // Create nonce management layer
-    let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-        JoinFill::new(Identity, NonceFiller::default());
+impl SeismicUnsignedProvider {
+    /// Creates a new seismic unsigned provider
+    pub fn new(url: reqwest::Url) -> Self {
+        // Create wallet layer with recommended fillers
+        let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
+        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+            JoinFill::new(Identity, NonceFiller::default());
 
-    // Build and return the provider
-    ProviderBuilder::new()
-        .network::<Ethereum>()
-        .layer(nonce_layer)
-        .layer(SeismicLayer {})
-        .layer(wallet_layer)
-        .on_http(url)
+        let inner = ProviderBuilder::new()
+            .network::<Ethereum>()
+            .layer(nonce_layer)
+            .layer(SeismicLayer {})
+            .layer(wallet_layer)
+            .on_http(url);
+        Self(inner)
+    }
 }
 
-/// Creates a new provider with seismic capabilities
-pub fn create_seismic_provider_without_wallet(url: reqwest::Url) -> SeismicUnsignedProvider {
-    // Create wallet layer with recommended fillers
-    let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
-    let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-        JoinFill::new(Identity, NonceFiller::default());
+impl Deref for SeismicUnsignedProvider {
+    type Target = SeismicUnsignedProviderInner;
 
-    ProviderBuilder::new()
-        .network::<Ethereum>()
-        .layer(nonce_layer)
-        .layer(SeismicLayer {})
-        .layer(wallet_layer)
-        .on_http(url)
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
-#[cfg(feature = "ws")]
 /// Seismic unsigned websocket provider
-pub type SeismicUnsignedWsProvider = FillProvider<
+#[cfg(feature = "ws")]
+pub type SeismicUnsignedWsProviderInner = FillProvider<
     JoinFill<Identity, NonceFiller>,
     SeismicProvider<
         FillProvider<
@@ -113,25 +143,42 @@ pub type SeismicUnsignedWsProvider = FillProvider<
     Ethereum,
 >;
 
-/// creates a new websocket provider for a client
 #[cfg(feature = "ws")]
-pub async fn create_seismic_ws_provider(
-    url: impl Into<String>,
-) -> Result<SeismicUnsignedWsProvider, TransportError> {
-    // Create wallet layer with recommended fillers
+/// Seismic unsigned websocket provider
+#[derive(Debug, Clone)]
+pub struct SeismicUnsignedWsProvider(SeismicUnsignedWsProviderInner);
 
-    let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
-    let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-        JoinFill::new(Identity, NonceFiller::default());
+#[cfg(feature = "ws")]
+impl SeismicUnsignedWsProvider {
+    /// creates a new websocket provider for a client
+    pub async fn new(url: impl Into<String>) -> Result<Self, TransportError> {
+        // Create wallet layer with recommended fillers
 
-    let ws_connect = alloy_transport_ws::WsConnect::new(url);
-    ProviderBuilder::new()
-        .network::<Ethereum>()
-        .layer(nonce_layer)
-        .layer(SeismicLayer {})
-        .layer(wallet_layer)
-        .on_ws(ws_connect)
-        .await
+        let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
+        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
+            JoinFill::new(Identity, NonceFiller::default());
+
+        let ws_connect = alloy_transport_ws::WsConnect::new(url);
+        ProviderBuilder::new()
+            .network::<Ethereum>()
+            .layer(nonce_layer)
+            .layer(SeismicLayer {})
+            .layer(wallet_layer)
+            .on_ws(ws_connect)
+            .await
+            .map(|inner| Self(inner))
+    }
+}
+
+/// Get a seismic transaction builder
+pub fn build_seismic_tx(plaintext: Bytes, to: TxKind, from: Address) -> TransactionRequest {
+    TransactionRequest {
+        from: Some(from),
+        to: Some(to),
+        input: TransactionInput { input: Some(plaintext), data: None },
+        transaction_type: Some(TxSeismic::TX_TYPE),
+        ..Default::default()
+    }
 }
 
 /// Seismic middlware for encrypting transactions and decrypting responses
@@ -309,9 +356,7 @@ where
 
 /// Utilities for testing seismic provider
 pub mod test_utils {
-    use super::*;
-    use alloy_primitives::{hex, Address, Bytes, TxKind};
-    use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
+    use alloy_primitives::{hex, Bytes};
 
     /// Test context for seismic provider
     #[derive(Debug)]
@@ -362,27 +407,9 @@ pub mod test_utils {
             Bytes::from_static(&hex!("608060405234801561000f575f5ffd5b506004361061003f575f3560e01c806324a7f0b71461004357806343bd0d701461005f578063d09de08a1461007d575b5f5ffd5b61005d600480360381019061005891906100f6565b610087565b005b610067610090565b604051610074919061013b565b60405180910390f35b6100856100a7565b005b805f8190b15050565b5f600160025fb06100a19190610181565b14905090565b5f5f81b0809291906100b8906101de565b919050b150565b5f5ffd5b5f819050919050565b6100d5816100c3565b81146100df575f5ffd5b50565b5f813590506100f0816100cc565b92915050565b5f6020828403121561010b5761010a6100bf565b5b5f610118848285016100e2565b91505092915050565b5f8115159050919050565b61013581610121565b82525050565b5f60208201905061014e5f83018461012c565b92915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601260045260245ffd5b5f61018b826100c3565b9150610196836100c3565b9250826101a6576101a5610154565b5b828206905092915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f6101e8826100c3565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361021a576102196101b1565b5b60018201905091905056fea2646970667358221220ea421d58b6748a9089335034d76eb2f01bceafe3dfac2e57d9d2e766852904df64736f6c63782c302e382e32382d646576656c6f702e323032342e31322e392b636f6d6d69742e39383863313261662e6d6f64005d"))
         }
     }
-
-    /// Get a seismic transaction builder
-    pub fn get_seismic_tx_builder(
-        plaintext: Bytes,
-        to: TxKind,
-        from: Address,
-    ) -> TransactionRequest {
-        TransactionRequest {
-            from: Some(from),
-            to: Some(to),
-            input: TransactionInput { input: Some(plaintext), data: None },
-            transaction_type: Some(TxSeismic::TX_TYPE),
-            gas_price: Some(20e9 as u128), /* make seismic tx treated as legacy tx when estimate
-                                            * for gas */
-            ..Default::default()
-        }
-    }
 }
 
 #[cfg(test)]
-#[ignore]
 mod tests {
     use alloy_network::{Ethereum, EthereumWallet};
     use alloy_node_bindings::{Anvil, AnvilInstance};
@@ -398,10 +425,10 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
-        let provider = create_seismic_provider(wallet.clone(), anvil.endpoint_url());
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
         let from = wallet.default_signer().address();
-        let tx = get_seismic_tx_builder(plaintext, TxKind::Create, from);
+        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
 
         let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
 
@@ -413,11 +440,9 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
 
-        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-            JoinFill::new(Identity, NonceFiller::default());
-        let unsigned_provider = create_seismic_provider_without_wallet(anvil.endpoint_url());
+        let unsigned_provider = SeismicUnsignedProvider::new(anvil.endpoint_url());
 
-        let mut tx = get_seismic_tx_builder(plaintext, TxKind::Create, Address::ZERO);
+        let mut tx = build_seismic_tx(plaintext, TxKind::Create, Address::ZERO);
         tx.gas_price = None;
 
         let res = unsigned_provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
@@ -429,11 +454,11 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
-        let provider = create_seismic_provider(wallet.clone(), anvil.endpoint_url());
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
         let from = wallet.default_signer().address();
 
         // testing send transaction
-        let tx = get_seismic_tx_builder(plaintext, TxKind::Create, from);
+        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
         let contract_address = provider
             .send_transaction(tx)
             .await
