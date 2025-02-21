@@ -6,6 +6,7 @@ use crate::{
     utils::Eip1559Estimation,
     Provider,
 };
+use alloy_consensus::TxSeismic;
 use alloy_eips::eip4844::BLOB_TX_MIN_BLOB_GASPRICE;
 use alloy_json_rpc::RpcError;
 use alloy_network::{Network, TransactionBuilder, TransactionBuilder4844};
@@ -151,7 +152,7 @@ impl<N: Network> TxFiller<N> for GasFiller {
         P: Provider<T, N>,
         T: Transport + Clone,
     {
-        if tx.gas_price().is_some() {
+        if tx.gas_price().is_some() || tx.output_tx_type().into() == TxSeismic::TX_TYPE {
             self.prepare_legacy(provider, tx).await
         } else {
             match self.prepare_1559(provider, tx).await {

@@ -145,6 +145,7 @@ pub type SeismicUnsignedWsProviderInner = FillProvider<
 
 #[cfg(feature = "ws")]
 /// Seismic unsigned websocket provider
+#[derive(Debug, Clone)]
 pub struct SeismicUnsignedWsProvider(SeismicUnsignedWsProviderInner);
 
 #[cfg(feature = "ws")]
@@ -176,8 +177,6 @@ pub fn build_seismic_tx(plaintext: Bytes, to: TxKind, from: Address) -> Transact
         to: Some(to),
         input: TransactionInput { input: Some(plaintext), data: None },
         transaction_type: Some(TxSeismic::TX_TYPE),
-        gas_price: Some(20e9 as u128), /* make seismic tx treated as legacy tx when estimate
-                                        * for gas */
         ..Default::default()
     }
 }
@@ -383,7 +382,6 @@ pub mod test_utils {
 }
 
 #[cfg(test)]
-#[ignore]
 mod tests {
     use alloy_network::{Ethereum, EthereumWallet};
     use alloy_node_bindings::{Anvil, AnvilInstance};
