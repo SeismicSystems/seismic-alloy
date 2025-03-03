@@ -144,15 +144,16 @@ impl SeismicUnsignedWsProvider {
 
         let ws_connect = alloy_transport_ws::WsConnect::new(url);
         let rpc_client = RpcClient::builder().layer(retry_layer).ws(ws_connect).await?;
-        let provider = ProviderBuilder::new().on_client(rpc_client);
-        match provider.pubsub_frontend() {
-            Ok(pubsub_frontend) => {
+        
+        match rpc_client.pubsub_frontend() {
+            Some(pubsub_frontend) => {
                 println!("pubsub_frontend: {:?}", pubsub_frontend);
             }
-            Err(e) => {
-                println!("Error getting pubsub frontend: {:?}", e);
+            None => {
+                println!("Missing pubsub frontend");
             }
         }
+        let provider = ProviderBuilder::new().on_client(rpc_client);
         Ok(Self(provider))
     }
 
