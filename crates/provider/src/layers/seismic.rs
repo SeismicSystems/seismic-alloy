@@ -125,7 +125,7 @@ impl Deref for SeismicUnsignedProvider {
 
 /// Seismic unsigned websocket provider
 #[cfg(feature = "ws")]
-pub type SeismicUnsignedWsProviderInner = RootProvider<alloy_transport::layers::RetryBackoffService<PubSubFrontend>>;
+pub type SeismicUnsignedWsProviderInner = RootProvider<alloy_transport::BoxTransport>;
 
 #[cfg(feature = "ws")]
 /// Seismic unsigned websocket provider
@@ -136,24 +136,7 @@ pub struct SeismicUnsignedWsProvider(SeismicUnsignedWsProviderInner);
 impl SeismicUnsignedWsProvider {
     /// creates a new websocket provider for a client
     pub async fn new(url: impl Into<String>) -> Result<Self, TransportError> {
-        let retry_layer = RetryBackoffLayer::new(
-            1,
-            50,
-            1600
-        );
-
-        let ws_connect = alloy_transport_ws::WsConnect::new(url);
-        let rpc_client = RpcClient::builder().layer(retry_layer).ws(ws_connect).await?;
-        
-        match rpc_client.pubsub_frontend() {
-            Some(pubsub_frontend) => {
-                println!("pubsub_frontend: {:?}", pubsub_frontend);
-            }
-            None => {
-                println!("Missing pubsub frontend");
-            }
-        }
-        let provider = ProviderBuilder::new().on_client(rpc_client);
+        let provider = ProviderBuilder::new().on_builtin(&url.into()).await?;
         Ok(Self(provider))
     }
 
@@ -478,5 +461,14 @@ mod tests {
             ProviderBuilder::new().network::<Ethereum>().layer(SeismicLayer {}).on_anvil();
         let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
         println!("test_get_tee_pubkey: tee_pubkey: {:?}", tee_pubkey);
+    }
+
+    #[tokio::test]
+    async fn test_ws_provider() {
+        let anvil = Anvil::new().spawn();
+
+        let provider = ProviderBuilder::new().on_builtin(&anvil.ws_endpoint()).await.unwrap();
+        let pubsub_frontend = provider.pubsub_frontend();
+        println!("test_ws_provider: pubsub_frontend: {:?}", pubsub_frontend);
     }
 }
