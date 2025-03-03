@@ -149,7 +149,6 @@ pub trait TxFiller<N: Network = Ethereum>: Clone + Send + Sync + std::fmt::Debug
 
     /// Returns `true` if the filler is should continue filling.
     fn continue_filling(&self, tx: &SendableTx<N>) -> bool {
-        println!("continue_filling");
         tx.as_builder().is_some_and(|tx| self.status(tx).is_ready())
     }
 
@@ -200,7 +199,6 @@ pub trait TxFiller<N: Network = Ethereum>: Clone + Send + Sync + std::fmt::Debug
                 return Ok(tx);
             }
 
-            println!("prepare and fill prepare");
             let fillable =
                 self.prepare(provider, tx.as_builder().expect("checked by is_envelope")).await?;
 
@@ -257,14 +255,11 @@ where
         let mut count = 0;
 
         while self.filler.continue_filling(&tx) {
-            println!("fill_inner: continue filling");
             self.filler.fill_sync(&mut tx);
-            println!("fill_inner: fill_sync done");
             tx = self.filler.prepare_and_fill(&self.inner, tx).await.map_err(|e| {
                 println!("fill_inner: prepare and fill error: {:?}", e);
                 e
             })?;
-            println!("fill_inner: prepare and fill done");
 
             count += 1;
             if count >= 20 {
