@@ -391,6 +391,7 @@ mod tests {
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::{Address, TxKind};
     use alloy_signer_local::PrivateKeySigner;
+    use futures::StreamExt;
 
     use crate::test_utils::*;
 
@@ -465,10 +466,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_ws_provider() {
-        let anvil = Anvil::new().spawn();
-
-        let provider = ProviderBuilder::new().on_builtin(&anvil.ws_endpoint()).await.unwrap();
-        let pubsub_frontend = provider.pubsub_frontend();
+        let anvil = Anvil::new().port(8545u16).spawn();
+        let url = anvil.ws_endpoint();
+        println!("test_ws_provider: url: {:?}", url);
+        let provider = SeismicUnsignedWsProvider::new(url).await.unwrap();
+        // let provider = ProviderBuilder::new().on_builtin(&anvil.ws_endpoint()).await.unwrap();
+        let pubsub_frontend = provider.inner().pubsub_frontend();
         println!("test_ws_provider: pubsub_frontend: {:?}", pubsub_frontend);
+
+        let sub = provider.inner().subscribe_blocks().await.unwrap();
+        let mut stream = sub.into_stream();
+        while let Some(block) = stream.next().await {
+            println!("test_ws_provider: block: {:?}", block);
+        }
     }
 }
