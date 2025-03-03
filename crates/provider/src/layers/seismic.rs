@@ -194,6 +194,11 @@ where
         let secp = Secp256k1::new();
         Keypair::new(&secp, &mut rand::thread_rng())
     }
+
+    /// Should encrypt input
+    pub fn should_encrypt_input<B: TransactionBuilder<N>>(&self, tx: &B) -> bool {
+        tx.input().map_or(false, |input| !input.is_empty()) && tx.nonce().is_some()
+    }
 }
 
 /// Implement the Provider trait for the SeismicProvider
@@ -211,10 +216,7 @@ where
 
     async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
         if let Some(builder) = tx.as_mut_builder() {
-            if builder.output_tx_type().into() == TxSeismic::TX_TYPE
-                && builder.input().is_some()
-                && builder.nonce().is_some()
-            {
+            if self.should_encrypt_input(builder) {
                 let tee_pubkey = PublicKey::from_slice(
                     self.inner
                         .get_tee_pubkey()
@@ -281,10 +283,7 @@ where
         mut tx: SendableTx<N>,
     ) -> TransportResult<PendingTransactionBuilder<T, N>> {
         if let Some(builder) = tx.as_mut_builder() {
-            if builder.output_tx_type().into() == TxSeismic::TX_TYPE
-                && builder.input().is_some()
-                && builder.nonce().is_some()
-            {
+            if self.should_encrypt_input(builder) {
                 let tee_pubkey = PublicKey::from_slice(
                     self.inner
                         .get_tee_pubkey()
@@ -318,6 +317,7 @@ where
                     TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                 })?;
                 builder.set_input(Bytes::from(encrypted_input));
+                println!("send_transaction_internal: builder: {:?}", builder);
             }
         }
         let res = self.inner.send_transaction_internal_without_heartbeat(tx).await;
@@ -429,7 +429,13 @@ mod tests {
         let from = wallet.default_signer().address();
 
         // testing send transaction
-        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
+        let tx = TransactionRequest {
+            input: TransactionInput { input: Some(plaintext), data: None },
+            from: Some(from),
+            to: Some(TxKind::Create),
+            ..Default::default()
+        };
+
         let contract_address = provider
             .send_transaction(tx)
             .await
@@ -442,6 +448,24 @@ mod tests {
 
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());
+    }
+
+    #[tokio::test]
+    async fn test_send_transaction_with_emtpy_input() {
+        let plaintext = Bytes::new();
+        let anvil = Anvil::new().spawn();
+        let wallet = get_wallet(&anvil);
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+        let from = wallet.default_signer().address();
+
+        let tx = TransactionRequest::default()
+            .with_input(plaintext)
+            .with_from(from)
+            .with_to(Address::ZERO);
+
+        let res = provider.send_transaction(tx).await.unwrap();
+        let receipt = res.get_receipt().await.unwrap();
+        assert_eq!(receipt.status(), true);
     }
 
     fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {

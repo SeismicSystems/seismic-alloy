@@ -267,6 +267,11 @@ pub trait TransactionBuilder<N: Network>: Default + Sized + Send + Sync + 'stati
         self
     }
 
+    /// Returns true if the transaction is a seismic transaction.
+    fn is_seismic(&self) -> bool {
+        self.encryption_pubkey().is_some()
+    }
+
     /// Get the EIP712 version for the transaction.
     fn message_version(&self) -> Option<u8>;
 

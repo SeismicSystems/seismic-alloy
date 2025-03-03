@@ -2,9 +2,8 @@
 
 use crate::{transaction::AccessList, BlobTransactionSidecar, Transaction, TransactionTrait};
 use alloy_consensus::{
-    constants::SEISMIC_TX_TYPE_ID, transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844,
-    TxEip4844Variant, TxEip4844WithSidecar, TxEip7702, TxEnvelope, TxLegacy, TxType, Typed2718,
-    TypedTransaction,
+    transaction::TxSeismic, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant,
+    TxEip4844WithSidecar, TxEip7702, TxEnvelope, TxLegacy, TxType, Typed2718, TypedTransaction,
 };
 use alloy_eips::eip7702::SignedAuthorization;
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
@@ -575,7 +574,7 @@ impl TransactionRequest {
     /// - Legacy if gas_price is set and access_list is unset
     /// - EIP-1559 in all other cases
     pub const fn preferred_type(&self) -> TxType {
-        if let Some(SEISMIC_TX_TYPE_ID) = self.transaction_type {
+        if self.is_seismic() {
             TxType::Seismic
         } else if self.authorization_list.is_some() {
             TxType::Eip7702
@@ -772,6 +771,11 @@ impl TransactionRequest {
     /// Converts the transaction request into a `BuildTransactionErr` with the given message.
     fn into_tx_err(self, message: &'static str) -> BuildTransactionErr {
         BuildTransactionErr { tx: self, error: message.to_string() }
+    }
+
+    /// Returns true if the transaction is a seismic transaction.
+    pub const fn is_seismic(&self) -> bool {
+        self.encryption_pubkey.is_some()
     }
 }
 
