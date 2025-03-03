@@ -790,6 +790,24 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         self.send_transaction_internal(SendableTx::Envelope(tx)).await
     }
 
+    #[doc(hidden)]
+    async fn send_transaction_internal_without_heartbeat(
+        &self,
+        tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<T, N>> {
+        match tx {
+            SendableTx::Builder(mut tx) => {
+                alloy_network::TransactionBuilder::prep_for_submission(&mut tx);
+                let tx_hash = self.client().request("eth_sendTransaction", (tx,)).await?;
+                Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
+            }
+            SendableTx::Envelope(tx) => {
+                let encoded_tx = tx.encoded_2718();
+                self.send_raw_transaction(&encoded_tx).await
+            }
+        }
+    }
+
     /// This method allows [`ProviderLayer`] and [`TxFiller`] to build the
     /// transaction and send it to the network without changing user-facing
     /// APIs. Generally implementors should NOT override this method.
@@ -805,19 +823,7 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         // Make sure to initialize heartbeat before we submit transaction, so that
         // we don't miss it if user will subscriber to it immediately after sending.
         let _handle = self.root().get_heart();
-        println!("send_transaction_internal: tx: {:?}", tx);
-
-        match tx {
-            SendableTx::Builder(mut tx) => {
-                alloy_network::TransactionBuilder::prep_for_submission(&mut tx);
-                let tx_hash = self.client().request("eth_sendTransaction", (tx,)).await?;
-                Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
-            }
-            SendableTx::Envelope(tx) => {
-                let encoded_tx = tx.encoded_2718();
-                self.send_raw_transaction(&encoded_tx).await
-            }
-        }
+        self.send_transaction_internal_without_heartbeat(tx).await
     }
 
     /// Subscribe to a stream of new block headers.
