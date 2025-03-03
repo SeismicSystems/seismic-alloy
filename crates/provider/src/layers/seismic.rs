@@ -386,7 +386,6 @@ mod tests {
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::{Address, TxKind};
     use alloy_signer_local::PrivateKeySigner;
-    use futures::StreamExt;
 
     use crate::test_utils::*;
 
