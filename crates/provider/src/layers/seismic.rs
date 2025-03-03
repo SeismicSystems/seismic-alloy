@@ -125,7 +125,7 @@ impl Deref for SeismicUnsignedProvider {
 
 /// Seismic unsigned websocket provider
 #[cfg(feature = "ws")]
-pub type SeismicUnsignedWsProviderInner = RootProvider<alloy_transport::layers::RetryBackoffService<PubSubFrontend>>;
+pub type SeismicUnsignedWsProviderInner = RootProvider<PubSubFrontend>;
 
 #[cfg(feature = "ws")]
 /// Seismic unsigned websocket provider
@@ -136,15 +136,14 @@ pub struct SeismicUnsignedWsProvider(SeismicUnsignedWsProviderInner);
 impl SeismicUnsignedWsProvider {
     /// creates a new websocket provider for a client
     pub async fn new(url: impl Into<String>) -> Result<Self, TransportError> {
-        let retry_layer = RetryBackoffLayer::new(
-            1,
-            50,
-            1600
-        );
+        // let retry_layer = RetryBackoffLayer::new(
+        //     1,
+        //     50,
+        //     1600
+        // );
 
         let ws_connect = alloy_transport_ws::WsConnect::new(url);
-        let rpc_client = RpcClient::builder().layer(retry_layer).ws(ws_connect).await?;
-        let provider = ProviderBuilder::new().on_client(rpc_client);
+        let provider = ProviderBuilder::new().on_ws(ws_connect).await?;
 
         Ok(Self(provider))
     }
