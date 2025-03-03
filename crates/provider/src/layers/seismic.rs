@@ -317,7 +317,6 @@ where
                     TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                 })?;
                 builder.set_input(Bytes::from(encrypted_input));
-                println!("send_transaction_internal: builder: {:?}", builder);
             }
         }
         let res = self.inner.send_transaction_internal_without_heartbeat(tx).await;
