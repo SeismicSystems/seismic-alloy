@@ -473,6 +473,25 @@ mod tests {
         assert_eq!(code, ContractTestContext::get_code());
     }
 
+    #[tokio::test]
+    async fn test_send_transaction_with_emtpy_input() {
+        let plaintext = Bytes::new();
+        let anvil = Anvil::new().spawn();
+        let wallet = get_wallet(&anvil);
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+
+        let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
+        let tee_pubkey = PublicKey::from_slice(tee_pubkey.as_slice()).unwrap();
+        let secp = Secp256k1::new();
+        let encryption_keypair = Keypair::new(&secp, &mut rand::thread_rng());
+
+        let encrypted_input =
+            ecdh_encrypt(&tee_pubkey, &encryption_keypair.secret_key(), plaintext.to_vec(), 0)
+                .unwrap();
+
+        println!("test_send_transaction_with_emtpy_input: encrypted_input: {:?}", encrypted_input);
+    }
+
     fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {
         let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
         let wallet = EthereumWallet::from(bob.clone());
