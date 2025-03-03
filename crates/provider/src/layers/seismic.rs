@@ -10,8 +10,9 @@ use crate::{
 use alloy_consensus::TxSeismic;
 use alloy_network::{Ethereum, EthereumWallet, Network, TransactionBuilder};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind};
+use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
-use alloy_transport::{Transport, TransportErrorKind, TransportResult};
+use alloy_transport::{layers::RetryBackoffLayer, Transport, TransportErrorKind, TransportResult};
 use seismic_enclave::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
 use std::{marker::PhantomData, ops::Deref};
 
@@ -124,24 +125,7 @@ impl Deref for SeismicUnsignedProvider {
 
 /// Seismic unsigned websocket provider
 #[cfg(feature = "ws")]
-pub type SeismicUnsignedWsProviderInner = FillProvider<
-    JoinFill<Identity, NonceFiller>,
-    SeismicProvider<
-        FillProvider<
-            JoinFill<
-                JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
-                Identity,
-            >,
-            RootProvider<PubSubFrontend>,
-            PubSubFrontend,
-            Ethereum,
-        >,
-        PubSubFrontend,
-        Ethereum,
-    >,
-    PubSubFrontend,
-    Ethereum,
->;
+pub type SeismicUnsignedWsProviderInner = RootProvider<alloy_transport::layers::RetryBackoffService<PubSubFrontend>>;
 
 #[cfg(feature = "ws")]
 /// Seismic unsigned websocket provider
@@ -152,21 +136,17 @@ pub struct SeismicUnsignedWsProvider(SeismicUnsignedWsProviderInner);
 impl SeismicUnsignedWsProvider {
     /// creates a new websocket provider for a client
     pub async fn new(url: impl Into<String>) -> Result<Self, TransportError> {
-        // Create wallet layer with recommended fillers
-
-        let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
-        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-            JoinFill::new(Identity, NonceFiller::default());
+        let retry_layer = RetryBackoffLayer::new(
+            1,
+            50,
+            1600
+        );
 
         let ws_connect = alloy_transport_ws::WsConnect::new(url);
-        ProviderBuilder::new()
-            .network::<Ethereum>()
-            .layer(nonce_layer)
-            .layer(SeismicLayer {})
-            .layer(wallet_layer)
-            .on_ws(ws_connect)
-            .await
-            .map(|inner| Self(inner))
+        let rpc_client = RpcClient::builder().layer(retry_layer).ws(ws_connect).await?;
+        let provider = ProviderBuilder::new().on_client(rpc_client);
+
+        Ok(Self(provider))
     }
 
     /// Get the inner provider
