@@ -805,6 +805,7 @@ pub trait Provider<T: Transport + Clone = BoxTransport, N: Network = Ethereum>:
         // Make sure to initialize heartbeat before we submit transaction, so that
         // we don't miss it if user will subscriber to it immediately after sending.
         let _handle = self.root().get_heart();
+        println!("send_transaction_internal: tx: {:?}", tx);
 
         match tx {
             SendableTx::Builder(mut tx) => {

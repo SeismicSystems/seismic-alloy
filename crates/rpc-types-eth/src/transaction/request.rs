@@ -574,7 +574,7 @@ impl TransactionRequest {
     /// - Legacy if gas_price is set and access_list is unset
     /// - EIP-1559 in all other cases
     pub const fn preferred_type(&self) -> TxType {
-        if self.encryption_pubkey.is_some() {
+        if self.is_seismic() {
             TxType::Seismic
         } else if self.authorization_list.is_some() {
             TxType::Eip7702
@@ -771,6 +771,10 @@ impl TransactionRequest {
     /// Converts the transaction request into a `BuildTransactionErr` with the given message.
     fn into_tx_err(self, message: &'static str) -> BuildTransactionErr {
         BuildTransactionErr { tx: self, error: message.to_string() }
+    }
+
+    fn is_seismic(&self) -> bool {
+        self.encryption_pubkey.is_some()
     }
 }
 

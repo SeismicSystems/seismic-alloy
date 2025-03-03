@@ -57,8 +57,10 @@ impl<L, R> JoinFill<L, R> {
         N: Network,
     {
         if self.left.ready(tx) {
+            println!("join fill prepare left");
             self.left.prepare(provider, tx).await.map(Some)
         } else {
+            println!("join fill prepare left: not ready");
             Ok(None)
         }
     }
@@ -76,8 +78,10 @@ impl<L, R> JoinFill<L, R> {
         N: Network,
     {
         if self.right.ready(tx) {
+            println!("join fill prepare right");
             self.right.prepare(provider, tx).await.map(Some)
         } else {
+            println!("join fill prepare right: not ready");
             Ok(None)
         }
     }
@@ -120,6 +124,9 @@ where
         if let Some(to_fill) = to_fill.0 {
             tx = self.left.fill(to_fill, tx).await?;
         };
+
+        println!("join fill fill: tx: {:?}", tx);
+
         if let Some(to_fill) = to_fill.1 {
             tx = self.right.fill(to_fill, tx).await?;
         };

@@ -58,8 +58,10 @@ impl<N: Network> TxFiller<N> for ChainIdFiller {
 
     fn status(&self, tx: &N::TransactionRequest) -> FillerControlFlow {
         if tx.chain_id().is_some() {
+            println!("chain id filler status: finished");
             FillerControlFlow::Finished
         } else {
+            println!("chain id filler status: ready");
             FillerControlFlow::Ready
         }
     }

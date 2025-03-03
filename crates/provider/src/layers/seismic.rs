@@ -345,8 +345,8 @@ where
                 .map_err(|e| {
                     TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                 })?;
-                println!("send_transaction_internal: encrypted_input: {:?}", encrypted_input);
                 builder.set_input(Bytes::from(encrypted_input));
+                println!("send_transaction_internal: builder: {:?}", builder);
             }
         }
         let res = self.inner.send_transaction_internal(tx).await;
@@ -458,7 +458,13 @@ mod tests {
         let from = wallet.default_signer().address();
 
         // testing send transaction
-        let tx = build_seismic_tx(plaintext, TxKind::Create, from);
+        let tx = TransactionRequest {
+            input: TransactionInput { input: Some(plaintext), data: None },
+            from: Some(from),
+            to: Some(TxKind::Create),
+            ..Default::default()
+        };
+
         let contract_address = provider
             .send_transaction(tx)
             .await

@@ -80,6 +80,8 @@ impl GasFiller {
             |gas_price| async move { Ok(gas_price) }.left_future(),
         );
 
+        println!("gas filler prepare legacy: tx: {:?}", tx);
+
         let gas_limit_fut = tx.gas_limit().map_or_else(
             || provider.estimate_gas(tx).into_future().right_future(),
             |gas_limit| async move { Ok(gas_limit) }.left_future(),
@@ -128,6 +130,7 @@ impl<N: Network> TxFiller<N> for GasFiller {
         if tx.gas_price().is_some() && tx.gas_limit().is_some() {
             return FillerControlFlow::Finished;
         }
+        println!("gas filler status: 1");
 
         // eip1559
         if tx.max_fee_per_gas().is_some()
@@ -136,7 +139,7 @@ impl<N: Network> TxFiller<N> for GasFiller {
         {
             return FillerControlFlow::Finished;
         }
-
+        println!("gas filler status: 2");
         FillerControlFlow::Ready
     }
 
@@ -168,6 +171,7 @@ impl<N: Network> TxFiller<N> for GasFiller {
         fillable: Self::Fillable,
         mut tx: SendableTx<N>,
     ) -> TransportResult<SendableTx<N>> {
+        println!("gas filler fill");
         if let Some(builder) = tx.as_mut_builder() {
             match fillable {
                 GasFillable::Legacy { gas_limit, gas_price } => {
