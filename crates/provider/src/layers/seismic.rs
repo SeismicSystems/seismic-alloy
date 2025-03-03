@@ -223,6 +223,11 @@ where
         let secp = Secp256k1::new();
         Keypair::new(&secp, &mut rand::thread_rng())
     }
+
+    /// Should encrypt input
+    pub fn should_encrypt_input<B: TransactionBuilder<N>>(&self, tx: &B) -> bool {
+        tx.input().map_or(false, |input| !input.is_empty()) && tx.nonce().is_some()
+    }
 }
 
 /// Implement the Provider trait for the SeismicProvider
@@ -240,10 +245,7 @@ where
 
     async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
         if let Some(builder) = tx.as_mut_builder() {
-            if builder.output_tx_type().into() == TxSeismic::TX_TYPE
-                && builder.input().is_some()
-                && builder.nonce().is_some()
-            {
+            if self.should_encrypt_input(builder) {
                 let tee_pubkey = PublicKey::from_slice(
                     self.inner
                         .get_tee_pubkey()
@@ -310,10 +312,7 @@ where
         mut tx: SendableTx<N>,
     ) -> TransportResult<PendingTransactionBuilder<T, N>> {
         if let Some(builder) = tx.as_mut_builder() {
-            if builder.output_tx_type().into() == TxSeismic::TX_TYPE
-                && builder.input().is_some()
-                && builder.nonce().is_some()
-            {
+            if self.should_encrypt_input(builder) {
                 let tee_pubkey = PublicKey::from_slice(
                     self.inner
                         .get_tee_pubkey()
@@ -346,6 +345,7 @@ where
                 .map_err(|e| {
                     TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                 })?;
+                println!("send_transaction_internal: encrypted_input: {:?}", encrypted_input);
                 builder.set_input(Bytes::from(encrypted_input));
             }
         }
@@ -479,17 +479,16 @@ mod tests {
         let anvil = Anvil::new().spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+        let from = wallet.default_signer().address();
 
-        let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
-        let tee_pubkey = PublicKey::from_slice(tee_pubkey.as_slice()).unwrap();
-        let secp = Secp256k1::new();
-        let encryption_keypair = Keypair::new(&secp, &mut rand::thread_rng());
+        let tx = TransactionRequest::default()
+            .with_input(plaintext)
+            .with_from(from)
+            .with_to(Address::ZERO);
 
-        let encrypted_input =
-            ecdh_encrypt(&tee_pubkey, &encryption_keypair.secret_key(), plaintext.to_vec(), 0)
-                .unwrap();
-
-        println!("test_send_transaction_with_emtpy_input: encrypted_input: {:?}", encrypted_input);
+        let res = provider.send_transaction(tx).await.unwrap();
+        let receipt = res.get_receipt().await.unwrap();
+        assert_eq!(receipt.status(), true);
     }
 
     fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {
