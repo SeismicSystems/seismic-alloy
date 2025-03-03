@@ -168,6 +168,11 @@ impl SeismicUnsignedWsProvider {
             .await
             .map(|inner| Self(inner))
     }
+
+    /// Get the inner provider
+    pub fn inner(&self) -> &SeismicUnsignedWsProviderInner {
+        &self.0
+    }
 }
 
 /// Get a seismic transaction builder
