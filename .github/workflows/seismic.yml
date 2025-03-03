@@ -67,7 +67,7 @@ jobs:
           cache-on-failure: true
       - name: Install sAnvil
         run: |
-          git clone https://github.com/SeismicSystems/seismic-foundry.git
+          git clone https://github.com/SeismicSystems/seismic-foundry.git 79a240ce41e894db4deb2362d49bd84003c8a0fb --depth 1
           cd seismic-foundry
           cargo install --profile dev --path crates/anvil --locked
       - name: cargo test
