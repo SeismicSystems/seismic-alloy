@@ -773,6 +773,7 @@ impl TransactionRequest {
         BuildTransactionErr { tx: self, error: message.to_string() }
     }
 
+    /// Returns true if the transaction is a seismic transaction.
     pub const fn is_seismic(&self) -> bool {
         self.encryption_pubkey.is_some()
     }
