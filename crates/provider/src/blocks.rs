@@ -50,29 +50,13 @@ impl<T: Transport + Clone, N: Network> NewBlocks<T, N> {
     pub(crate) fn into_stream(self) -> impl Stream<Item = N::BlockResponse> + 'static {
         // Return a stream that lazily subscribes to `newHeads` on the first poll.
         #[cfg(feature = "pubsub")]
-        match self.client.upgrade() {
-            Some(client) => {
-                if client.pubsub_frontend().is_some() {
-                    let subscriber = self.into_subscription_stream().map(futures::stream::iter);
-                    let subscriber = futures::stream::once(subscriber);
-                        return Either::Left(subscriber.flatten().flatten());
-                } else {
-                    println!("No pubsub frontend");
-                }
-            }
-            None => {
-                println!("No client upgrade");
+        if let Some(client) = self.client.upgrade() {
+            if client.pubsub_frontend().is_some() {
+                let subscriber = self.into_subscription_stream().map(futures::stream::iter);
+                let subscriber = futures::stream::once(subscriber);
+                return Either::Left(subscriber.flatten().flatten());
             }
         }
-
-        // #[cfg(feature = "pubsub")]
-        // if let Some(client) = self.client.upgrade() {
-        //     if client.pubsub_frontend().is_some() {
-        //         let subscriber = self.into_subscription_stream().map(futures::stream::iter);
-        //         let subscriber = futures::stream::once(subscriber);
-        //         return Either::Left(subscriber.flatten().flatten());
-        //     }
-        // }
 
         // Returns a stream that lazily initializes an `eth_blockNumber` polling task on the first
         // poll, mapped with `eth_getBlockByNumber`.

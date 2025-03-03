@@ -10,16 +10,11 @@ use crate::{
 use alloy_consensus::TxSeismic;
 use alloy_network::{Ethereum, EthereumWallet, Network, TransactionBuilder};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind};
-use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_eth::{TransactionInput, TransactionRequest};
-use alloy_transport::{layers::RetryBackoffLayer, Transport, TransportErrorKind, TransportResult};
+use alloy_transport::{Transport, TransportErrorKind, TransportResult};
 use seismic_enclave::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp256k1};
 use std::{marker::PhantomData, ops::Deref};
 
-#[cfg(feature = "ws")]
-use crate::fillers::{BlobGasFiller, ChainIdFiller, GasFiller};
-#[cfg(feature = "ws")]
-use alloy_pubsub::PubSubFrontend;
 #[cfg(feature = "ws")]
 use alloy_transport::TransportError;
 
@@ -130,7 +125,7 @@ pub type SeismicUnsignedWsProviderInner = RootProvider<alloy_transport::BoxTrans
 #[cfg(feature = "ws")]
 /// Seismic unsigned websocket provider
 #[derive(Debug, Clone)]
-pub struct SeismicUnsignedWsProvider(SeismicUnsignedWsProviderInner);
+pub struct SeismicUnsignedWsProvider(pub SeismicUnsignedWsProviderInner);
 
 #[cfg(feature = "ws")]
 impl SeismicUnsignedWsProvider {
@@ -462,22 +457,5 @@ mod tests {
             ProviderBuilder::new().network::<Ethereum>().layer(SeismicLayer {}).on_anvil();
         let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
         println!("test_get_tee_pubkey: tee_pubkey: {:?}", tee_pubkey);
-    }
-
-    #[tokio::test]
-    async fn test_ws_provider() {
-        let anvil = Anvil::new().port(8545u16).spawn();
-        let url = anvil.ws_endpoint();
-        println!("test_ws_provider: url: {:?}", url);
-        let provider = SeismicUnsignedWsProvider::new(url).await.unwrap();
-        // let provider = ProviderBuilder::new().on_builtin(&anvil.ws_endpoint()).await.unwrap();
-        let pubsub_frontend = provider.inner().pubsub_frontend();
-        println!("test_ws_provider: pubsub_frontend: {:?}", pubsub_frontend);
-
-        let sub = provider.inner().subscribe_blocks().await.unwrap();
-        let mut stream = sub.into_stream();
-        while let Some(block) = stream.next().await {
-            println!("test_ws_provider: block: {:?}", block);
-        }
     }
 }
