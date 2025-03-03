@@ -16,10 +16,6 @@ use seismic_enclave::{ecdh_decrypt, ecdh_encrypt, rand, Keypair, PublicKey, Secp
 use std::{marker::PhantomData, ops::Deref};
 
 #[cfg(feature = "ws")]
-use crate::fillers::{BlobGasFiller, ChainIdFiller, GasFiller};
-#[cfg(feature = "ws")]
-use alloy_pubsub::PubSubFrontend;
-#[cfg(feature = "ws")]
 use alloy_transport::TransportError;
 
 /// Seismic provider
@@ -124,49 +120,24 @@ impl Deref for SeismicUnsignedProvider {
 
 /// Seismic unsigned websocket provider
 #[cfg(feature = "ws")]
-pub type SeismicUnsignedWsProviderInner = FillProvider<
-    JoinFill<Identity, NonceFiller>,
-    SeismicProvider<
-        FillProvider<
-            JoinFill<
-                JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
-                Identity,
-            >,
-            RootProvider<PubSubFrontend>,
-            PubSubFrontend,
-            Ethereum,
-        >,
-        PubSubFrontend,
-        Ethereum,
-    >,
-    PubSubFrontend,
-    Ethereum,
->;
+pub type SeismicUnsignedWsProviderInner = RootProvider<alloy_transport::BoxTransport>;
 
 #[cfg(feature = "ws")]
 /// Seismic unsigned websocket provider
 #[derive(Debug, Clone)]
-pub struct SeismicUnsignedWsProvider(SeismicUnsignedWsProviderInner);
+pub struct SeismicUnsignedWsProvider(pub SeismicUnsignedWsProviderInner);
 
 #[cfg(feature = "ws")]
 impl SeismicUnsignedWsProvider {
     /// creates a new websocket provider for a client
     pub async fn new(url: impl Into<String>) -> Result<Self, TransportError> {
-        // Create wallet layer with recommended fillers
+        let provider = ProviderBuilder::new().on_builtin(&url.into()).await?;
+        Ok(Self(provider))
+    }
 
-        let wallet_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
-        let nonce_layer: JoinFill<Identity, NonceFiller<SimpleNonceManager>> =
-            JoinFill::new(Identity, NonceFiller::default());
-
-        let ws_connect = alloy_transport_ws::WsConnect::new(url);
-        ProviderBuilder::new()
-            .network::<Ethereum>()
-            .layer(nonce_layer)
-            .layer(SeismicLayer {})
-            .layer(wallet_layer)
-            .on_ws(ws_connect)
-            .await
-            .map(|inner| Self(inner))
+    /// Get the inner provider
+    pub fn inner(&self) -> &SeismicUnsignedWsProviderInner {
+        &self.0
     }
 }
 
@@ -349,7 +320,7 @@ where
                 builder.set_input(Bytes::from(encrypted_input));
             }
         }
-        let res = self.inner.send_transaction_internal(tx).await;
+        let res = self.inner.send_transaction_internal_without_heartbeat(tx).await;
         res
     }
 }
