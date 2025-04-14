@@ -6,6 +6,7 @@ pub mod tx_serde;
 pub mod tx_type;
 pub mod typed;
 
+pub use eip712::*;
 pub use envelope::*;
 pub use seismic::*;
 #[cfg(feature = "serde")]
