@@ -3248,6 +3248,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "seismic-alloy-rpc-types"
+version = "0.0.1"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-network",
+ "alloy-primitives",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
+ "derive_more 1.0.0",
+ "seismic-alloy-consensus",
+ "serde",
+]
+
+[[package]]
 name = "seismic-enclave"
 version = "0.1.0"
 source = "git+https://github.com/SeismicSystems/seismic-enclave.git?rev=06df897#06df89779b7f74e523152379c4a3e065ec987754"
@@ -3284,21 +3299,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.100",
-]
-
-[[package]]
-name = "seismic-rpc-types"
-version = "0.0.1"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-network",
- "alloy-primitives",
- "alloy-rpc-types-eth",
- "alloy-serde",
- "derive_more 1.0.0",
- "seismic-alloy-consensus",
- "serde",
 ]
 
 [[package]]
