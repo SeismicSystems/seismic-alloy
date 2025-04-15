@@ -96,13 +96,13 @@ impl SeismicTypedTransaction {
     /// Calculates the signing hash for the transaction.
     ///
     /// Returns `None` if the tx is a deposit transaction.
-    pub fn checked_signature_hash(&self) -> Option<B256> {
+    pub fn signature_hash(&self) -> B256 {
         match self {
-            Self::Legacy(tx) => Some(tx.signature_hash()),
-            Self::Eip2930(tx) => Some(tx.signature_hash()),
-            Self::Eip1559(tx) => Some(tx.signature_hash()),
-            Self::Eip7702(tx) => Some(tx.signature_hash()),
-            Self::Seismic(tx) => Some(tx.signature_hash()),
+            Self::Legacy(tx) => tx.signature_hash(),
+            Self::Eip2930(tx) => tx.signature_hash(),
+            Self::Eip1559(tx) => tx.signature_hash(),
+            Self::Eip7702(tx) => tx.signature_hash(),
+            Self::Seismic(tx) => tx.signature_hash(),
         }
     }
 
