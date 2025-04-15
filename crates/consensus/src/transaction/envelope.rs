@@ -78,6 +78,33 @@ impl From<Signed<TxSeismic>> for SeismicTxEnvelope {
     }
 }
 
+impl From<SeismicTxEnvelope> for Signed<SeismicTypedTransaction> {
+    fn from(value: SeismicTxEnvelope) -> Self {
+        match value {
+            SeismicTxEnvelope::Legacy(tx) => {
+                let (tx, sig, hash) = tx.into_parts();
+                Signed::new_unchecked(tx.into(), sig, hash)
+            }
+            SeismicTxEnvelope::Eip2930(tx_eip2930) => {
+                let (tx, sig, hash) = tx_eip2930.into_parts();
+                Signed::new_unchecked(tx.into(), sig, hash)
+            }
+            SeismicTxEnvelope::Eip1559(tx_eip1559) => {
+                let (tx, sig, hash) = tx_eip1559.into_parts();
+                Signed::new_unchecked(tx.into(), sig, hash)
+            }
+            SeismicTxEnvelope::Eip7702(tx_eip7702) => {
+                let (tx, sig, hash) = tx_eip7702.into_parts();
+                Signed::new_unchecked(tx.into(), sig, hash)
+            }
+            SeismicTxEnvelope::Seismic(tx_seismic) => {
+                let (tx, sig, hash) = tx_seismic.into_parts();
+                Signed::new_unchecked(tx.into(), sig, hash)
+            }
+        }
+    }
+}
+
 impl From<Signed<SeismicTypedTransaction>> for SeismicTxEnvelope {
     fn from(value: Signed<SeismicTypedTransaction>) -> Self {
         let (tx, sig, hash) = value.into_parts();
