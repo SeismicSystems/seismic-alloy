@@ -35,7 +35,18 @@ use alloy_rlp::{Decodable, Encodable};
     all(any(test, feature = "arbitrary"), feature = "k256"),
     derive(arbitrary::Arbitrary)
 )]
-struct SeismicTxEnvelope = Signed<SeismicTypedTransaction>;
+pub enum SeismicTxEnvelope {
+    /// An untagged [`TxLegacy`].
+    Legacy(Signed<TxLegacy>),
+    /// A [`TxEip2930`] tagged with type 1.
+    Eip2930(Signed<TxEip2930>),
+    /// A [`TxEip1559`] tagged with type 2.
+    Eip1559(Signed<TxEip1559>),
+    /// A [`TxEip7702`] tagged with type 4.
+    Eip7702(Signed<TxEip7702>),
+    /// A [`TxSeismic`] tagged with type 0x7E.
+    Seismic(Signed<TxSeismic>),
+}
 
 impl From<Signed<TxLegacy>> for SeismicTxEnvelope {
     fn from(v: Signed<TxLegacy>) -> Self {
