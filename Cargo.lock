@@ -3234,6 +3234,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "bincode",
+ "bytes",
  "c-kzg",
  "derive_more 1.0.0",
  "jsonrpsee",

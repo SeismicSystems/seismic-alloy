@@ -13,3 +13,9 @@ pub use seismic::*;
 pub use tx_serde::*;
 pub use tx_type::*;
 pub use typed::*;
+
+/// Bincode-compatible serde implementations for transaction types.
+#[cfg(all(feature = "serde", feature = "serde-bincode-compat"))]
+pub mod serde_bincode_compat {
+    pub use super::seismic::serde_bincode_compat::*;
+}

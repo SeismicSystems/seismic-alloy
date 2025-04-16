@@ -99,6 +99,7 @@ lazy_static = { version = "1.5.0", default-features = false }
 derive_more = { version = "1.0", default-features = false }
 thiserror = { version = "2.0", default-features = false }
 similar-asserts = "1.6"
+bytes = { version = "1.5", default-features = false }
 
 # tracing
 tracing-subscriber = "0.3.19"
