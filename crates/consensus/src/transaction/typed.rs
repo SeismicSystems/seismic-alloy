@@ -35,7 +35,7 @@ pub enum SeismicTypedTransaction {
     Eip1559(TxEip1559),
     /// EIP-7702 transaction
     Eip7702(TxEip7702),
-    /// Optimism deposit transaction
+    /// Seismic deposit transaction
     Seismic(TxSeismic),
 }
 

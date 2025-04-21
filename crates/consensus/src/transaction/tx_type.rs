@@ -1,4 +1,4 @@
-//! Contains the transaction type identifier for Optimism.
+//! Contains the transaction type identifier for Seismic.
 
 use alloy_consensus::Typed2718;
 use alloy_eips::eip2718::Eip2718Error;
@@ -6,10 +6,10 @@ use alloy_primitives::{U64, U8};
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use derive_more::Display;
 
-/// Identifier for an Optimism deposit transaction
+/// Identifier for an Seismic deposit transaction
 pub const SEISMIC_TX_TYPE_ID: u8 = 74; // 0x4A
 
-/// Optimism `TransactionType` flags as specified in EIPs [2718], [1559], and
+/// Seismic `TransactionType` flags as specified in EIPs [2718], [1559], and
 /// [2930], as well as the [deposit transaction spec][deposit-spec]
 ///
 /// [2718]: https://eips.ethereum.org/EIPS/eip-2718

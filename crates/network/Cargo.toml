@@ -1,0 +1,37 @@
+[package]
+name = "seismic-alloy-network"
+description = "Seismic blockchain RPC behavior abstraction"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+seismic-alloy-consensus.workspace = true
+seismic-alloy-rpc-types.workspace = true
+
+# Alloy
+alloy-consensus.workspace = true
+alloy-network.workspace = true
+alloy-primitives.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-signer.workspace = true
+
+[features]
+std = [
+	"seismic-alloy-consensus/std",
+	"seismic-alloy-rpc-types/std"
+]
+serde = [
+	"seismic-alloy-consensus/serde",
+	"seismic-alloy-rpc-types/serde"
+]

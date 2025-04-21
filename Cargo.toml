@@ -37,7 +37,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 [workspace.dependencies]
 # Workspace
 seismic-alloy-consensus = { version = "0.0.1", path = "crates/consensus", default-features = false }
-seismic-rpc-types = { version = "0.0.1", path = "crates/rpc-types", default-features = false }
+seismic-alloy-rpc-types = { version = "0.0.1", path = "crates/rpc-types", default-features = false }
+seismic-alloy-network = { version = "0.0.1", path = "crates/network", default-features = false }
 
 seismic-enclave = "0.1.0"
 
@@ -52,7 +53,7 @@ alloy-consensus = { version = "0.12", default-features = false }
 alloy-rpc-types-eth = { version = "0.12", default-features = false }
 alloy-rpc-types-engine = { version = "0.12", default-features = false }
 alloy-network-primitives = { version = "0.12", default-features = false }
-
+alloy-rpc-types = { version = "0.12", default-features = false }
 # Alloy RLP
 alloy-rlp = { version = "0.3", default-features = false }
 
