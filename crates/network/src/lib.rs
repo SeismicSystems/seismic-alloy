@@ -32,7 +32,7 @@ impl Network for Seismic {
 
     type TransactionResponse = alloy_rpc_types_eth::Transaction<SeismicTxEnvelope>;
 
-    type ReceiptResponse = alloy_rpc_types_eth::TransactionReceipt;
+    type ReceiptResponse = seismic_alloy_rpc_types::SeismicTransactionReceipt;
 
     type HeaderResponse = alloy_rpc_types_eth::Header;
 
