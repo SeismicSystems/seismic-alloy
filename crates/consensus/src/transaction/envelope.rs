@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use crate::{SeismicTxType, SeismicTypedTransaction, TxSeismic};
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
@@ -102,6 +104,12 @@ impl From<SeismicTxEnvelope> for Signed<SeismicTypedTransaction> {
                 Signed::new_unchecked(tx.into(), sig, hash)
             }
         }
+    }
+}
+
+impl Hash for SeismicTxEnvelope {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.trie_hash().hash(state);
     }
 }
 
