@@ -1,14 +1,14 @@
 use crate::{SeismicTxType, SeismicTypedTransaction, TxSeismic};
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
-    Signed, Transaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy, Typed2718,
+    SignableTransaction, Signed, Transaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy, Typed2718,
 };
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
     eip2930::AccessList,
     eip7702::SignedAuthorization,
 };
-use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
+use alloy_primitives::{Address, Bytes, PrimitiveSignature as Signature, TxKind, B256, U256};
 use alloy_rlp::{Decodable, Encodable};
 
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
@@ -377,10 +377,31 @@ impl SeismicTxEnvelope {
     }
 
     /// Returns the [`TxEip1559`] variant if the transaction is an EIP-1559 transaction.
-    pub const fn as_deposit(&self) -> Option<&Signed<TxSeismic>> {
+    pub const fn as_seismic(&self) -> Option<&Signed<TxSeismic>> {
         match self {
             Self::Seismic(tx) => Some(tx),
             _ => None,
+        }
+    }
+    /// Calculate the signing hash for the transaction.
+    pub fn signature_hash(&self) -> B256 {
+        match self {
+            Self::Legacy(tx) => tx.signature_hash(),
+            Self::Eip2930(tx) => tx.signature_hash(),
+            Self::Eip1559(tx) => tx.signature_hash(),
+            Self::Eip7702(tx) => tx.signature_hash(),
+            Self::Seismic(tx) => tx.signature_hash(),
+        }
+    }
+
+    /// Return the reference to signature.
+    pub const fn signature(&self) -> &Signature {
+        match self {
+            Self::Legacy(tx) => tx.signature(),
+            Self::Eip2930(tx) => tx.signature(),
+            Self::Eip1559(tx) => tx.signature(),
+            Self::Eip7702(tx) => tx.signature(),
+            Self::Seismic(tx) => tx.signature(),
         }
     }
 
