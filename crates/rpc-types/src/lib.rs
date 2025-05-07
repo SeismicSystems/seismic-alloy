@@ -15,5 +15,8 @@ pub use genesis::{OpBaseFeeInfo, OpChainInfo, OpGenesisInfo};
 mod receipt;
 pub use receipt::SeismicTransactionReceipt;
 
+mod request;
+pub use request::*;
+
 mod transaction;
 pub use transaction::SeismicTransactionRequest;
