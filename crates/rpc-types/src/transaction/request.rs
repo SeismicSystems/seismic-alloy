@@ -11,6 +11,7 @@ use seismic_alloy_consensus::{
     SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
 };
 use serde::{Deserialize, Serialize};
+use alloy_rpc_types_eth::TransactionTrait;
 
 /// Builder for [`SeismicTypedTransaction`].
 #[derive(
@@ -29,7 +30,10 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SeismicTransactionRequest {
+    /// The inner [`TransactionRequest`]
     pub inner: TransactionRequest,
+    /// Seismic-specific elements to be included in the transaction
+    /// For now just encrypted call data
     pub seismic_elements: Option<TxSeismicElements>,
 }
 
@@ -39,6 +43,53 @@ impl SeismicTransactionRequest {
     pub const fn from(mut self, from: Address) -> Self {
         self.inner.from = Some(from);
         self
+    }
+
+    /// Initializes the [`TransactionRequest`] with the provided transaction.
+    ///
+    /// Note: This leaves the `from` field empty.
+    pub fn from_transaction<T: TransactionTrait>(tx: T) -> Self {
+        let to = Some(tx.to().into());
+        let gas = tx.gas_limit();
+        let value = tx.value();
+        let input = tx.input().clone();
+        let nonce = tx.nonce();
+        let chain_id = tx.chain_id();
+        let access_list = tx.access_list().cloned();
+        let max_fee_per_blob_gas = tx.max_fee_per_blob_gas();
+        let authorization_list = tx.authorization_list().map(|l| l.to_vec());
+        let blob_versioned_hashes = tx.blob_versioned_hashes().map(Vec::from);
+        let tx_type = tx.ty();
+
+        // fees depending on the transaction type
+        let (gas_price, max_fee_per_gas) = if tx.is_dynamic_fee() {
+            (None, Some(tx.max_fee_per_gas()))
+        } else {
+            (Some(tx.max_fee_per_gas()), None)
+        };
+        let max_priority_fee_per_gas = tx.max_priority_fee_per_gas();
+
+        Self {
+            inner: TransactionRequest {
+                from: None,
+                to,
+                gas_price,
+                max_fee_per_gas,
+                max_priority_fee_per_gas,
+                gas: Some(gas),
+                value: Some(value),
+                input: TransactionInput::new(input),
+                nonce: Some(nonce),
+                chain_id,
+                access_list,
+                max_fee_per_blob_gas,
+                blob_versioned_hashes,
+                transaction_type: Some(tx_type),
+                sidecar: None,
+                authorization_list,
+            },
+            seismic_elements: None,
+        }
     }
 
     /// Sets the transactions type for the transactions.
@@ -97,6 +148,7 @@ impl SeismicTransactionRequest {
         self
     }
 
+    /// Sets the seismic elements for the transaction.
     pub fn seismic_elements(mut self, seismic_elements: TxSeismicElements) -> Self {
         self.seismic_elements = Some(seismic_elements);
         self
@@ -198,6 +250,14 @@ impl SeismicTransactionRequest {
             _ => panic!("Unsupported transaction type."),
         }
     }
+
+    /// Initializes the [`SeismicTransactionRequest`] with the provided transaction and sender.
+    pub fn from_transaction_with_sender<T: TransactionTrait>(tx: T, from: Address) -> Self {
+        Self::from_transaction(tx).from(from)
+    }
+
+
+    
 }
 
 impl From<TxLegacy> for SeismicTransactionRequest {
