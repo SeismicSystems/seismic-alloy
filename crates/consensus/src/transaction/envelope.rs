@@ -13,6 +13,8 @@ use alloy_eips::{
 use alloy_primitives::{Address, Bytes, PrimitiveSignature as Signature, TxKind, B256, U256};
 use alloy_rlp::{Decodable, Encodable};
 
+use super::{Decodable712, Eip712Result, TypedDataRequest};
+
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
 ///
 /// # Note:
@@ -527,6 +529,13 @@ impl Encodable2718 for SeismicTxEnvelope {
             Self::Eip7702(tx) => *tx.hash(),
             Self::Seismic(tx) => *tx.hash(),
         }
+    }
+}
+
+impl Decodable712 for SeismicTxEnvelope {
+    fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
+        let tx = TxSeismic::eip712_decode(&typed_data.data)?;
+        Ok(Self::Seismic(tx.into_signed(typed_data.signature)))
     }
 }
 
