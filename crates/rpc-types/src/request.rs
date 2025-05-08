@@ -3,6 +3,8 @@ use alloy_rpc_types_eth::TransactionRequest;
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::TypedDataRequest;
 
+use crate::SeismicTransactionRequest;
+
 /// Either normal raw tx or typed data with signature
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -34,14 +36,14 @@ pub enum SeismicCallRequest {
     /// EIP-712 signed typed message with signature
     TypedData(TypedDataRequest),
     /// normal call request
-    TransactionRequest(WithOtherFields<TransactionRequest>),
+    TransactionRequest(SeismicTransactionRequest),
     /// signed raw seismic tx
     Bytes(Bytes),
 }
 
 impl Default for SeismicCallRequest {
     fn default() -> Self {
-        SeismicCallRequest::TransactionRequest(WithOtherFields::new(TransactionRequest::default()))
+        SeismicCallRequest::TransactionRequest(SeismicTransactionRequest::default())
     }
 }
 
@@ -51,15 +53,9 @@ impl Into<SeismicCallRequest> for TypedDataRequest {
     }
 }
 
-impl Into<SeismicCallRequest> for WithOtherFields<TransactionRequest> {
+impl Into<SeismicCallRequest> for SeismicTransactionRequest {
     fn into(self) -> SeismicCallRequest {
         SeismicCallRequest::TransactionRequest(self)
-    }
-}
-
-impl Into<SeismicCallRequest> for TransactionRequest {
-    fn into(self) -> SeismicCallRequest {
-        SeismicCallRequest::TransactionRequest(WithOtherFields::new(self))
     }
 }
 
