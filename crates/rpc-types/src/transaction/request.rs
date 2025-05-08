@@ -48,7 +48,7 @@ impl SeismicTransactionRequest {
     /// Initializes the [`TransactionRequest`] with the provided transaction.
     ///
     /// Note: This leaves the `from` field empty.
-    pub fn from_transaction<T: TransactionTrait>(tx: T) -> Self {
+    pub fn from_transaction<T: alloy_consensus::Transaction>(tx: T) -> Self {
         let to = Some(tx.to().into());
         let gas = tx.gas_limit();
         let value = tx.value();
@@ -252,7 +252,7 @@ impl SeismicTransactionRequest {
     }
 
     /// Initializes the [`SeismicTransactionRequest`] with the provided transaction and sender.
-    pub fn from_transaction_with_sender<T: TransactionTrait>(tx: T, from: Address) -> Self {
+    pub fn from_transaction_with_sender<T: alloy_consensus::Transaction>(tx: T, from: Address) -> Self {
         Self::from_transaction(tx).from(from)
     }
 
