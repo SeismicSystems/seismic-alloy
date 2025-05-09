@@ -6,12 +6,15 @@ use alloy_consensus::{
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::TransactionBuilder7702;
 use alloy_primitives::{Address, PrimitiveSignature as Signature, TxKind, U256};
+use alloy_rpc_types_eth::TransactionTrait;
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use seismic_alloy_consensus::{
-    SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
+    Decodable712, Eip712Result, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic,
+    TxSeismicElements, TypedDataRequest,
 };
 use serde::{Deserialize, Serialize};
-use alloy_rpc_types_eth::TransactionTrait;
+
+use crate::SeismicCallRequest;
 
 /// Builder for [`SeismicTypedTransaction`].
 #[derive(
@@ -49,45 +52,9 @@ impl SeismicTransactionRequest {
     ///
     /// Note: This leaves the `from` field empty.
     pub fn from_transaction<T: alloy_consensus::Transaction>(tx: T) -> Self {
-        let to = Some(tx.to().into());
-        let gas = tx.gas_limit();
-        let value = tx.value();
-        let input = tx.input().clone();
-        let nonce = tx.nonce();
-        let chain_id = tx.chain_id();
-        let access_list = tx.access_list().cloned();
-        let max_fee_per_blob_gas = tx.max_fee_per_blob_gas();
-        let authorization_list = tx.authorization_list().map(|l| l.to_vec());
-        let blob_versioned_hashes = tx.blob_versioned_hashes().map(Vec::from);
-        let tx_type = tx.ty();
-
-        // fees depending on the transaction type
-        let (gas_price, max_fee_per_gas) = if tx.is_dynamic_fee() {
-            (None, Some(tx.max_fee_per_gas()))
-        } else {
-            (Some(tx.max_fee_per_gas()), None)
-        };
-        let max_priority_fee_per_gas = tx.max_priority_fee_per_gas();
-
+        let inner = TransactionRequest::from_transaction(tx);
         Self {
-            inner: TransactionRequest {
-                from: None,
-                to,
-                gas_price,
-                max_fee_per_gas,
-                max_priority_fee_per_gas,
-                gas: Some(gas),
-                value: Some(value),
-                input: TransactionInput::new(input),
-                nonce: Some(nonce),
-                chain_id,
-                access_list,
-                max_fee_per_blob_gas,
-                blob_versioned_hashes,
-                transaction_type: Some(tx_type),
-                sidecar: None,
-                authorization_list,
-            },
+            inner,
             seismic_elements: None,
         }
     }
@@ -252,12 +219,12 @@ impl SeismicTransactionRequest {
     }
 
     /// Initializes the [`SeismicTransactionRequest`] with the provided transaction and sender.
-    pub fn from_transaction_with_sender<T: alloy_consensus::Transaction>(tx: T, from: Address) -> Self {
+    pub fn from_transaction_with_sender<T: alloy_consensus::Transaction>(
+        tx: T,
+        from: Address,
+    ) -> Self {
         Self::from_transaction(tx).from(from)
     }
-
-
-    
 }
 
 impl From<TxLegacy> for SeismicTransactionRequest {
@@ -393,5 +360,12 @@ impl TransactionBuilder7702 for SeismicTransactionRequest {
 
     fn set_authorization_list(&mut self, authorization_list: Vec<SignedAuthorization>) {
         self.inner.set_authorization_list(authorization_list);
+    }
+}
+
+impl Decodable712 for SeismicTransactionRequest {
+    fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
+        let tx = TxSeismic::eip712_decode(&typed_data.data)?;
+        Ok(tx.into())
     }
 }
