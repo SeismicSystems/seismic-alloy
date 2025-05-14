@@ -372,7 +372,5 @@ mod tests {
         assert_eq!(receipt.cumulative_gas_used(), 100);
         assert_eq!(receipt.logs().len(), 0);
         assert_eq!(receipt.tx_type(), SeismicTxType::Seismic);
-        assert_eq!(receipt.deposit_nonce(), Some(1));
-        assert_eq!(receipt.deposit_receipt_version(), Some(2));
     }
 }

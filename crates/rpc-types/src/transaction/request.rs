@@ -1,3 +1,5 @@
+use core::fmt::Error;
+
 use alloc::vec::Vec;
 use alloy_consensus::{
     Sealed, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844, TxEip7702, TxLegacy,
@@ -12,6 +14,7 @@ use seismic_alloy_consensus::{
     Decodable712, Eip712Result, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic,
     TxSeismicElements, TypedDataRequest,
 };
+use seismic_enclave::EnclaveClient;
 use serde::{Deserialize, Serialize};
 
 use crate::SeismicCallRequest;
@@ -224,6 +227,20 @@ impl SeismicTransactionRequest {
         from: Address,
     ) -> Self {
         Self::from_transaction(tx).from(from)
+    }
+
+    pub fn to_transaction_request(
+        &self,
+        enclave_client: &EnclaveClient,
+    ) -> Result<TransactionRequest, Error> {
+        if let Some(seismic_elements) = &self.seismic_elements {
+            let ciphertext = self.inner.input.input().unwrap();
+            let plaintext = seismic_elements
+                .server_decrypt(enclave_client, ciphertext)
+                .unwrap();
+            self.inner.clone().input(plaintext.into());
+        }
+        Ok(self.inner.clone())
     }
 }
 

@@ -39,6 +39,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 seismic-alloy-consensus = { version = "0.0.1", path = "crates/consensus", default-features = false }
 seismic-alloy-rpc-types = { version = "0.0.1", path = "crates/rpc-types", default-features = false }
 seismic-alloy-network = { version = "0.0.1", path = "crates/network", default-features = false }
+seismic-alloy-provider = { version = "0.0.1", path = "crates/provider", default-features = false }
 
 seismic-enclave = "0.1.0"
 
