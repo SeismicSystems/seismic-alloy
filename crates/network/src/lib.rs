@@ -5,7 +5,7 @@
 
 pub use alloy_network::*;
 
-use alloy_consensus::{TxEnvelope, TxType, TypedTransaction};
+use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
@@ -216,23 +216,34 @@ impl NetworkWallet<Seismic> for EthereumWallet {
         sender: Address,
         tx: SeismicTypedTransaction,
     ) -> alloy_signer::Result<SeismicTxEnvelope> {
-        let tx = match tx {
-            SeismicTypedTransaction::Legacy(tx) => TypedTransaction::Legacy(tx),
-            SeismicTypedTransaction::Eip2930(tx) => TypedTransaction::Eip2930(tx),
-            SeismicTypedTransaction::Eip1559(tx) => TypedTransaction::Eip1559(tx),
-            SeismicTypedTransaction::Eip7702(tx) => TypedTransaction::Eip7702(tx),
-            SeismicTypedTransaction::Seismic(_) => {
-                return Err(alloy_signer::Error::other("not implemented for deposit tx"));
-            }
-        };
-        let tx = NetworkWallet::<Ethereum>::sign_transaction_from(self, sender, tx).await?;
+        if let SeismicTypedTransaction::Seismic(mut tx) = tx {
+            let signature = self
+                .signer_by_address(sender)
+                .ok_or_else(|| {
+                    alloy_signer::Error::other(format!("Missing signing credential for {}", sender))
+                })?
+                .sign_transaction(&mut tx)
+                .await?;
 
-        Ok(match tx {
-            TxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
-            TxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
-            TxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
-            TxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
-            _ => unreachable!(),
-        })
+            Ok(tx.into_signed(signature).into())
+        } else {
+            let tx = match tx {
+                SeismicTypedTransaction::Legacy(tx) => TypedTransaction::Legacy(tx),
+                SeismicTypedTransaction::Eip2930(tx) => TypedTransaction::Eip2930(tx),
+                SeismicTypedTransaction::Eip1559(tx) => TypedTransaction::Eip1559(tx),
+                SeismicTypedTransaction::Eip7702(tx) => TypedTransaction::Eip7702(tx),
+                SeismicTypedTransaction::Seismic(_tx) => unreachable!(),
+            };
+
+            let tx = NetworkWallet::<Ethereum>::sign_transaction_from(self, sender, tx).await?;
+
+            Ok(match tx {
+                TxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
+                TxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
+                TxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
+                TxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
+                _ => unreachable!(),
+            })
+        }
     }
 }
