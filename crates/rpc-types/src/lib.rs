@@ -20,3 +20,6 @@ pub use request::*;
 
 mod transaction;
 pub use transaction::SeismicTransactionRequest;
+
+mod simblock;
+pub use simblock::{SimBlock, SimulatePayload};
