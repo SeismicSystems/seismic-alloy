@@ -1,6 +1,4 @@
 use alloy_primitives::Bytes;
-use alloy_rpc_types_eth::TransactionRequest;
-use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::TypedDataRequest;
 
 use crate::SeismicTransactionRequest;

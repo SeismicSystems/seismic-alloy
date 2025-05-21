@@ -8,7 +8,7 @@ edition = "2021"
 rust-version = "1.82"
 authors = ["Seismic Contributors"]
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/SeismicSystems/seismic-alloy" 
+homepage = "https://github.com/SeismicSystems/seismic-alloy"
 repository = "https://github.com/SeismicSystems/seismic-alloy"
 exclude = ["benches/", "tests/"]
 
@@ -131,4 +131,4 @@ alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy
 alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
 
-seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "06df897"}
+seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "06df897" }

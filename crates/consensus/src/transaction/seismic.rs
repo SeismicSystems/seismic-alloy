@@ -1,3 +1,4 @@
+//! Seismic transaction types and utilities
 use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;

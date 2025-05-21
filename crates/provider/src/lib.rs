@@ -1,5 +1,6 @@
-/// Utilities for testing seismic provider
+//! Test utilities for seismic provider
 pub mod test_utils {
+    //! Test utilities for seismic provider
     use alloy_primitives::{hex, Bytes};
 
     /// Test context for seismic provider

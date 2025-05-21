@@ -1,3 +1,4 @@
+//! Transaction types and utilities
 pub mod eip712;
 pub mod envelope;
 pub mod seismic;

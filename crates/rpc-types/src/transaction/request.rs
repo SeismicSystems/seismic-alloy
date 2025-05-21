@@ -2,22 +2,18 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
-    Sealed, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844, TxEip7702, TxLegacy,
+    SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip7702, TxLegacy,
     TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::TransactionBuilder7702;
 use alloy_primitives::{Address, PrimitiveSignature as Signature, TxKind, U256};
-use alloy_rpc_types_eth::TransactionTrait;
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use seismic_alloy_consensus::{
     Decodable712, Eip712Result, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic,
     TxSeismicElements, TypedDataRequest,
 };
-use seismic_enclave::EnclaveClient;
-use serde::{Deserialize, Serialize};
-
-use crate::SeismicCallRequest;
+use seismic_enclave::{EnclaveClient};
 
 /// Builder for [`SeismicTypedTransaction`].
 #[derive(
@@ -30,10 +26,9 @@ use crate::SeismicCallRequest;
     derive_more::From,
     derive_more::AsRef,
     derive_more::AsMut,
-    Serialize,
-    Deserialize,
 )]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SeismicTransactionRequest {
     /// The inner [`TransactionRequest`]
@@ -229,6 +224,7 @@ impl SeismicTransactionRequest {
         Self::from_transaction(tx).from(from)
     }
 
+    /// Decrypts the seismic elements and returns a [`TransactionRequest`].
     pub fn to_transaction_request(
         &self,
         enclave_client: &EnclaveClient,
