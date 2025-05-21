@@ -1,3 +1,4 @@
+//! Transaction serde utilities
 use alloy_primitives::FixedBytes;
 use seismic_enclave::{constants, PublicKey};
 use serde::{de::Error, Deserialize, Deserializer};

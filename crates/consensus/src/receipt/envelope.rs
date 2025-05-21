@@ -48,7 +48,7 @@ pub enum SeismicReceiptEnvelope<T = Log> {
     /// Receipt envelope with type flag 126, containing a [deposit] receipt.
     ///
     /// [deposit]: https://specs.optimism.io/protocol/deposits.html
-    #[cfg_attr(feature = "serde", serde(rename = "0x7e", alias = "0x7E"))]
+    #[cfg_attr(feature = "serde", serde(rename = "0x4a", alias = "0x4A"))]
     Seismic(ReceiptWithBloom<Receipt<T>>),
 }
 
@@ -59,8 +59,8 @@ impl SeismicReceiptEnvelope<Log> {
         cumulative_gas_used: u64,
         logs: impl IntoIterator<Item = &'a Log>,
         tx_type: SeismicTxType,
-        deposit_nonce: Option<u64>,
-        deposit_receipt_version: Option<u64>,
+        _deposit_nonce: Option<u64>,
+        _deposit_receipt_version: Option<u64>,
     ) -> Self {
         let logs = logs.into_iter().cloned().collect::<Vec<_>>();
         let logs_bloom = logs_bloom(&logs);

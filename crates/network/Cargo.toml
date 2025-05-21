@@ -17,7 +17,7 @@ workspace = true
 [dependencies]
 # Workspace
 seismic-alloy-consensus.workspace = true
-seismic-alloy-rpc-types.workspace = true
+seismic-alloy-rpc-types = { workspace = true, features = ["serde"] }
 
 # Alloy
 alloy-consensus.workspace = true

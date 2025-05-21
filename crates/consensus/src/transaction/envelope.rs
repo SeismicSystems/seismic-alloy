@@ -1,8 +1,9 @@
+//! Transaction envelope types and utilities
 use std::hash::{Hash, Hasher};
 
 use crate::{SeismicTxType, SeismicTypedTransaction, TxSeismic};
 use alloy_consensus::{
-    transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
+    transaction::{RlpEcdsaDecodableTx},
     SignableTransaction, Signed, Transaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy, Typed2718,
 };
 use alloy_eips::{
@@ -532,6 +533,7 @@ impl Encodable2718 for SeismicTxEnvelope {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Decodable712 for SeismicTxEnvelope {
     fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
         let tx = TxSeismic::eip712_decode(&typed_data.data)?;
@@ -617,7 +619,7 @@ mod serde_from {
 mod tests {
     use super::*;
     use alloy_consensus::SignableTransaction;
-    use alloy_primitives::{hex, Address, Bytes, PrimitiveSignature, TxKind, B256, U256};
+    use alloy_primitives::{hex, Address, PrimitiveSignature, U256};
 
     #[test]
     #[cfg(feature = "serde")]
