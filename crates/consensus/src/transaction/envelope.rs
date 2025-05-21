@@ -31,15 +31,9 @@ use super::{Decodable712, Eip712Result, TypedDataRequest};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(
-        into = "serde_from::TaggedTxEnvelope",
-        from = "serde_from::MaybeTaggedTxEnvelope"
-    )
+    serde(into = "serde_from::TaggedTxEnvelope", from = "serde_from::MaybeTaggedTxEnvelope")
 )]
-#[cfg_attr(
-    all(any(test, feature = "arbitrary"), feature = "k256"),
-    derive(arbitrary::Arbitrary)
-)]
+#[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
 pub enum SeismicTxEnvelope {
     /// An untagged [`TxLegacy`].
     Legacy(Signed<TxLegacy>),
@@ -468,18 +462,15 @@ impl Decodable for SeismicTxEnvelope {
 
 impl Decodable2718 for SeismicTxEnvelope {
     fn typed_decode(ty: u8, buf: &mut &[u8]) -> Eip2718Result<Self> {
-        match ty
-            .try_into()
-            .map_err(|_| Eip2718Error::UnexpectedType(ty))?
-        {
+        match ty.try_into().map_err(|_| Eip2718Error::UnexpectedType(ty))? {
             SeismicTxType::Eip2930 => Ok(Self::Eip2930(TxEip2930::rlp_decode_signed(buf)?)),
             SeismicTxType::Eip1559 => Ok(Self::Eip1559(TxEip1559::rlp_decode_signed(buf)?)),
             SeismicTxType::Eip7702 => Ok(Self::Eip7702(TxEip7702::rlp_decode_signed(buf)?)),
             SeismicTxType::Seismic => Ok(Self::Seismic(TxSeismic::rlp_decode_signed(buf)?)),
-            SeismicTxType::Legacy => Err(alloy_rlp::Error::Custom(
-                "type-0 eip2718 transactions are not supported",
-            )
-            .into()),
+            SeismicTxType::Legacy => {
+                Err(alloy_rlp::Error::Custom("type-0 eip2718 transactions are not supported")
+                    .into())
+            }
         }
     }
 

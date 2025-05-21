@@ -28,10 +28,7 @@ impl TryFrom<&OtherFields> for OpChainInfo {
         let genesis_info = OpGenesisInfo::try_from(others).ok();
         let base_fee_info = OpBaseFeeInfo::try_from(others).ok();
 
-        Ok(Self {
-            genesis_info,
-            base_fee_info,
-        })
+        Ok(Self { genesis_info, base_fee_info })
     }
 }
 

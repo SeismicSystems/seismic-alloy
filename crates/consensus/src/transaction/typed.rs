@@ -424,8 +424,8 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
 mod serde_from {
     //! NB: Why do we need this?
     //!
-    //! Because the tag may be missing, we need an abstraction over tagged (with //! type) and untagged (always legacy). This is
-    //! [`MaybeTaggedTypedTransaction`].
+    //! Because the tag may be missing, we need an abstraction over tagged (with //! type) and
+    //! untagged (always legacy). This is [`MaybeTaggedTypedTransaction`].
     //!
     //! The tagged variant is [`TaggedTypedTransaction`], which always has a
     //! type tag.
