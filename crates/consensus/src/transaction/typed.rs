@@ -1,8 +1,8 @@
 //! Typed transaction types and utilities
 use crate::{SeismicTxEnvelope, SeismicTxType, TxSeismic};
 use alloy_consensus::{
-    transaction::{RlpEcdsaEncodableTx},
-    SignableTransaction, Transaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy, Typed2718,
+    transaction::RlpEcdsaEncodableTx, SignableTransaction, Transaction, TxEip1559, TxEip2930,
+    TxEip7702, TxLegacy, Typed2718,
 };
 use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{
@@ -424,8 +424,8 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
 mod serde_from {
     //! NB: Why do we need this?
     //!
-    //! Because the tag may be missing, we need an abstraction over tagged (with //! type) and untagged (always legacy). This is
-    //! [`MaybeTaggedTypedTransaction`].
+    //! Because the tag may be missing, we need an abstraction over tagged (with //! type) and
+    //! untagged (always legacy). This is [`MaybeTaggedTypedTransaction`].
     //!
     //! The tagged variant is [`TaggedTypedTransaction`], which always has a
     //! type tag.

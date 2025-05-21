@@ -114,8 +114,7 @@ impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
     }
 
     fn set_max_priority_fee_per_gas(&mut self, max_priority_fee_per_gas: u128) {
-        self.inner
-            .set_max_priority_fee_per_gas(max_priority_fee_per_gas);
+        self.inner.set_max_priority_fee_per_gas(max_priority_fee_per_gas);
     }
 
     fn gas_limit(&self) -> Option<u64> {
@@ -182,10 +181,8 @@ impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
     fn build_unsigned(self) -> BuildResult<SeismicTypedTransaction, Seismic> {
         if let Err((tx_type, missing)) = self.inner.missing_keys() {
             let tx_type = SeismicTxType::try_from(tx_type as u8).unwrap();
-            return Err(
-                TransactionBuilderError::InvalidTransactionRequest(tx_type, missing)
-                    .into_unbuilt(self),
-            );
+            return Err(TransactionBuilderError::InvalidTransactionRequest(tx_type, missing)
+                .into_unbuilt(self));
         }
         Ok(self.build_typed_tx().expect("checked by missing_keys"))
     }
