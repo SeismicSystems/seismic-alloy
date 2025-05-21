@@ -2,8 +2,7 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
-    SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip7702, TxLegacy,
-    TypedTransaction,
+    SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip7702, TxLegacy, TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::TransactionBuilder7702;
@@ -13,7 +12,7 @@ use seismic_alloy_consensus::{
     Decodable712, Eip712Result, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic,
     TxSeismicElements, TypedDataRequest,
 };
-use seismic_enclave::{EnclaveClient};
+use seismic_enclave::EnclaveClient;
 
 /// Builder for [`SeismicTypedTransaction`].
 #[derive(
