@@ -2,8 +2,7 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
-    SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip7702, TxLegacy,
-    TypedTransaction,
+    SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip7702, TxLegacy, TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::TransactionBuilder7702;
@@ -13,7 +12,7 @@ use seismic_alloy_consensus::{
     Decodable712, Eip712Result, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic,
     TxSeismicElements, TypedDataRequest,
 };
-use seismic_enclave::{EnclaveClient};
+use seismic_enclave::EnclaveClient;
 
 /// Builder for [`SeismicTypedTransaction`].
 #[derive(
@@ -51,10 +50,7 @@ impl SeismicTransactionRequest {
     /// Note: This leaves the `from` field empty.
     pub fn from_transaction<T: alloy_consensus::Transaction>(tx: T) -> Self {
         let inner = TransactionRequest::from_transaction(tx);
-        Self {
-            inner,
-            seismic_elements: None,
-        }
+        Self { inner, seismic_elements: None }
     }
 
     /// Sets the transactions type for the transactions.
@@ -158,28 +154,19 @@ impl SeismicTransactionRequest {
     /// Returns an error if required fields are missing.
     /// Use `complete_seismic` to check if the request can be built.
     fn build_seismic(self) -> Result<TxSeismic, &'static str> {
-        let checked_to = self
-            .inner
-            .to
-            .ok_or("Missing 'to' field for seismic transaction.")?;
+        let checked_to = self.inner.to.ok_or("Missing 'to' field for seismic transaction.")?;
 
         Ok(TxSeismic {
             chain_id: self
                 .inner
                 .chain_id
                 .ok_or("Missing 'chain_id' field for seismic transaction.")?,
-            nonce: self
-                .inner
-                .nonce
-                .ok_or("Missing 'nonce' field for seismic transaction.")?,
+            nonce: self.inner.nonce.ok_or("Missing 'nonce' field for seismic transaction.")?,
             gas_price: self
                 .inner
                 .gas_price
                 .ok_or("Missing 'gas_price' for seismic transaction.")?,
-            gas_limit: self
-                .inner
-                .gas
-                .ok_or("Missing 'gas_limit' for seismic transaction.")?,
+            gas_limit: self.inner.gas.ok_or("Missing 'gas_limit' for seismic transaction.")?,
             to: checked_to,
             value: self.inner.value.unwrap_or_default(),
             input: self.inner.input.into_input().unwrap_or_default(),
@@ -189,23 +176,21 @@ impl SeismicTransactionRequest {
         })
     }
 
-    /// Builds [`SeismicTypedTransaction`] from this builder. See [`TransactionRequest::build_typed_tx`]
-    /// for more info.
+    /// Builds [`SeismicTypedTransaction`] from this builder. See
+    /// [`TransactionRequest::build_typed_tx`] for more info.
     ///
     /// Note that EIP-4844 transactions are not supported by Seismic and will be converted into
     /// EIP-1559 transactions.
     pub fn build_typed_tx(self) -> Result<SeismicTypedTransaction, Self> {
         if self.seismic_elements.is_some() {
-            let tx = self
-                .build_seismic()
-                .expect("Failed to build seismic transaction.");
+            let tx = self.build_seismic().expect("Failed to build seismic transaction.");
             return Ok(SeismicTypedTransaction::Seismic(tx));
         }
 
-        let tx = self.inner.build_typed_tx().map_err(|orig_tx| Self {
-            inner: orig_tx,
-            seismic_elements: self.seismic_elements,
-        })?;
+        let tx = self
+            .inner
+            .build_typed_tx()
+            .map_err(|orig_tx| Self { inner: orig_tx, seismic_elements: self.seismic_elements })?;
 
         match tx {
             TypedTransaction::Legacy(tx) => Ok(SeismicTypedTransaction::Legacy(tx)),
@@ -231,9 +216,7 @@ impl SeismicTransactionRequest {
     ) -> Result<TransactionRequest, Error> {
         if let Some(seismic_elements) = &self.seismic_elements {
             let ciphertext = self.inner.input.input().unwrap();
-            let plaintext = seismic_elements
-                .server_decrypt(enclave_client, ciphertext)
-                .unwrap();
+            let plaintext = seismic_elements.server_decrypt(enclave_client, ciphertext).unwrap();
             self.inner.clone().input(plaintext.into());
         }
         Ok(self.inner.clone())
@@ -243,56 +226,36 @@ impl SeismicTransactionRequest {
 impl From<TxLegacy> for SeismicTransactionRequest {
     fn from(tx: TxLegacy) -> Self {
         let inner = tx.into();
-        Self {
-            inner,
-            seismic_elements: None,
-        }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxEip2930> for SeismicTransactionRequest {
     fn from(tx: TxEip2930) -> Self {
         let inner = tx.into();
-        Self {
-            inner,
-            seismic_elements: None,
-        }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxEip1559> for SeismicTransactionRequest {
     fn from(tx: TxEip1559) -> Self {
         let inner = tx.into();
-        Self {
-            inner,
-            seismic_elements: None,
-        }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxEip7702> for SeismicTransactionRequest {
     fn from(tx: TxEip7702) -> Self {
         let inner = tx.into();
-        Self {
-            inner,
-            seismic_elements: None,
-        }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxSeismic> for SeismicTransactionRequest {
     fn from(tx: TxSeismic) -> Self {
         let ty = tx.ty();
-        let TxSeismic {
-            chain_id,
-            nonce,
-            gas_price,
-            gas_limit,
-            to,
-            value,
-            input,
-            seismic_elements,
-        } = tx;
+        let TxSeismic { chain_id, nonce, gas_price, gas_limit, to, value, input, seismic_elements } =
+            tx;
 
         let inner = TransactionRequest {
             to: Some(to.into()),
@@ -306,10 +269,7 @@ impl From<TxSeismic> for SeismicTransactionRequest {
             ..Default::default()
         };
 
-        Self {
-            inner,
-            seismic_elements: Some(seismic_elements),
-        }
+        Self { inner, seismic_elements: Some(seismic_elements) }
     }
 }
 
@@ -333,22 +293,18 @@ where
 impl From<SeismicTypedTransaction> for SeismicTransactionRequest {
     fn from(tx: SeismicTypedTransaction) -> Self {
         match tx {
-            SeismicTypedTransaction::Legacy(tx) => Self {
-                inner: tx.into(),
-                seismic_elements: None,
-            },
-            SeismicTypedTransaction::Eip2930(tx) => Self {
-                inner: tx.into(),
-                seismic_elements: None,
-            },
-            SeismicTypedTransaction::Eip1559(tx) => Self {
-                inner: tx.into(),
-                seismic_elements: None,
-            },
-            SeismicTypedTransaction::Eip7702(tx) => Self {
-                inner: tx.into(),
-                seismic_elements: None,
-            },
+            SeismicTypedTransaction::Legacy(tx) => {
+                Self { inner: tx.into(), seismic_elements: None }
+            }
+            SeismicTypedTransaction::Eip2930(tx) => {
+                Self { inner: tx.into(), seismic_elements: None }
+            }
+            SeismicTypedTransaction::Eip1559(tx) => {
+                Self { inner: tx.into(), seismic_elements: None }
+            }
+            SeismicTypedTransaction::Eip7702(tx) => {
+                Self { inner: tx.into(), seismic_elements: None }
+            }
             SeismicTypedTransaction::Seismic(tx) => tx.into(),
         }
     }

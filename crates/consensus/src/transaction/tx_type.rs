@@ -42,13 +42,8 @@ pub enum SeismicTxType {
 
 impl SeismicTxType {
     /// List of all variants.
-    pub const ALL: [Self; 5] = [
-        Self::Legacy,
-        Self::Eip2930,
-        Self::Eip1559,
-        Self::Eip7702,
-        Self::Seismic,
-    ];
+    pub const ALL: [Self; 5] =
+        [Self::Legacy, Self::Eip2930, Self::Eip1559, Self::Eip7702, Self::Seismic];
 }
 
 #[cfg(feature = "arbitrary")]

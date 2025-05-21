@@ -64,32 +64,24 @@ impl SeismicReceiptEnvelope<Log> {
     ) -> Self {
         let logs = logs.into_iter().cloned().collect::<Vec<_>>();
         let logs_bloom = logs_bloom(&logs);
-        let inner_receipt = Receipt {
-            status: Eip658Value::Eip658(status),
-            cumulative_gas_used,
-            logs,
-        };
+        let inner_receipt =
+            Receipt { status: Eip658Value::Eip658(status), cumulative_gas_used, logs };
         match tx_type {
-            SeismicTxType::Legacy => Self::Legacy(ReceiptWithBloom {
-                receipt: inner_receipt,
-                logs_bloom,
-            }),
-            SeismicTxType::Eip2930 => Self::Eip2930(ReceiptWithBloom {
-                receipt: inner_receipt,
-                logs_bloom,
-            }),
-            SeismicTxType::Eip1559 => Self::Eip1559(ReceiptWithBloom {
-                receipt: inner_receipt,
-                logs_bloom,
-            }),
-            SeismicTxType::Eip7702 => Self::Eip7702(ReceiptWithBloom {
-                receipt: inner_receipt,
-                logs_bloom,
-            }),
-            SeismicTxType::Seismic => Self::Seismic(ReceiptWithBloom {
-                receipt: inner_receipt,
-                logs_bloom,
-            }),
+            SeismicTxType::Legacy => {
+                Self::Legacy(ReceiptWithBloom { receipt: inner_receipt, logs_bloom })
+            }
+            SeismicTxType::Eip2930 => {
+                Self::Eip2930(ReceiptWithBloom { receipt: inner_receipt, logs_bloom })
+            }
+            SeismicTxType::Eip1559 => {
+                Self::Eip1559(ReceiptWithBloom { receipt: inner_receipt, logs_bloom })
+            }
+            SeismicTxType::Eip7702 => {
+                Self::Eip7702(ReceiptWithBloom { receipt: inner_receipt, logs_bloom })
+            }
+            SeismicTxType::Seismic => {
+                Self::Seismic(ReceiptWithBloom { receipt: inner_receipt, logs_bloom })
+            }
         }
     }
 }
@@ -141,11 +133,11 @@ impl<T> SeismicReceiptEnvelope<T> {
     /// receipt types may be added.
     pub const fn as_receipt(&self) -> Option<&Receipt<T>> {
         match self {
-            Self::Legacy(t)
-            | Self::Eip2930(t)
-            | Self::Eip1559(t)
-            | Self::Eip7702(t)
-            | Self::Seismic(t) => Some(&t.receipt),
+            Self::Legacy(t) |
+            Self::Eip2930(t) |
+            Self::Eip1559(t) |
+            Self::Eip7702(t) |
+            Self::Seismic(t) => Some(&t.receipt),
         }
     }
 }
@@ -261,14 +253,11 @@ impl Encodable2718 for SeismicReceiptEnvelope {
 
 impl Decodable2718 for SeismicReceiptEnvelope {
     fn typed_decode(ty: u8, buf: &mut &[u8]) -> Eip2718Result<Self> {
-        match ty
-            .try_into()
-            .map_err(|_| Eip2718Error::UnexpectedType(ty))?
-        {
-            SeismicTxType::Legacy => Err(alloy_rlp::Error::Custom(
-                "type-0 eip2718 transactions are not supported",
-            )
-            .into()),
+        match ty.try_into().map_err(|_| Eip2718Error::UnexpectedType(ty))? {
+            SeismicTxType::Legacy => {
+                Err(alloy_rlp::Error::Custom("type-0 eip2718 transactions are not supported")
+                    .into())
+            }
             SeismicTxType::Eip1559 => Ok(Self::Eip1559(Decodable::decode(buf)?)),
             SeismicTxType::Eip7702 => Ok(Self::Eip7702(Decodable::decode(buf)?)),
             SeismicTxType::Eip2930 => Ok(Self::Eip2930(Decodable::decode(buf)?)),

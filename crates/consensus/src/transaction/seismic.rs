@@ -32,10 +32,7 @@ pub struct TxSeismicElements {
     /// The public key we will decrypt to
     #[cfg_attr(
         feature = "serde",
-        serde(
-            alias = "encryptionPubkey",
-            deserialize_with = "pubkey_with_prefix_deserialize"
-        )
+        serde(alias = "encryptionPubkey", deserialize_with = "pubkey_with_prefix_deserialize")
     )]
     pub encryption_pubkey: PublicKey,
 
@@ -45,10 +42,7 @@ pub struct TxSeismicElements {
 
     /// The EIP712 version of the transaction when the user submitted it using signTypedDataV4.
     /// A value of 0 means the transaction was not signed using EIP712
-    #[cfg_attr(
-        feature = "serde",
-        serde(alias = "messageVersion", with = "alloy_serde::quantity")
-    )]
+    #[cfg_attr(feature = "serde", serde(alias = "messageVersion", with = "alloy_serde::quantity"))]
     pub message_version: u8,
 }
 
@@ -144,12 +138,7 @@ impl TxSeismicElements {
         network_pk: &PublicKey,
         client_sk: &SecretKey,
     ) -> Result<Bytes, anyhow::Error> {
-        Ok(Bytes::from(ecdh_encrypt(
-            network_pk,
-            client_sk,
-            plaintext,
-            self.get_enclave_nonce(),
-        )?))
+        Ok(Bytes::from(ecdh_encrypt(network_pk, client_sk, plaintext, self.get_enclave_nonce())?))
     }
 
     /// client decrypt: network pubkey, client sk
@@ -159,12 +148,7 @@ impl TxSeismicElements {
         network_pk: &PublicKey,
         client_sk: &SecretKey,
     ) -> Result<Bytes, anyhow::Error> {
-        Ok(Bytes::from(ecdh_decrypt(
-            network_pk,
-            client_sk,
-            ciphertext,
-            self.get_enclave_nonce(),
-        )?))
+        Ok(Bytes::from(ecdh_decrypt(network_pk, client_sk, ciphertext, self.get_enclave_nonce())?))
     }
 }
 
@@ -202,9 +186,9 @@ impl Encodable for TxSeismicElements {
     }
 
     fn length(&self) -> usize {
-        self.encryption_pubkey.serialize().length()
-            + self.encryption_nonce.length()
-            + self.message_version.length()
+        self.encryption_pubkey.serialize().length() +
+            self.encryption_nonce.length() +
+            self.message_version.length()
     }
 }
 
@@ -228,11 +212,7 @@ impl Decodable for TxSeismicElements {
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-#[doc(
-    alias = "SeismicTransaction",
-    alias = "TransactionSeismic",
-    alias = "SeismicTx"
-)]
+#[doc(alias = "SeismicTransaction", alias = "TransactionSeismic", alias = "SeismicTx")]
 pub struct TxSeismic {
     /// encrypted transaction inputted from users
     #[cfg_attr(feature = "serde", serde(with = "alloy_serde::quantity"))]
@@ -386,32 +366,27 @@ impl TxSeismic {
     fn eip712_signature_hash(&self) -> B256 {
         let typed_data = self.eip712_to_type_data();
 
-        typed_data
-            .eip712_signing_hash()
-            .expect("Failed to hash seismic transaction in eip712")
+        typed_data.eip712_signing_hash().expect("Failed to hash seismic transaction in eip712")
     }
 }
 
 #[cfg(feature = "serde")]
 impl From<Signed<TxSeismic>> for TypedDataRequest {
     fn from(tx: Signed<TxSeismic>) -> Self {
-        TypedDataRequest {
-            data: tx.tx().eip712_to_type_data(),
-            signature: *tx.signature(),
-        }
+        TypedDataRequest { data: tx.tx().eip712_to_type_data(), signature: *tx.signature() }
     }
 }
 
 impl RlpEcdsaEncodableTx for TxSeismic {
     fn rlp_encoded_fields_length(&self) -> usize {
-        self.chain_id.length()
-            + self.nonce.length()
-            + self.gas_price.length()
-            + self.gas_limit.length()
-            + self.to.length()
-            + self.value.length()
-            + self.seismic_elements.length()
-            + self.input.length()
+        self.chain_id.length() +
+            self.nonce.length() +
+            self.gas_price.length() +
+            self.gas_limit.length() +
+            self.to.length() +
+            self.value.length() +
+            self.seismic_elements.length() +
+            self.input.length()
     }
 
     fn rlp_encode_fields(&self, out: &mut dyn alloy_rlp::BufMut) {
