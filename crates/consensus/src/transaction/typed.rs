@@ -1,4 +1,7 @@
 //! Typed transaction types and utilities
+use super::InputDecryptionElements;
+use crate::InputDecryptionElementsError;
+use crate::TxSeismicElements;
 use crate::{SeismicTxEnvelope, SeismicTxType, TxSeismic};
 use alloy_consensus::{
     transaction::RlpEcdsaEncodableTx, SignableTransaction, Transaction, TxEip1559, TxEip2930,
@@ -8,9 +11,6 @@ use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{
     bytes::BufMut, Address, Bytes, PrimitiveSignature as Signature, TxHash, TxKind, B256,
 };
-use super::InputDecryptionElements;
-use crate::TxSeismicElements;
-use crate::InputDecryptionElementsError;
 
 /// The TypedTransaction enum represents all Ethereum transaction request types, modified for the OP
 /// Stack.
@@ -345,20 +345,36 @@ impl Transaction for SeismicTypedTransaction {
 impl InputDecryptionElements for SeismicTypedTransaction {
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
         match self {
-            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType("SeismicTypedTransaction::Legacy".to_string())),
-            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType("SeismicTypedTransaction::Eip2930".to_string())),
-            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType("SeismicTypedTransaction::Eip1559".to_string())),
-            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType("SeismicTypedTransaction::Eip7702".to_string())),
+            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Legacy".to_string(),
+            )),
+            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip2930".to_string(),
+            )),
+            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip1559".to_string(),
+            )),
+            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip7702".to_string(),
+            )),
             Self::Seismic(tx) => tx.get_decryption_elements(),
         }
     }
 
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
         match self {
-            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType("SeismicTypedTransaction::Legacy".to_string())),
-            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType("SeismicTypedTransaction::Eip2930".to_string())),
-            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType("SeismicTypedTransaction::Eip1559".to_string())),
-            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType("SeismicTypedTransaction::Eip7702".to_string())),
+            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Legacy".to_string(),
+            )),
+            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip2930".to_string(),
+            )),
+            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip1559".to_string(),
+            )),
+            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip7702".to_string(),
+            )),
             Self::Seismic(tx) => tx.set_input(data),
         }
     }
