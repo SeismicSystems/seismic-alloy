@@ -18,13 +18,13 @@ workspace = true
 seismic-enclave.workspace = true
 
 alloy-eips = { workspace = true, features = ["kzg-sidecar"] }
-alloy-primitives = { workspace = true, features = ["rlp"] }
+alloy-primitives = { workspace = true, features = ["rlp", "seismic"] }
 alloy-consensus.workspace = true
 alloy-rlp.workspace = true
 alloy-serde = { workspace = true, optional = true }
 alloy-network = { workspace = true, optional = true }
 alloy-rpc-types-eth = { workspace = true, optional = true }
-alloy-dyn-abi = { workspace = true, features = ["eip712"]}
+alloy-dyn-abi = { workspace = true, features = ["eip712", "seismic"]}
 
 # k256
 k256 = { workspace = true, features = ["ecdsa"]}
@@ -61,8 +61,8 @@ serde_json.workspace = true
 alloy-signer.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 arbitrary = { workspace = true, features = ["derive"]}
-alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
-
+alloy-primitives = { workspace = true, features = ["rlp", "arbitrary", "seismic"] }
+alloy-dyn-abi = { workspace = true, features = ["eip712", "arbitrary", "seismic"] }
 
 [features]
 default = ["std", "serde"]
@@ -81,6 +81,8 @@ arbitrary = [
     "alloy-eips/arbitrary",
     "alloy-primitives/rand",
     "alloy-primitives/arbitrary",
+    "alloy-dyn-abi/arbitrary",
+    "alloy-rpc-types-eth/arbitrary"
 ]
 serde = [
     "dep:serde",
