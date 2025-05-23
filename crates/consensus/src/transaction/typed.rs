@@ -1,8 +1,8 @@
 //! Typed transaction types and utilities
 use super::InputDecryptionElements;
-use crate::InputDecryptionElementsError;
-use crate::TxSeismicElements;
-use crate::{SeismicTxEnvelope, SeismicTxType, TxSeismic};
+use crate::{
+    InputDecryptionElementsError, SeismicTxEnvelope, SeismicTxType, TxSeismic, TxSeismicElements,
+};
 use alloy_consensus::{
     transaction::RlpEcdsaEncodableTx, SignableTransaction, Transaction, TxEip1559, TxEip2930,
     TxEip7702, TxLegacy, Typed2718,

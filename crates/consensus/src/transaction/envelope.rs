@@ -3,8 +3,7 @@ use super::{
     Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
     TypedDataRequest,
 };
-use crate::TxSeismicElements;
-use crate::{SeismicTxType, SeismicTypedTransaction, TxSeismic};
+use crate::{SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements};
 use alloy_consensus::{
     transaction::RlpEcdsaDecodableTx, SignableTransaction, Signed, Transaction, TxEip1559,
     TxEip2930, TxEip7702, TxLegacy, Typed2718,
