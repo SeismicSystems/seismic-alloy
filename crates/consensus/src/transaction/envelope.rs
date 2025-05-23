@@ -3,19 +3,21 @@ use std::hash::{Hash, Hasher};
 
 use crate::{SeismicTxType, SeismicTypedTransaction, TxSeismic};
 use alloy_consensus::{
-    transaction::RlpEcdsaDecodableTx, SignableTransaction, Signed, Transaction, TxEip1559,
-    TxEip2930, TxEip7702, TxLegacy, Typed2718,
+    transaction::RlpEcdsaDecodableTx, Signed, Transaction, TxEip1559, TxEip2930, TxEip7702,
+    TxLegacy, Typed2718,
 };
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
     eip2930::AccessList,
     eip7702::SignedAuthorization,
 };
-use alloy_primitives::{Address, Bytes, PrimitiveSignature as Signature, TxKind, B256, U256};
+use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
 use alloy_rlp::{Decodable, Encodable};
 
-use super::{Decodable712, Eip712Result, TypedDataRequest};
-
+#[cfg(feature = "serde")]
+use crate::transaction::{Decodable712, Eip712Result, TypedDataRequest};
+#[cfg(feature = "serde")]
+use alloy_consensus::SignableTransaction;
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
 ///
 /// # Note:
@@ -610,7 +612,10 @@ mod serde_from {
 mod tests {
     use super::*;
     use alloy_consensus::SignableTransaction;
-    use alloy_primitives::{hex, Address, PrimitiveSignature, U256};
+    use alloy_primitives::{Address, Signature, U256};
+
+    #[cfg(feature = "serde")]
+    use alloy_primitives::hex;
 
     #[test]
     #[cfg(feature = "serde")]
@@ -630,7 +635,7 @@ mod tests {
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
 
-        let sig = PrimitiveSignature::from_scalars_and_parity(
+        let sig = Signature::from_scalars_and_parity(
             b256!("840cfc572845f5786e702984c2a582528cad4b49b2a10b9db1be7fca90058565"),
             b256!("25e7109ceb98168d95b09b18bbf6b685130e0562f233877d492b94eee0c5b6d1"),
             false,
@@ -655,7 +660,7 @@ mod tests {
             input: vec![8].into(),
             access_list: Default::default(),
         };
-        let sig = PrimitiveSignature::test_signature();
+        let sig = Signature::test_signature();
         let tx_signed = tx.into_signed(sig);
         let envelope: SeismicTxEnvelope = tx_signed.into();
         let encoded = envelope.encoded_2718();

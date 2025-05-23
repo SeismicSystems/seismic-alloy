@@ -1,7 +1,4 @@
 //! Seismic transaction types and utilities
-use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
-#[cfg(feature = "serde")]
-use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
     SignableTransaction, Signed, Transaction, Typed2718,
@@ -9,8 +6,7 @@ use alloy_consensus::{
 use alloy_dyn_abi::TypedData;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{
-    aliases::U96, hex, keccak256, Address, Bytes, ChainId, PrimitiveSignature as Signature, TxKind,
-    B256, U256,
+    aliases::U96, hex, keccak256, Address, Bytes, ChainId, Signature, TxKind, B256, U256,
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use core::mem;
@@ -23,6 +19,11 @@ use seismic_enclave::{
     tx_io::{IoDecryptionRequest, IoEncryptionRequest},
     Keypair, PublicKey, Secp256k1, SecretKey,
 };
+
+#[cfg(feature = "serde")]
+use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
+#[cfg(feature = "serde")]
+use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
 
 /// Contains Seismic-specific encryption and message fields
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
@@ -519,7 +520,7 @@ impl SignableTransaction<Signature> for TxSeismic {
         if self.is_eip712() {
             let data = self
                 .eip712_to_type_data()
-                .eip712_encode_for_signing()
+                .encode_data()
                 .expect("Failed to encode seismic transaction for signing");
             out.put_slice(data.as_slice());
         } else {
@@ -530,7 +531,11 @@ impl SignableTransaction<Signature> for TxSeismic {
 
     fn payload_len_for_signature(&self) -> usize {
         if self.is_eip712() {
-            self.eip712_to_type_data().eip712_encode_for_signing_len()
+            let typed_data = self.eip712_to_type_data();
+            match typed_data.primary_type == "EIP712Domain" {
+                true => 34,
+                false => 66,
+            }
         } else {
             self.length() + 1
         }
@@ -712,11 +717,13 @@ pub(super) mod serde_bincode_compat {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{b256, hex, Address, PrimitiveSignature};
-    use k256::ecdsa::SigningKey;
+    use alloy_primitives::{b256, hex, Address, Signature};
     use seismic_enclave::MockEnclaveClient;
 
     use super::*;
+
+    #[cfg(feature = "serde")]
+    use k256::ecdsa::SigningKey;
 
     #[test]
     fn test_encode_decode_public_key() {
@@ -764,6 +771,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "serde")]
     fn get_signing_private_key() -> SigningKey {
         let private_key_bytes =
             hex!("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
@@ -772,12 +780,14 @@ mod tests {
         signing_key
     }
 
+    #[cfg(feature = "serde")]
     fn get_signing_address() -> Address {
         Address::from_public_key(&get_signing_private_key().verifying_key())
     }
 
+    #[cfg(feature = "serde")]
     /// Sign a seismic transaction
-    fn sign_hash(msg: &[u8]) -> PrimitiveSignature {
+    fn sign_hash(msg: &[u8]) -> Signature {
         let _signature = get_signing_private_key()
             .clone()
             .sign_prehash_recoverable(msg)
@@ -786,7 +796,7 @@ mod tests {
         let recoverid = _signature.1;
         let _signature = _signature.0;
 
-        let signature = PrimitiveSignature::new(
+        let signature = Signature::new(
             U256::from_be_slice(_signature.r().to_bytes().as_slice()),
             U256::from_be_slice(_signature.s().to_bytes().as_slice()),
             recoverid.is_y_odd(),
@@ -795,6 +805,7 @@ mod tests {
         signature
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_eip712_encode_decode() {
         let tx = TxSeismic {
@@ -836,6 +847,7 @@ mod tests {
         assert_eq!(typed_data_request.signature, sig);
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_eip712_encode_decode_max_value() {
         // when the value for gas_price is too large, json! macro cannot handle it
@@ -864,6 +876,7 @@ mod tests {
         println!("signature_hash: {:?}", signature_hash);
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_pubkey_with_prefix_hex() {
         let without_prefix_pubkey =

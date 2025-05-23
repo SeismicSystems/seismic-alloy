@@ -61,10 +61,11 @@ serde_json.workspace = true
 alloy-signer.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 arbitrary = { workspace = true, features = ["derive"]}
+alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
 
 
 [features]
-default = ["std"]
+default = ["std", "serde"]
 std = [
     "alloy-eips/std",
     "alloy-consensus/std",

@@ -46,7 +46,7 @@ similar-asserts.workspace = true
 seismic-alloy-consensus = { workspace = true, features = ["serde", "arbitrary"] }
 
 [features]
-default = ["std"]
+default = ["std", "serde"]
 std = [
 	"alloy-network-primitives/std",
 	"alloy-eips/std",

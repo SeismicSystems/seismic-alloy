@@ -44,28 +44,28 @@ seismic-alloy-provider = { version = "0.0.1", path = "crates/provider", default-
 seismic-enclave = "0.1.0"
 
 # Alloy
-alloy-eips = { version = "0.12", default-features = false }
-alloy-serde = { version = "0.12", default-features = false }
-alloy-signer = { version = "0.12", default-features = false }
-alloy-network = { version = "0.12", default-features = false }
-alloy-provider = { version = "0.12", default-features = false }
-alloy-transport = { version = "0.12", default-features = false }
-alloy-consensus = { version = "0.12", default-features = false }
-alloy-rpc-types-eth = { version = "0.12", default-features = false }
-alloy-rpc-types-engine = { version = "0.12", default-features = false }
-alloy-network-primitives = { version = "0.12", default-features = false }
-alloy-rpc-types = { version = "0.12", default-features = false }
+alloy-eips = { version = "1.0.5", default-features = false }
+alloy-serde = { version = "1.0.5", default-features = false }
+alloy-signer = { version = "1.0.5", default-features = false }
+alloy-network = { version = "1.0.5", default-features = false }
+alloy-provider = { version = "1.0.5", default-features = false }
+alloy-transport = { version = "1.0.5", default-features = false }
+alloy-consensus = { version = "1.0.5", default-features = false }
+alloy-rpc-types-eth = { version = "1.0.5", default-features = false }
+alloy-rpc-types-engine = { version = "1.0.5", default-features = false }
+alloy-network-primitives = { version = "1.0.5", default-features = false }
+alloy-rpc-types = { version = "1.0.5", default-features = false }
 # Alloy RLP
-alloy-rlp = { version = "0.3", default-features = false }
+alloy-rlp = { version = "0.3.12", default-features = false }
 
 # Alloy Core
-alloy-primitives = { version = "0.8.25", default-features = false }
-alloy-json-abi = { version = "0.8.25", default-features = false }
-alloy-sol-macro-expander = { version = "0.8.25", default-features = false }
-alloy-sol-macro-input = { version = "0.8.25", default-features = false }
-alloy-sol-types = { version = "0.8.25", default-features = false }
-alloy-sol-type-parser = { version = "0.8.25", default-features = false }
-alloy-dyn-abi = { version = "0.8.25", default-features = false }
+alloy-primitives = { version = "1.1.2", default-features = false, features = ["seismic"] }
+alloy-json-abi = { version = "1.1.2", default-features = false, features = ["seismic"] }
+alloy-sol-macro-expander = { version = "1.1.2", default-features = false, features = ["seismic"] }
+alloy-sol-macro-input = { version = "1.1.2", default-features = false, features = ["seismic"] }
+alloy-sol-types = { version = "1.1.2", default-features = false, features = ["seismic"] }
+alloy-sol-type-parser = { version = "1.1.2", default-features = false, features = ["seismic"] }
+alloy-dyn-abi = { version = "1.1.2", default-features = false, features = ["seismic"] }
 
 # Serde
 serde_repr = "0.1"
@@ -117,18 +117,18 @@ tokio = "1"
 rstest = "0.24.0"
 
 ## crypto
-c-kzg = { version = "1.0", default-features = false }
+c-kzg = { version = "2.1.1", default-features = false }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 
 
 [patch.crates-io]
 # alloy-core
-alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
-alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
-alloy-json-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
-alloy-sol-macro-expander = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
-alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
-alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
-alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fac24f1" }
+alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "5a7ad55" }
+alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "5a7ad55" }
+alloy-json-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "5a7ad55" }
+alloy-sol-macro-expander = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "5a7ad55" }
+alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "5a7ad55" }
+alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "5a7ad55" }
+alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "5a7ad55" }
 
 seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "06df897" }

@@ -6,7 +6,7 @@ use alloy_consensus::{
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::TransactionBuilder7702;
-use alloy_primitives::{Address, PrimitiveSignature as Signature, TxKind, U256};
+use alloy_primitives::{Address, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use seismic_alloy_consensus::{
     Decodable712, Eip712Result, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic,

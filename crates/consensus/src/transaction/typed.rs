@@ -5,9 +5,7 @@ use alloy_consensus::{
     TxEip7702, TxLegacy, Typed2718,
 };
 use alloy_eips::eip2930::AccessList;
-use alloy_primitives::{
-    bytes::BufMut, Address, Bytes, PrimitiveSignature as Signature, TxHash, TxKind, B256,
-};
+use alloy_primitives::{bytes::BufMut, Address, Bytes, Signature, TxHash, TxKind, B256};
 
 /// The TypedTransaction enum represents all Ethereum transaction request types, modified for the OP
 /// Stack.
