@@ -24,6 +24,22 @@ use seismic_enclave::{
     Keypair, PublicKey, Secp256k1, SecretKey,
 };
 
+/// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
+pub trait InputDecryptionElements: Transaction {
+    /// Returns the elements necessary to decrypt the 'input' field of the transaction.
+    /// May return `None` if the Seismic tx type does not support decryption.
+    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
+    /// Sets the 'input' field of the transaction to the provided data.
+    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
+}
+
+/// Error type for [`InputDecryptionElements`] trait
+#[derive(Debug, Clone)]
+pub enum InputDecryptionElementsError {
+    /// The transaction type does not support decryption.
+    UnsupportedTxType(String),
+}
+
 /// Contains Seismic-specific encryption and message fields
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -501,6 +517,17 @@ impl Transaction for TxSeismic {
     #[inline]
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
+    }
+}
+
+impl InputDecryptionElements for TxSeismic {
+    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
+        Ok(self.seismic_elements)
+    }
+
+    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
+        self.input = data;
+        Ok(())
     }
 }
 
