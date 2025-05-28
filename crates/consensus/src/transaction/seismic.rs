@@ -23,13 +23,14 @@ use seismic_enclave::{
     tx_io::{IoDecryptionRequest, IoEncryptionRequest},
     Keypair, PublicKey, Secp256k1, SecretKey,
 };
+use thiserror::Error;
 
 /// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
 pub trait InputDecryptionElements: Transaction + Clone {
     /// Returns the elements necessary to decrypt the 'input' field of the transaction.
     /// May return `None` if the Seismic tx type does not support decryption.
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
-    
+
     /// Sets the 'input' field of the transaction to the provided data.
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
 
@@ -52,11 +53,13 @@ pub trait InputDecryptionElements: Transaction + Clone {
 }
 
 /// Error type for [`InputDecryptionElements`] trait
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum InputDecryptionElementsError {
     /// The transaction type does not support decryption.
+    #[error("Unsupported transaction type: {0}")]
     UnsupportedTxType(String),
     /// The decryption failed
+    #[error("Decryption failed: {0}")]
     DecryptionError(String),
 }
 
@@ -222,9 +225,9 @@ impl Encodable for TxSeismicElements {
     }
 
     fn length(&self) -> usize {
-        self.encryption_pubkey.serialize().length() +
-            self.encryption_nonce.length() +
-            self.message_version.length()
+        self.encryption_pubkey.serialize().length()
+            + self.encryption_nonce.length()
+            + self.message_version.length()
     }
 }
 
@@ -415,14 +418,14 @@ impl From<Signed<TxSeismic>> for TypedDataRequest {
 
 impl RlpEcdsaEncodableTx for TxSeismic {
     fn rlp_encoded_fields_length(&self) -> usize {
-        self.chain_id.length() +
-            self.nonce.length() +
-            self.gas_price.length() +
-            self.gas_limit.length() +
-            self.to.length() +
-            self.value.length() +
-            self.seismic_elements.length() +
-            self.input.length()
+        self.chain_id.length()
+            + self.nonce.length()
+            + self.gas_price.length()
+            + self.gas_limit.length()
+            + self.to.length()
+            + self.value.length()
+            + self.seismic_elements.length()
+            + self.input.length()
     }
 
     fn rlp_encode_fields(&self, out: &mut dyn alloy_rlp::BufMut) {
