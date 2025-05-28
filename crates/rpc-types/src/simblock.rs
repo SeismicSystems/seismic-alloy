@@ -1,6 +1,5 @@
-use alloy_rpc_types_eth::{state::StateOverride, Block, BlockOverrides, Log, TransactionRequest};
-use alloc::{string::String, vec::Vec};
-use alloy_primitives::Bytes;
+use alloc::vec::Vec;
+use alloy_rpc_types_eth::{state::StateOverride, BlockOverrides};
 
 /// Represents a batch of calls to be simulated sequentially within a block.
 /// This struct includes block and state overrides as well as the transaction requests to be
