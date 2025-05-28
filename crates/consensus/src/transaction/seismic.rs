@@ -225,9 +225,9 @@ impl Encodable for TxSeismicElements {
     }
 
     fn length(&self) -> usize {
-        self.encryption_pubkey.serialize().length()
-            + self.encryption_nonce.length()
-            + self.message_version.length()
+        self.encryption_pubkey.serialize().length() +
+            self.encryption_nonce.length() +
+            self.message_version.length()
     }
 }
 
@@ -418,14 +418,14 @@ impl From<Signed<TxSeismic>> for TypedDataRequest {
 
 impl RlpEcdsaEncodableTx for TxSeismic {
     fn rlp_encoded_fields_length(&self) -> usize {
-        self.chain_id.length()
-            + self.nonce.length()
-            + self.gas_price.length()
-            + self.gas_limit.length()
-            + self.to.length()
-            + self.value.length()
-            + self.seismic_elements.length()
-            + self.input.length()
+        self.chain_id.length() +
+            self.nonce.length() +
+            self.gas_price.length() +
+            self.gas_limit.length() +
+            self.to.length() +
+            self.value.length() +
+            self.seismic_elements.length() +
+            self.input.length()
     }
 
     fn rlp_encode_fields(&self, out: &mut dyn alloy_rlp::BufMut) {
