@@ -75,6 +75,12 @@ impl From<Signed<TxEip1559>> for SeismicTxEnvelope {
     }
 }
 
+impl From<Signed<TxEip4844Variant>> for SeismicTxEnvelope {
+    fn from(v: Signed<TxEip4844Variant>) -> Self {
+        Self::Eip4844(v)
+    }
+}
+
 impl From<Signed<TxEip7702>> for SeismicTxEnvelope {
     fn from(v: Signed<TxEip7702>) -> Self {
         Self::Eip7702(v)
