@@ -2,7 +2,7 @@
 use crate::{SeismicTxEnvelope, SeismicTxType, TxSeismic};
 use alloy_consensus::{
     transaction::RlpEcdsaEncodableTx, SignableTransaction, Transaction, TxEip1559, TxEip2930,
-    TxEip7702, TxLegacy, Typed2718,
+    TxEip4844Variant, TxEip7702, TxLegacy, Typed2718,
 };
 use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{bytes::BufMut, Address, Bytes, Signature, TxHash, TxKind, B256};
@@ -32,6 +32,8 @@ pub enum SeismicTypedTransaction {
     Eip2930(TxEip2930),
     /// EIP-1559 transaction
     Eip1559(TxEip1559),
+    /// EIP-4844 transaction
+    Eip4844(TxEip4844Variant),
     /// EIP-7702 transaction
     Eip7702(TxEip7702),
     /// Seismic deposit transaction
@@ -56,6 +58,12 @@ impl From<TxEip1559> for SeismicTypedTransaction {
     }
 }
 
+impl From<TxEip4844Variant> for SeismicTypedTransaction {
+    fn from(tx: TxEip4844Variant) -> Self {
+        Self::Eip4844(tx)
+    }
+}
+
 impl From<TxEip7702> for SeismicTypedTransaction {
     fn from(tx: TxEip7702) -> Self {
         Self::Eip7702(tx)
@@ -74,6 +82,7 @@ impl From<SeismicTxEnvelope> for SeismicTypedTransaction {
             SeismicTxEnvelope::Legacy(tx) => Self::Legacy(tx.strip_signature()),
             SeismicTxEnvelope::Eip2930(tx) => Self::Eip2930(tx.strip_signature()),
             SeismicTxEnvelope::Eip1559(tx) => Self::Eip1559(tx.strip_signature()),
+            SeismicTxEnvelope::Eip4844(tx) => Self::Eip4844(tx.strip_signature()),
             SeismicTxEnvelope::Eip7702(tx) => Self::Eip7702(tx.strip_signature()),
             SeismicTxEnvelope::Seismic(tx) => Self::Seismic(tx.strip_signature()),
         }
@@ -87,6 +96,7 @@ impl SeismicTypedTransaction {
             Self::Legacy(_) => SeismicTxType::Legacy,
             Self::Eip2930(_) => SeismicTxType::Eip2930,
             Self::Eip1559(_) => SeismicTxType::Eip1559,
+            Self::Eip4844(_) => SeismicTxType::Eip4844,
             Self::Eip7702(_) => SeismicTxType::Eip7702,
             Self::Seismic(_) => SeismicTxType::Seismic,
         }
@@ -100,6 +110,7 @@ impl SeismicTypedTransaction {
             Self::Legacy(tx) => tx.signature_hash(),
             Self::Eip2930(tx) => tx.signature_hash(),
             Self::Eip1559(tx) => tx.signature_hash(),
+            Self::Eip4844(tx) => tx.signature_hash(),
             Self::Eip7702(tx) => tx.signature_hash(),
             Self::Seismic(tx) => tx.signature_hash(),
         }
@@ -149,6 +160,7 @@ impl Typed2718 for SeismicTypedTransaction {
             Self::Legacy(_) => SeismicTxType::Legacy as u8,
             Self::Eip2930(_) => SeismicTxType::Eip2930 as u8,
             Self::Eip1559(_) => SeismicTxType::Eip1559 as u8,
+            Self::Eip4844(_) => SeismicTxType::Eip4844 as u8,
             Self::Eip7702(_) => SeismicTxType::Eip7702 as u8,
             Self::Seismic(_) => SeismicTxType::Seismic as u8,
         }
@@ -161,6 +173,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.chain_id(),
             Self::Eip2930(tx) => tx.chain_id(),
             Self::Eip1559(tx) => tx.chain_id(),
+            Self::Eip4844(tx) => tx.chain_id(),
             Self::Eip7702(tx) => tx.chain_id(),
             Self::Seismic(tx) => tx.chain_id(),
         }
@@ -171,6 +184,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.nonce(),
             Self::Eip2930(tx) => tx.nonce(),
             Self::Eip1559(tx) => tx.nonce(),
+            Self::Eip4844(tx) => tx.nonce(),
             Self::Eip7702(tx) => tx.nonce(),
             Self::Seismic(tx) => tx.nonce(),
         }
@@ -181,6 +195,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.gas_limit(),
             Self::Eip2930(tx) => tx.gas_limit(),
             Self::Eip1559(tx) => tx.gas_limit(),
+            Self::Eip4844(tx) => tx.gas_limit(),
             Self::Eip7702(tx) => tx.gas_limit(),
             Self::Seismic(tx) => tx.gas_limit(),
         }
@@ -191,6 +206,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.gas_price(),
             Self::Eip2930(tx) => tx.gas_price(),
             Self::Eip1559(tx) => tx.gas_price(),
+            Self::Eip4844(tx) => tx.gas_price(),
             Self::Eip7702(tx) => tx.gas_price(),
             Self::Seismic(tx) => tx.gas_price(),
         }
@@ -201,6 +217,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.max_fee_per_gas(),
             Self::Eip2930(tx) => tx.max_fee_per_gas(),
             Self::Eip1559(tx) => tx.max_fee_per_gas(),
+            Self::Eip4844(tx) => tx.max_fee_per_gas(),
             Self::Eip7702(tx) => tx.max_fee_per_gas(),
             Self::Seismic(tx) => tx.max_fee_per_gas(),
         }
@@ -211,6 +228,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.max_priority_fee_per_gas(),
             Self::Eip2930(tx) => tx.max_priority_fee_per_gas(),
             Self::Eip1559(tx) => tx.max_priority_fee_per_gas(),
+            Self::Eip4844(tx) => tx.max_priority_fee_per_gas(),
             Self::Eip7702(tx) => tx.max_priority_fee_per_gas(),
             Self::Seismic(tx) => tx.max_priority_fee_per_gas(),
         }
@@ -221,6 +239,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.max_fee_per_blob_gas(),
             Self::Eip2930(tx) => tx.max_fee_per_blob_gas(),
             Self::Eip1559(tx) => tx.max_fee_per_blob_gas(),
+            Self::Eip4844(tx) => tx.max_fee_per_blob_gas(),
             Self::Eip7702(tx) => tx.max_fee_per_blob_gas(),
             Self::Seismic(tx) => tx.max_fee_per_blob_gas(),
         }
@@ -231,6 +250,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.priority_fee_or_price(),
             Self::Eip2930(tx) => tx.priority_fee_or_price(),
             Self::Eip1559(tx) => tx.priority_fee_or_price(),
+            Self::Eip4844(tx) => tx.priority_fee_or_price(),
             Self::Eip7702(tx) => tx.priority_fee_or_price(),
             Self::Seismic(tx) => tx.priority_fee_or_price(),
         }
@@ -241,6 +261,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.effective_gas_price(base_fee),
             Self::Eip2930(tx) => tx.effective_gas_price(base_fee),
             Self::Eip1559(tx) => tx.effective_gas_price(base_fee),
+            Self::Eip4844(tx) => tx.effective_gas_price(base_fee),
             Self::Eip7702(tx) => tx.effective_gas_price(base_fee),
             Self::Seismic(tx) => tx.effective_gas_price(base_fee),
         }
@@ -251,6 +272,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.is_dynamic_fee(),
             Self::Eip2930(tx) => tx.is_dynamic_fee(),
             Self::Eip1559(tx) => tx.is_dynamic_fee(),
+            Self::Eip4844(tx) => tx.is_dynamic_fee(),
             Self::Eip7702(tx) => tx.is_dynamic_fee(),
             Self::Seismic(tx) => tx.is_dynamic_fee(),
         }
@@ -261,6 +283,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.kind(),
             Self::Eip2930(tx) => tx.kind(),
             Self::Eip1559(tx) => tx.kind(),
+            Self::Eip4844(tx) => tx.kind(),
             Self::Eip7702(tx) => tx.kind(),
             Self::Seismic(tx) => tx.kind(),
         }
@@ -271,6 +294,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.is_create(),
             Self::Eip2930(tx) => tx.is_create(),
             Self::Eip1559(tx) => tx.is_create(),
+            Self::Eip4844(tx) => tx.is_create(),
             Self::Eip7702(tx) => tx.is_create(),
             Self::Seismic(tx) => tx.is_create(),
         }
@@ -281,6 +305,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.to(),
             Self::Eip2930(tx) => tx.to(),
             Self::Eip1559(tx) => tx.to(),
+            Self::Eip4844(tx) => tx.to(),
             Self::Eip7702(tx) => tx.to(),
             Self::Seismic(tx) => tx.to(),
         }
@@ -291,6 +316,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.value(),
             Self::Eip2930(tx) => tx.value(),
             Self::Eip1559(tx) => tx.value(),
+            Self::Eip4844(tx) => tx.value(),
             Self::Eip7702(tx) => tx.value(),
             Self::Seismic(tx) => tx.value(),
         }
@@ -301,6 +327,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.input(),
             Self::Eip2930(tx) => tx.input(),
             Self::Eip1559(tx) => tx.input(),
+            Self::Eip4844(tx) => tx.input(),
             Self::Eip7702(tx) => tx.input(),
             Self::Seismic(tx) => tx.input(),
         }
@@ -311,6 +338,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.access_list(),
             Self::Eip2930(tx) => tx.access_list(),
             Self::Eip1559(tx) => tx.access_list(),
+            Self::Eip4844(tx) => tx.access_list(),
             Self::Eip7702(tx) => tx.access_list(),
             Self::Seismic(tx) => tx.access_list(),
         }
@@ -321,6 +349,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.blob_versioned_hashes(),
             Self::Eip2930(tx) => tx.blob_versioned_hashes(),
             Self::Eip1559(tx) => tx.blob_versioned_hashes(),
+            Self::Eip4844(tx) => tx.blob_versioned_hashes(),
             Self::Eip7702(tx) => tx.blob_versioned_hashes(),
             Self::Seismic(tx) => tx.blob_versioned_hashes(),
         }
@@ -331,6 +360,7 @@ impl Transaction for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.authorization_list(),
             Self::Eip2930(tx) => tx.authorization_list(),
             Self::Eip1559(tx) => tx.authorization_list(),
+            Self::Eip4844(tx) => tx.authorization_list(),
             Self::Eip7702(tx) => tx.authorization_list(),
             Self::Seismic(tx) => tx.authorization_list(),
         }
@@ -343,6 +373,7 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.rlp_encoded_fields_length(),
             Self::Eip2930(tx) => tx.rlp_encoded_fields_length(),
             Self::Eip1559(tx) => tx.rlp_encoded_fields_length(),
+            Self::Eip4844(tx) => tx.rlp_encoded_fields_length(),
             Self::Eip7702(tx) => tx.rlp_encoded_fields_length(),
             Self::Seismic(tx) => tx.rlp_encoded_fields_length(),
         }
@@ -353,6 +384,7 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.rlp_encode_fields(out),
             Self::Eip2930(tx) => tx.rlp_encode_fields(out),
             Self::Eip1559(tx) => tx.rlp_encode_fields(out),
+            Self::Eip4844(tx) => tx.rlp_encode_fields(out),
             Self::Eip7702(tx) => tx.rlp_encode_fields(out),
             Self::Seismic(tx) => tx.rlp_encode_fields(out),
         }
@@ -363,6 +395,7 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.eip2718_encode_with_type(signature, tx.ty(), out),
             Self::Eip2930(tx) => tx.eip2718_encode_with_type(signature, tx.ty(), out),
             Self::Eip1559(tx) => tx.eip2718_encode_with_type(signature, tx.ty(), out),
+            Self::Eip4844(tx) => tx.eip2718_encode_with_type(signature, tx.ty(), out),
             Self::Eip7702(tx) => tx.eip2718_encode_with_type(signature, tx.ty(), out),
             Self::Seismic(tx) => tx.eip2718_encode_with_type(signature, tx.ty(), out),
         }
@@ -373,6 +406,7 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.eip2718_encode(signature, out),
             Self::Eip2930(tx) => tx.eip2718_encode(signature, out),
             Self::Eip1559(tx) => tx.eip2718_encode(signature, out),
+            Self::Eip4844(tx) => tx.eip2718_encode(signature, out),
             Self::Eip7702(tx) => tx.eip2718_encode(signature, out),
             Self::Seismic(tx) => tx.eip2718_encode(signature, out),
         }
@@ -383,6 +417,7 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
             Self::Eip2930(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
             Self::Eip1559(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
+            Self::Eip4844(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
             Self::Eip7702(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
             Self::Seismic(tx) => tx.network_encode_with_type(signature, tx.ty(), out),
         }
@@ -393,6 +428,7 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.network_encode(signature, out),
             Self::Eip2930(tx) => tx.network_encode(signature, out),
             Self::Eip1559(tx) => tx.network_encode(signature, out),
+            Self::Eip4844(tx) => tx.network_encode(signature, out),
             Self::Eip7702(tx) => tx.network_encode(signature, out),
             Self::Seismic(tx) => tx.network_encode(signature, out),
         }
@@ -403,6 +439,7 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.tx_hash_with_type(signature, tx.ty()),
             Self::Eip2930(tx) => tx.tx_hash_with_type(signature, tx.ty()),
             Self::Eip1559(tx) => tx.tx_hash_with_type(signature, tx.ty()),
+            Self::Eip4844(tx) => tx.tx_hash_with_type(signature, tx.ty()),
             Self::Eip7702(tx) => tx.tx_hash_with_type(signature, tx.ty()),
             Self::Seismic(tx) => tx.tx_hash_with_type(signature, tx.ty()),
         }
@@ -413,6 +450,7 @@ impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
             Self::Legacy(tx) => tx.tx_hash(signature),
             Self::Eip2930(tx) => tx.tx_hash(signature),
             Self::Eip1559(tx) => tx.tx_hash(signature),
+            Self::Eip4844(tx) => tx.tx_hash(signature),
             Self::Eip7702(tx) => tx.tx_hash(signature),
             Self::Seismic(tx) => tx.tx_hash(signature),
         }
@@ -451,6 +489,9 @@ mod serde_from {
         /// EIP-1559 transaction
         #[serde(rename = "0x02", alias = "0x2")]
         Eip1559(TxEip1559),
+        /// EIP-4844 transaction
+        #[serde(rename = "0x03", alias = "0x3")]
+        Eip4844(TxEip4844Variant),
         /// EIP-7702 transaction
         #[serde(rename = "0x04", alias = "0x4")]
         Eip7702(TxEip7702),
@@ -474,6 +515,7 @@ mod serde_from {
                 TaggedTypedTransaction::Legacy(signed) => Self::Legacy(signed),
                 TaggedTypedTransaction::Eip2930(signed) => Self::Eip2930(signed),
                 TaggedTypedTransaction::Eip1559(signed) => Self::Eip1559(signed),
+                TaggedTypedTransaction::Eip4844(signed) => Self::Eip4844(signed),
                 TaggedTypedTransaction::Eip7702(signed) => Self::Eip7702(signed),
                 TaggedTypedTransaction::Seismic(tx) => Self::Seismic(tx),
             }
@@ -486,6 +528,7 @@ mod serde_from {
                 SeismicTypedTransaction::Legacy(signed) => Self::Legacy(signed),
                 SeismicTypedTransaction::Eip2930(signed) => Self::Eip2930(signed),
                 SeismicTypedTransaction::Eip1559(signed) => Self::Eip1559(signed),
+                SeismicTypedTransaction::Eip4844(signed) => Self::Eip4844(signed),
                 SeismicTypedTransaction::Eip7702(signed) => Self::Eip7702(signed),
                 SeismicTypedTransaction::Seismic(tx) => Self::Seismic(tx),
             }

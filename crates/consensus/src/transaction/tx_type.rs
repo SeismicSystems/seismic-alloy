@@ -32,6 +32,9 @@ pub enum SeismicTxType {
     /// EIP-1559 transaction type.
     #[display("eip1559")]
     Eip1559 = 2,
+    /// EIP-4844 transaction type.
+    #[display("eip4844")]
+    Eip4844 = 3,
     /// EIP-7702 transaction type.
     #[display("eip7702")]
     Eip7702 = 4,

@@ -316,6 +316,9 @@ impl From<SeismicTypedTransaction> for SeismicTransactionRequest {
             SeismicTypedTransaction::Eip1559(tx) => {
                 Self { inner: tx.into(), seismic_elements: None }
             }
+            SeismicTypedTransaction::Eip4844(tx) => {
+                Self { inner: tx.into(), seismic_elements: None }
+            }
             SeismicTypedTransaction::Eip7702(tx) => {
                 Self { inner: tx.into(), seismic_elements: None }
             }

@@ -228,6 +228,7 @@ impl NetworkWallet<Seismic> for EthereumWallet {
                 SeismicTypedTransaction::Legacy(tx) => TypedTransaction::Legacy(tx),
                 SeismicTypedTransaction::Eip2930(tx) => TypedTransaction::Eip2930(tx),
                 SeismicTypedTransaction::Eip1559(tx) => TypedTransaction::Eip1559(tx),
+                SeismicTypedTransaction::Eip4844(tx) => TypedTransaction::Eip4844(tx),
                 SeismicTypedTransaction::Eip7702(tx) => TypedTransaction::Eip7702(tx),
                 SeismicTypedTransaction::Seismic(_tx) => unreachable!(),
             };
@@ -237,6 +238,7 @@ impl NetworkWallet<Seismic> for EthereumWallet {
             Ok(match tx {
                 TxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
                 TxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
+                TxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx),
                 TxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
                 TxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
                 _ => unreachable!(),

@@ -40,6 +40,11 @@ pub enum SeismicReceiptEnvelope<T = Log> {
     /// [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
     #[cfg_attr(feature = "serde", serde(rename = "0x2", alias = "0x02"))]
     Eip1559(ReceiptWithBloom<Receipt<T>>),
+    /// Receipt envelope with type flag 3, containing a [EIP-4844] receipt.
+    ///
+    /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
+    #[cfg_attr(feature = "serde", serde(rename = "0x3", alias = "0x03"))]
+    Eip4844(ReceiptWithBloom<Receipt<T>>),
     /// Receipt envelope with type flag 4, containing a [EIP-7702] receipt.
     ///
     /// [EIP-7702]: https://eips.ethereum.org/EIPS/eip-7702
@@ -76,6 +81,9 @@ impl SeismicReceiptEnvelope<Log> {
             SeismicTxType::Eip1559 => {
                 Self::Eip1559(ReceiptWithBloom { receipt: inner_receipt, logs_bloom })
             }
+            SeismicTxType::Eip4844 => {
+                Self::Eip4844(ReceiptWithBloom { receipt: inner_receipt, logs_bloom })
+            }
             SeismicTxType::Eip7702 => {
                 Self::Eip7702(ReceiptWithBloom { receipt: inner_receipt, logs_bloom })
             }
@@ -93,6 +101,7 @@ impl<T> SeismicReceiptEnvelope<T> {
             Self::Legacy(_) => SeismicTxType::Legacy,
             Self::Eip2930(_) => SeismicTxType::Eip2930,
             Self::Eip1559(_) => SeismicTxType::Eip1559,
+            Self::Eip4844(_) => SeismicTxType::Eip4844,
             Self::Eip7702(_) => SeismicTxType::Eip7702,
             Self::Seismic(_) => SeismicTxType::Seismic,
         }
@@ -124,6 +133,7 @@ impl<T> SeismicReceiptEnvelope<T> {
             Self::Legacy(t) => &t.logs_bloom,
             Self::Eip2930(t) => &t.logs_bloom,
             Self::Eip1559(t) => &t.logs_bloom,
+            Self::Eip4844(t) => &t.logs_bloom,
             Self::Eip7702(t) => &t.logs_bloom,
             Self::Seismic(t) => &t.logs_bloom,
         }
@@ -136,6 +146,7 @@ impl<T> SeismicReceiptEnvelope<T> {
             Self::Legacy(t) |
             Self::Eip2930(t) |
             Self::Eip1559(t) |
+            Self::Eip4844(t) |
             Self::Eip7702(t) |
             Self::Seismic(t) => Some(&t.receipt),
         }
@@ -149,6 +160,7 @@ impl SeismicReceiptEnvelope {
             Self::Legacy(t) => t.length(),
             Self::Eip2930(t) => t.length(),
             Self::Eip1559(t) => t.length(),
+            Self::Eip4844(t) => t.length(),
             Self::Eip7702(t) => t.length(),
             Self::Seismic(t) => t.length(),
         }
@@ -225,6 +237,7 @@ impl Typed2718 for SeismicReceiptEnvelope {
             Self::Legacy(_) => SeismicTxType::Legacy,
             Self::Eip2930(_) => SeismicTxType::Eip2930,
             Self::Eip1559(_) => SeismicTxType::Eip1559,
+            Self::Eip4844(_) => SeismicTxType::Eip4844,
             Self::Eip7702(_) => SeismicTxType::Eip7702,
             Self::Seismic(_) => SeismicTxType::Seismic,
         };
@@ -244,9 +257,11 @@ impl Encodable2718 for SeismicReceiptEnvelope {
         }
         match self {
             Self::Seismic(t) => t.encode(out),
-            Self::Legacy(t) | Self::Eip2930(t) | Self::Eip1559(t) | Self::Eip7702(t) => {
-                t.encode(out)
-            }
+            Self::Legacy(t) |
+            Self::Eip2930(t) |
+            Self::Eip1559(t) |
+            Self::Eip4844(t) |
+            Self::Eip7702(t) => t.encode(out),
         }
     }
 }
@@ -259,6 +274,7 @@ impl Decodable2718 for SeismicReceiptEnvelope {
                     .into())
             }
             SeismicTxType::Eip1559 => Ok(Self::Eip1559(Decodable::decode(buf)?)),
+            SeismicTxType::Eip4844 => Ok(Self::Eip4844(Decodable::decode(buf)?)),
             SeismicTxType::Eip7702 => Ok(Self::Eip7702(Decodable::decode(buf)?)),
             SeismicTxType::Eip2930 => Ok(Self::Eip2930(Decodable::decode(buf)?)),
             SeismicTxType::Seismic => Ok(Self::Seismic(Decodable::decode(buf)?)),
