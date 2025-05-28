@@ -25,12 +25,30 @@ use seismic_enclave::{
 };
 
 /// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
-pub trait InputDecryptionElements: Transaction {
+pub trait InputDecryptionElements: Transaction + Clone {
     /// Returns the elements necessary to decrypt the 'input' field of the transaction.
     /// May return `None` if the Seismic tx type does not support decryption.
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
+    
     /// Sets the 'input' field of the transaction to the provided data.
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
+
+    /// Creates a copy of the transaction with the input field set to the plaintext.
+    /// Errors if the decryption fails, etc.
+    fn plaintext_copy<C>(&self, client: &C) -> Result<Self, InputDecryptionElementsError>
+    where
+        C: SyncEnclaveApiClient,
+    {
+        let mut tx = self.clone();
+        if let Ok(seismic_elements) = tx.get_decryption_elements() {
+            let ciphertext = tx.input();
+            let decrypted_data = seismic_elements
+                .server_decrypt(client, &ciphertext)
+                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
+            tx.set_input(decrypted_data)?;
+        }
+        Ok(tx)
+    }
 }
 
 /// Error type for [`InputDecryptionElements`] trait
@@ -38,6 +56,8 @@ pub trait InputDecryptionElements: Transaction {
 pub enum InputDecryptionElementsError {
     /// The transaction type does not support decryption.
     UnsupportedTxType(String),
+    /// The decryption failed
+    DecryptionError(String),
 }
 
 /// Contains Seismic-specific encryption and message fields
