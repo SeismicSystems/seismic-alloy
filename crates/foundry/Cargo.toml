@@ -15,6 +15,10 @@ seismic-alloy-rpc-types.workspace = true
 seismic-alloy-network.workspace = true
 seismic-alloy-provider.workspace = true
 
+alloy-consensus.workspace = true
+alloy-eip7702.workspace = true
+alloy-network-primitives.workspace = true
+alloy-primitives.workspace = true
 alloy-serde.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-rpc-types.workspace = true

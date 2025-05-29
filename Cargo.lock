@@ -3608,6 +3608,10 @@ dependencies = [
 name = "seismic-foundry-prelude"
 version = "0.0.1"
 dependencies = [
+ "alloy-consensus",
+ "alloy-eip7702",
+ "alloy-network-primitives",
+ "alloy-primitives",
  "alloy-rpc-types",
  "alloy-rpc-types-eth",
  "alloy-serde",
