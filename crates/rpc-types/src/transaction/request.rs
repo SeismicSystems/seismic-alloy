@@ -6,7 +6,7 @@ use alloy_consensus::{
     TxEip7702, TxLegacy, TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
-use alloy_network_primitives::TransactionBuilder7702;
+use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
 use alloy_primitives::{Address, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use seismic_alloy_consensus::{
@@ -342,6 +342,34 @@ impl From<SeismicTxEnvelope> for SeismicTransactionRequest {
 impl<T: Into<SeismicTransactionRequest>> From<EthereumTxEnvelope<T>> for SeismicTransactionRequest {
     fn from(value: EthereumTxEnvelope<T>) -> Self {
         value.into()
+    }
+}
+
+impl TransactionBuilder4844 for SeismicTransactionRequest {
+    fn blob_sidecar(&self) -> Option<&alloy_consensus::BlobTransactionSidecar> {
+        self.inner.sidecar.as_ref()
+    }
+
+    fn max_fee_per_blob_gas(&self) -> Option<u128> {
+        self.inner.max_fee_per_blob_gas
+    }
+
+    fn set_blob_sidecar(&mut self, blob_sidecar: alloy_consensus::BlobTransactionSidecar) {
+        self.inner.sidecar = Some(blob_sidecar);
+    }
+
+    fn set_max_fee_per_blob_gas(&mut self, max_fee_per_blob_gas: u128) {
+        self.inner.max_fee_per_blob_gas = Some(max_fee_per_blob_gas);
+    }
+
+    fn with_blob_sidecar(mut self, sidecar: alloy_consensus::BlobTransactionSidecar) -> Self {
+        self.inner.sidecar = Some(sidecar);
+        self
+    }
+
+    fn with_max_fee_per_blob_gas(mut self, max_fee_per_blob_gas: u128) -> Self {
+        self.inner.max_fee_per_blob_gas = Some(max_fee_per_blob_gas);
+        self
     }
 }
 
