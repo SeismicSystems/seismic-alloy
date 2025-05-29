@@ -3594,6 +3594,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "seismic-foundry-prelude"
+version = "0.0.1"
+dependencies = [
+ "seismic-alloy-consensus",
+ "seismic-alloy-network",
+ "seismic-alloy-provider",
+ "seismic-alloy-rpc-types",
+]
+
+[[package]]
 name = "semver"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

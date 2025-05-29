@@ -1,0 +1,19 @@
+[package]
+name = "seismic-foundry-prelude"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[dependencies]
+seismic-alloy-consensus.workspace = true
+seismic-alloy-rpc-types.workspace = true
+seismic-alloy-network.workspace = true
+seismic-alloy-provider.workspace = true
+
+[lints]
+workspace = true
