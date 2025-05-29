@@ -7,6 +7,9 @@ pub use alloy_network::*;
 
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
+use alloy_provider::fillers::{
+    BlobGasFiller, ChainIdFiller, GasFiller, JoinFill, NonceFiller, RecommendedFillers,
+};
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
@@ -38,6 +41,16 @@ impl Network for Seismic {
 
     type BlockResponse =
         alloy_rpc_types_eth::Block<Self::TransactionResponse, Self::HeaderResponse>;
+}
+
+// TODO: unclear if this is correct
+impl RecommendedFillers for Seismic {
+    type RecommendedFillers =
+        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+
+    fn recommended_fillers() -> Self::RecommendedFillers {
+        Default::default()
+    }
 }
 
 impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
@@ -241,7 +254,6 @@ impl NetworkWallet<Seismic> for EthereumWallet {
                 TxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx),
                 TxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
                 TxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
-                _ => unreachable!(),
             })
         }
     }

@@ -3,8 +3,8 @@ use std::hash::{Hash, Hasher};
 
 use crate::{SeismicTxType, SeismicTypedTransaction, TxSeismic};
 use alloy_consensus::{
-    transaction::RlpEcdsaDecodableTx, Signed, Transaction, TxEip1559, TxEip2930, TxEip4844,
-    TxEip4844Variant, TxEip7702, TxLegacy, Typed2718,
+    transaction::RlpEcdsaDecodableTx, Signed, Transaction, TxEip1559, TxEip2930, TxEip4844Variant,
+    TxEip7702, TxLegacy, Typed2718,
 };
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
