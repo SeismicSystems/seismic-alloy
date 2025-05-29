@@ -1,7 +1,7 @@
 //! Seismic overrides to types commonly used in foundry
 use crate::AnyRpcTransaction;
-use alloy_consensus::{error::ValueError, Header};
-use alloy_rpc_types_eth::{Block, BlockTransactions};
+use alloy_consensus::{error::ValueError};
+use alloy_rpc_types_eth::{Block, Header, BlockTransactions};
 use alloy_serde::WithOtherFields;
 use derive_more::From;
 use alloy_network_primitives::{BlockResponse};
