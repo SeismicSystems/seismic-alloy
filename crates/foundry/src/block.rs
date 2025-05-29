@@ -1,24 +1,24 @@
 //! Seismic overrides to types commonly used in foundry
 use crate::AnyRpcTransaction;
-use alloy_consensus::error::ValueError;
+use alloy_consensus::{error::ValueError, Header};
 use alloy_rpc_types_eth::{Block, BlockTransactions};
 use alloy_serde::WithOtherFields;
 use derive_more::From;
-use seismic_alloy_network::{AnyRpcHeader, BlockResponse};
+use alloy_network_primitives::{BlockResponse};
 use serde::{Deserialize, Serialize};
 
 /// Seismic RPC block with other fields
 #[derive(Clone, Debug, From, PartialEq, Eq, Deserialize, Serialize)]
-pub struct AnyRpcBlock(pub WithOtherFields<Block<AnyRpcTransaction, AnyRpcHeader>>);
+pub struct AnyRpcBlock(pub WithOtherFields<Block<AnyRpcTransaction, Header>>);
 
 impl AnyRpcBlock {
     /// Create a new [`AnyRpcBlock`].
-    pub const fn new(inner: WithOtherFields<Block<AnyRpcTransaction, AnyRpcHeader>>) -> Self {
+    pub const fn new(inner: WithOtherFields<Block<AnyRpcTransaction, Header>>) -> Self {
         Self(inner)
     }
 
     /// Consumes the type and returns the wrapped rpc block.
-    pub fn into_inner(self) -> Block<AnyRpcTransaction, AnyRpcHeader> {
+    pub fn into_inner(self) -> Block<AnyRpcTransaction, Header> {
         self.0.into_inner()
     }
 
@@ -38,7 +38,7 @@ impl AnyRpcBlock {
 }
 
 impl BlockResponse for AnyRpcBlock {
-    type Header = AnyRpcHeader;
+    type Header = Header;
     type Transaction = AnyRpcTransaction;
 
     fn header(&self) -> &Self::Header {
