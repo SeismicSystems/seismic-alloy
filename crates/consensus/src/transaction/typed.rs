@@ -361,6 +361,10 @@ impl InputDecryptionElements for SeismicTypedTransaction {
         }
     }
 
+    fn get_input(&self) -> &Bytes {
+        self.input()
+    }
+
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
         match self {
             Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(

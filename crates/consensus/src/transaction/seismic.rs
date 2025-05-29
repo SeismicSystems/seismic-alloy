@@ -26,10 +26,13 @@ use seismic_enclave::{
 use thiserror::Error;
 
 /// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
-pub trait InputDecryptionElements: Transaction + Clone {
+pub trait InputDecryptionElements: Clone {
     /// Returns the elements necessary to decrypt the 'input' field of the transaction.
     /// May return `None` if the Seismic tx type does not support decryption.
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
+
+    /// Returns the 'input' field of the transaction.
+    fn get_input(&self) -> &Bytes;
 
     /// Sets the 'input' field of the transaction to the provided data.
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
@@ -42,7 +45,7 @@ pub trait InputDecryptionElements: Transaction + Clone {
     {
         let mut tx = self.clone();
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
-            let ciphertext = tx.input();
+            let ciphertext = tx.get_input();
             let decrypted_data = seismic_elements
                 .server_decrypt(client, &ciphertext)
                 .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
@@ -61,6 +64,9 @@ pub enum InputDecryptionElementsError {
     /// The decryption failed
     #[error("Decryption failed: {0}")]
     DecryptionError(String),
+    /// No elements were found
+    #[error("Expected Elemements but no elements found")]
+    NoElements,
 }
 
 /// Contains Seismic-specific encryption and message fields
@@ -546,6 +552,10 @@ impl Transaction for TxSeismic {
 impl InputDecryptionElements for TxSeismic {
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
         Ok(self.seismic_elements)
+    }
+
+    fn get_input(&self) -> &Bytes {
+        &self.input
     }
 
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
