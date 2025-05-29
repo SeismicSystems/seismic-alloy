@@ -376,6 +376,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-rpc-types"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c000cab4ec26a4b3e29d144e999e1c539c2fa0abed871bf90311eb3466187ca8"
+dependencies = [
+ "alloy-primitives",
+ "alloy-serde",
+ "serde",
+]
+
+[[package]]
 name = "alloy-rpc-types-any"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3597,10 +3608,15 @@ dependencies = [
 name = "seismic-foundry-prelude"
 version = "0.0.1"
 dependencies = [
+ "alloy-rpc-types",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
+ "derive_more 1.0.0",
  "seismic-alloy-consensus",
  "seismic-alloy-network",
  "seismic-alloy-provider",
  "seismic-alloy-rpc-types",
+ "serde",
 ]
 
 [[package]]

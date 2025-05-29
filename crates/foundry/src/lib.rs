@@ -12,6 +12,5 @@ pub type RpcTransaction = alloy_rpc_types::Transaction<seismic_alloy_consensus::
 #[derive(Clone, Debug, From, PartialEq, Eq, Deserialize, Serialize)]
 pub struct AnyRpcTransaction(pub alloy_serde::WithOtherFields<RpcTransaction>);
 
-
 #[derive(Clone, Debug, From, PartialEq, Eq, Deserialize, Serialize)]
 pub struct AnyRpcBlock(pub WithOtherFields<Block<RpcTransaction, Header>>);
