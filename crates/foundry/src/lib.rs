@@ -17,3 +17,5 @@ pub struct AnyRpcTransaction(pub alloy_serde::WithOtherFields<RpcTransaction>);
 /// Seismic RPC block with other fields
 #[derive(Clone, Debug, From, PartialEq, Eq, Deserialize, Serialize)]
 pub struct AnyRpcBlock(pub WithOtherFields<Block<RpcTransaction, Header>>);
+
+pub use seismic_alloy_network::{Seismic as AnyNetwork};
