@@ -352,8 +352,8 @@ impl InputDecryptionElements for SeismicTxEnvelope {
         }
     }
 
-    fn get_input(&self) -> &Bytes {
-        self.input()
+    fn get_input(&self) -> Bytes {
+        self.input().clone()
     }
 
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
