@@ -64,6 +64,9 @@ pub enum InputDecryptionElementsError {
     /// The decryption failed
     #[error("Decryption failed: {0}")]
     DecryptionError(String),
+    /// No elements were found
+    #[error("Expected Elemements but no elements found")]
+    NoElements,
 }
 
 /// Contains Seismic-specific encryption and message fields
