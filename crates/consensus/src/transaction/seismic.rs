@@ -32,7 +32,7 @@ pub trait InputDecryptionElements: Clone {
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
 
     /// Returns the 'input' field of the transaction.
-    fn get_input(&self) -> &Bytes;
+    fn get_input(&self) -> Bytes;
 
     /// Sets the 'input' field of the transaction to the provided data.
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
@@ -554,8 +554,8 @@ impl InputDecryptionElements for TxSeismic {
         Ok(self.seismic_elements)
     }
 
-    fn get_input(&self) -> &Bytes {
-        &self.input
+    fn get_input(&self) -> Bytes {
+        self.input.clone()
     }
 
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
