@@ -9,8 +9,7 @@ use alloy_network_primitives::TransactionBuilder7702;
 use alloy_primitives::{Address, PrimitiveSignature as Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use seismic_alloy_consensus::{
-    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
-    SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic, TxSeismicElements, TypedDataRequest,
+    typed, Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic, TxSeismicElements, TypedDataRequest
 };
 use seismic_enclave::EnclaveClient;
 
@@ -335,7 +334,8 @@ impl TransactionBuilder7702 for SeismicTransactionRequest {
 impl Decodable712 for SeismicTransactionRequest {
     fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
         let tx = TxSeismic::eip712_decode(&typed_data.data)?;
-        Ok(tx.into())
+        let signed_tx = tx.into_signed(typed_data.signature);
+        Ok(signed_tx.into())
     }
 }
 
