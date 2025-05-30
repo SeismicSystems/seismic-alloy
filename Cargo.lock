@@ -3610,6 +3610,7 @@ version = "0.0.1"
 dependencies = [
  "alloy-consensus",
  "alloy-eip7702",
+ "alloy-network",
  "alloy-network-primitives",
  "alloy-primitives",
  "alloy-rpc-types",
