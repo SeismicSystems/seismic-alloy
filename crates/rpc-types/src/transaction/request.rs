@@ -115,6 +115,11 @@ impl SeismicTransactionRequest {
         self
     }
 
+    /// Sets the seismic elements for the transaction.
+    pub fn set_seismic_elements(&mut self, seismic_elements: TxSeismicElements) {
+        self.seismic_elements = Some(seismic_elements);
+    }
+
     fn check_seismic_fields(&self, missing: &mut Vec<&'static str>) {
         if self.inner.gas_price.is_none() {
             missing.push("gas_price");
