@@ -2,7 +2,6 @@
 use alloy_network::{EthereumWallet, TransactionBuilder};
 use alloy_primitives::Bytes;
 use alloy_provider::{
-    builder,
     fillers::{
         BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
         RecommendedFillers, SimpleNonceManager, WalletFiller,
@@ -14,11 +13,10 @@ use alloy_rpc_client::{NoParams, RpcClient};
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
-use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use seismic_enclave::PublicKey;
 use std::ops::Deref;
 
-/// Seismic middlware for encrypting transactions and decrypting responses
+/// Seismic middleware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
 pub struct SeismicProvider<P> {
     /// Inner provider.
@@ -146,18 +144,22 @@ where
 
 /// Seismic layer
 #[derive(Debug, Clone)]
-pub(crate) struct SeismicLayer {}
+pub(crate) struct SeismicLayer;
 
-impl ProviderLayer<Seismic> for SeismicLayer
+impl<P> ProviderLayer<P, Seismic> for SeismicLayer
+where
+    P: Provider<Seismic>,
 {
-    type Provider = SeismicProvider<Seismic>;
+    type Provider = SeismicProvider<P>;
 
-    fn layer(&self, inner: Provider<Seismic>) -> Self::Provider {
+    fn layer(&self, inner: P) -> Self::Provider {
         SeismicProvider::new(inner)
     }
 }
 
-/// Seismic provider
+pub type SeismicJoinedRecommendedFillers = JoinFill<Identity, <Seismic as RecommendedFillers>::RecommendedFillers>;
+
+/// Seismic provider type alias for signed provider
 pub type SeismicSignedProviderInner = SeismicProvider<
     FillProvider<
         JoinFill<
@@ -197,12 +199,13 @@ impl SeismicSignedProvider {
         // Build and return the provider
         let inner = ProviderBuilder::new()
             .network::<Seismic>()
-            .layer(SeismicLayer {})
             .layer(tx_filler_layer)
+            .layer(SeismicLayer)
             .on_client(RpcClient::new_http(url));
-        Self(inner)
+        Self(SeismicSignedProviderInner::new(inner))
     }
 }
+
 impl Deref for SeismicSignedProvider {
     type Target = SeismicSignedProviderInner;
 
@@ -212,9 +215,11 @@ impl Deref for SeismicSignedProvider {
 }
 
 /// Seismic unsigned provider
+
+/// Seismic unsigned provider type alias
 pub type SeismicUnsignedProviderInner = SeismicProvider<
     FillProvider<
-        JoinFill<<Seismic as RecommendedFillers>::RecommendedFillers, Identity>,
+        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
         RootProvider<Seismic>,
         Seismic,
     >,
@@ -227,15 +232,15 @@ pub struct SeismicUnsignedProvider(SeismicUnsignedProviderInner);
 impl SeismicUnsignedProvider {
     /// Creates a new seismic unsigned provider
     pub fn new(url: reqwest::Url) -> Self {
-        // Create wallet layer with recommended fillers
-        let tx_filler_layer = JoinFill::new(Ethereum::recommended_fillers(), Identity);
+        // Create layer with recommended fillers and Identity
+        let tx_filler_layer = JoinFill::new(Identity, <Seismic as RecommendedFillers>::recommended_fillers());
 
         let inner = ProviderBuilder::new()
             .network::<Seismic>()
             .layer(SeismicLayer {})
             .layer(tx_filler_layer)
             .on_client(RpcClient::new_http(url));
-        Self(inner)
+        Self(SeismicUnsignedProviderInner::new(inner))
     }
 }
 
