@@ -3529,13 +3529,18 @@ name = "seismic-alloy-network"
 version = "0.0.1"
 dependencies = [
  "alloy-consensus",
+ "alloy-eip7702",
  "alloy-network",
+ "alloy-network-primitives",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-types-eth",
+ "alloy-serde",
  "alloy-signer",
+ "derive_more 1.0.0",
  "seismic-alloy-consensus",
  "seismic-alloy-rpc-types",
+ "serde",
 ]
 
 [[package]]

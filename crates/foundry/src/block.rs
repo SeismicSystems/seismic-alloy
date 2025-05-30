@@ -6,7 +6,6 @@ use alloy_serde::WithOtherFields;
 use derive_more::From;
 use alloy_network_primitives::{BlockResponse};
 use serde::{Deserialize, Serialize};
-use seismic_alloy_network::Seismic;
 use alloy_network::Network;
 
 /// Seismic RPC block with other fields
@@ -40,8 +39,8 @@ impl AnyRpcBlock {
 }
 
 impl BlockResponse for AnyRpcBlock {
-    type Header = <seismic_alloy_network::Seismic as Network>::Header;
-    type Transaction = <seismic_alloy_network::Seismic as Network>::TransactionResponse;
+    type Header = <seismic_alloy_network::SeismicFoundry as Network>::Header;
+    type Transaction = <seismic_alloy_network::SeismicFoundry as Network>::TransactionResponse;
 
     fn header(&self) -> &Self::Header {
         &self.0.inner.header
