@@ -1,20 +1,22 @@
 //! Seismic provider for HTTP requests
+use alloy_network::{EthereumWallet, TransactionBuilder};
+use alloy_primitives::Bytes;
 use alloy_provider::{
-    builder, fillers::{
+    builder,
+    fillers::{
         BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
         RecommendedFillers, SimpleNonceManager, WalletFiller,
-    }, Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderCall, ProviderLayer, RootProvider, SendableTx
+    },
+    Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderCall, ProviderLayer,
+    RootProvider, SendableTx,
 };
-use alloy_network::{Ethereum, EthereumWallet};
-use alloy_rpc_client::NoParams;
+use alloy_rpc_client::{NoParams, RpcClient};
+use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
+use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use seismic_enclave::PublicKey;
 use std::ops::Deref;
-use alloy_network::{TransactionBuilder};
-use alloy_primitives::Bytes;
-use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
 /// Seismic middlware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
@@ -72,35 +74,27 @@ where
                 builder.set_seismic_elements(seismic_elements);
 
                 // decrypting output
-                return self
-                    .inner
-                    .call(builder.clone())
-                    .await
-                    .and_then(|encrypted_output| {
-                        // Decrypt the output using the encryption keypair
-                        let decrypted_output = seismic_elements
-                            .client_decrypt(
-                                &encrypted_output,
-                                &network_pk,
-                                &encryption_keypair.secret_key(),
-                            )
-                            .map_err(|e| {
-                                TransportErrorKind::custom_str(&format!(
-                                    "Error decrypting output: {:?}",
-                                    e
-                                ))
-                            })?;
-                        Ok(Bytes::from(decrypted_output))
-                    });
+                return self.inner.call(builder.clone()).await.and_then(|encrypted_output| {
+                    // Decrypt the output using the encryption keypair
+                    let decrypted_output = seismic_elements
+                        .client_decrypt(
+                            &encrypted_output,
+                            &network_pk,
+                            &encryption_keypair.secret_key(),
+                        )
+                        .map_err(|e| {
+                            TransportErrorKind::custom_str(&format!(
+                                "Error decrypting output: {:?}",
+                                e
+                            ))
+                        })?;
+                    Ok(Bytes::from(decrypted_output))
+                });
             }
         }
         match tx {
-            SendableTx::Builder(builder) => {
-                self.inner.call(builder.clone()).await
-            }
-            SendableTx::Envelope(envelope) => {
-                self.inner.call(envelope.into()).await
-            }
+            SendableTx::Builder(builder) => self.inner.call(builder.clone()).await,
+            SendableTx::Envelope(envelope) => self.inner.call(envelope.into()).await,
         }
     }
 }
@@ -154,13 +148,11 @@ where
 #[derive(Debug, Clone)]
 pub(crate) struct SeismicLayer {}
 
-impl<P> ProviderLayer<P> for SeismicLayer
-where
-    P: Provider<Seismic>,
+impl ProviderLayer<Seismic> for SeismicLayer
 {
-    type Provider = SeismicProvider<P>;
+    type Provider = SeismicProvider<Seismic>;
 
-    fn layer(&self, inner: P) -> Self::Provider {
+    fn layer(&self, inner: Provider<Seismic>) -> Self::Provider {
         SeismicProvider::new(inner)
     }
 }
@@ -207,7 +199,7 @@ impl SeismicSignedProvider {
             .network::<Seismic>()
             .layer(SeismicLayer {})
             .layer(tx_filler_layer)
-            .on_http(url);
+            .on_client(RpcClient::new_http(url));
         Self(inner)
     }
 }
@@ -222,10 +214,10 @@ impl Deref for SeismicSignedProvider {
 /// Seismic unsigned provider
 pub type SeismicUnsignedProviderInner = SeismicProvider<
     FillProvider<
-        JoinFill<<Ethereum as RecommendedFillers>::RecommendedFillers, Identity>,
+        JoinFill<<Seismic as RecommendedFillers>::RecommendedFillers, Identity>,
         RootProvider<Seismic>,
-        Ethereum,
-    >
+        Seismic,
+    >,
 >;
 
 /// Seismic unsigned provider
@@ -242,7 +234,7 @@ impl SeismicUnsignedProvider {
             .network::<Seismic>()
             .layer(SeismicLayer {})
             .layer(tx_filler_layer)
-            .on_http(url);
+            .on_client(RpcClient::new_http(url));
         Self(inner)
     }
 }
@@ -350,5 +342,5 @@ mod tests {
         let wallet = EthereumWallet::from(bob.clone());
         wallet
     }
-} 
+}
 */

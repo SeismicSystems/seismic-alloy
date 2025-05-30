@@ -361,6 +361,7 @@ dependencies = [
  "async-stream",
  "futures",
  "pin-project",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",
@@ -368,6 +369,7 @@ dependencies = [
  "tower 0.5.2",
  "tracing",
  "tracing-futures",
+ "url",
  "wasmtimer",
 ]
 
@@ -525,7 +527,12 @@ version = "0.12.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a082c9473c6642cce8b02405a979496126a03b096997888e86229afad05db06c"
 dependencies = [
+ "alloy-json-rpc",
  "alloy-transport",
+ "reqwest",
+ "serde_json",
+ "tower 0.5.2",
+ "tracing",
  "url",
 ]
 
@@ -3508,6 +3515,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-network",
  "alloy-primitives",
+ "alloy-provider",
  "alloy-rpc-types-eth",
  "alloy-signer",
  "seismic-alloy-consensus",

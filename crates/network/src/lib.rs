@@ -7,6 +7,9 @@ pub use alloy_network::*;
 
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
+use alloy_provider::fillers::{
+    BlobGasFiller, ChainIdFiller, GasFiller, JoinFill, NonceFiller, RecommendedFillers,
+};
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
@@ -192,6 +195,15 @@ impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
         wallet: &W,
     ) -> Result<<Seismic as Network>::TxEnvelope, TransactionBuilderError<Seismic>> {
         Ok(wallet.sign_request(self).await?)
+    }
+}
+
+impl RecommendedFillers for Seismic {
+    type RecommendedFillers =
+        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+
+    fn recommended_fillers() -> Self::RecommendedFillers {
+        Default::default()
     }
 }
 
