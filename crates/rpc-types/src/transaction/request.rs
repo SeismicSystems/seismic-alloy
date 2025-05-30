@@ -336,6 +336,8 @@ impl Decodable712 for SeismicTransactionRequest {
     fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
         let tx = TxSeismic::eip712_decode(&typed_data.data)?;
         let signed_tx = tx.into_signed(typed_data.signature);
+        
+        // Note: into will not recover the signer address unless the k256 feature is enabled
         Ok(signed_tx.into())
     }
 }
