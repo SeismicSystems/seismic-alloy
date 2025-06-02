@@ -7,6 +7,7 @@ use alloy_primitives::{Address, Bytes, ChainId, TxKind, B256, U256};
 use alloy_rpc_types_eth::{AccessList, Transaction};
 use alloy_serde::WithOtherFields;
 use derive_more::From;
+use seismic_alloy_consensus::SeismicTxEnvelope;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use serde::{Deserialize, Serialize};
 
@@ -18,11 +19,11 @@ use crate::foundry::{
 pub type SeismicFoundryTransactionRequest = WithOtherFields<SeismicTransactionRequest>;
 
 /// Seismic transaction
-pub type SeismicTransaction = Transaction<SeismicFoundryTxEnvelope>;
+pub type SeismicTransaction = Transaction<SeismicTxEnvelope>;
 
 /// Seismic RPC transaction with other fields
 #[derive(Clone, Debug, From, PartialEq, Eq, Deserialize, Serialize)]
-pub struct SeismicFoundryRpcTransaction(pub WithOtherFields<SeismicTransaction>);
+pub struct SeismicFoundryRpcTransaction(pub WithOtherFields<Transaction<SeismicFoundryTxEnvelope>>);
 
 impl Typed2718 for SeismicFoundryRpcTransaction {
     fn ty(&self) -> u8 {
