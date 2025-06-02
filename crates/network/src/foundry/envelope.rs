@@ -1,7 +1,8 @@
 //! Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
-use alloy_consensus::transaction::RlpEcdsaDecodableTx;
-use alloy_consensus::{EthereumTxEnvelope, Signed, TxEnvelope};
-use alloy_consensus::{Transaction as TransactionTrait, Typed2718};
+use alloy_consensus::{
+    transaction::RlpEcdsaDecodableTx, EthereumTxEnvelope, Signed, Transaction as TransactionTrait,
+    TxEnvelope, Typed2718,
+};
 use alloy_eip7702::SignedAuthorization;
 use alloy_network::{
     eip2718::{Decodable2718, Encodable2718},
