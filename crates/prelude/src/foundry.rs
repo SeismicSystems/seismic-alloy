@@ -11,6 +11,8 @@ pub use seismic_alloy_network::foundry::{
     SeismicFoundry as AnyNetwork,
 };
 
+pub use seismic_alloy_consensus::SeismicTxEnvelope as TxEnvelope;
+
 // pub use seismic_alloy_network::foundry::{
 //     block::SeismicFoundryRpcBlock,
 //     envelope::SeismicFoundryTxEnvelope,
