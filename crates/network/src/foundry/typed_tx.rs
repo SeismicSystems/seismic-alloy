@@ -1,9 +1,9 @@
+//! Seismic Foundry typed transaction, meant to mimic AnyTypedTransaction
 use alloy_consensus::TypedTransaction;
 use alloy_network::{AnyTypedTransaction, UnknownTypedTransaction};
 use seismic_alloy_consensus::TxSeismic;
 
-use super::envelope::SeismicFoundryTxEnvelope;
-
+use crate::foundry::envelope::SeismicFoundryTxEnvelope;
 
 /// Unsigned transaction type for a catch-all network.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -16,7 +16,6 @@ pub enum SeismicFoundryTypedTransaction {
     /// A Seismic transaction.
     Seismic(TxSeismic),
 }
-
 
 impl From<SeismicFoundryTxEnvelope> for SeismicFoundryTypedTransaction {
     fn from(envelope: SeismicFoundryTxEnvelope) -> Self {

@@ -3610,7 +3610,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "seismic-foundry-prelude"
+name = "seismic-prelude"
 version = "0.0.1"
 dependencies = [
  "alloy-consensus",

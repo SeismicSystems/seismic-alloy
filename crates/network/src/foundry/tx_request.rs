@@ -1,15 +1,18 @@
-use alloy_consensus::{EthereumTypedTransaction, Transaction as TransactionTrait, TxType, Typed2718};
+//! Seismic Foundry transaction request, meant to behave like WithOtherFields<TransactionRequest>
+use alloy_consensus::{EthereumTypedTransaction, Transaction as TransactionTrait, Typed2718};
 use alloy_eip7702::SignedAuthorization;
-use alloy_network::{AnyTxType, BuildResult, NetworkWallet, TransactionBuilderError};
+use alloy_network::{BuildResult, NetworkWallet, TransactionBuilderError};
 use alloy_network_primitives::TransactionResponse;
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, B256, U256};
-use alloy_rpc_types_eth::{AccessList, Transaction, TransactionInputKind};
+use alloy_rpc_types_eth::{AccessList, Transaction};
 use alloy_serde::WithOtherFields;
 use derive_more::From;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use serde::{Deserialize, Serialize};
 
-use super::{envelope::SeismicFoundryTxEnvelope, typed_tx::SeismicFoundryTypedTransaction, SeismicFoundry};
+use crate::foundry::{
+    envelope::SeismicFoundryTxEnvelope, typed_tx::SeismicFoundryTypedTransaction, SeismicFoundry,
+};
 
 /// Seismic RPC transaction
 pub type SeismicFoundryTransactionRequest = WithOtherFields<SeismicTransactionRequest>;
@@ -120,7 +123,6 @@ impl TransactionResponse for SeismicFoundryRpcTransaction {
     }
 }
 
-
 impl From<SeismicFoundryTypedTransaction> for SeismicFoundryTransactionRequest {
     fn from(value: SeismicFoundryTypedTransaction) -> Self {
         match value {
@@ -131,7 +133,9 @@ impl From<SeismicFoundryTypedTransaction> for SeismicFoundryTransactionRequest {
                 EthereumTypedTransaction::Eip2930(tx) => WithOtherFields::new(tx.into()),
                 EthereumTypedTransaction::Legacy(tx) => WithOtherFields::new(tx.into()),
             },
-            SeismicFoundryTypedTransaction::Unknown(_) => unimplemented!("Unknown typed transaction"),
+            SeismicFoundryTypedTransaction::Unknown(_) => {
+                unimplemented!("Unknown typed transaction")
+            }
             SeismicFoundryTypedTransaction::Seismic(tx) => WithOtherFields::new(tx.into()),
         }
     }
@@ -139,7 +143,7 @@ impl From<SeismicFoundryTypedTransaction> for SeismicFoundryTransactionRequest {
 
 impl From<SeismicFoundryTxEnvelope> for SeismicFoundryTransactionRequest {
     fn from(value: SeismicFoundryTxEnvelope) -> Self {
-        match value {   
+        match value {
             SeismicFoundryTxEnvelope::Ethereum(tx) => WithOtherFields::new(tx.into()),
             SeismicFoundryTxEnvelope::Unknown(_) => unimplemented!("Unknown tx envelope"),
             SeismicFoundryTxEnvelope::Seismic(tx) => WithOtherFields::new(tx.into()),
@@ -147,10 +151,17 @@ impl From<SeismicFoundryTxEnvelope> for SeismicFoundryTransactionRequest {
     }
 }
 
+impl AsRef<SeismicFoundryTxEnvelope> for SeismicFoundryRpcTransaction {
+    fn as_ref(&self) -> &SeismicFoundryTxEnvelope {
+        &self.0.inner.inner
+    }
+}
 
 impl alloy_network::TransactionBuilder<SeismicFoundry> for SeismicFoundryTransactionRequest {
     fn chain_id(&self) -> Option<ChainId> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::chain_id(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::chain_id(
+            &self.inner,
+        )
     }
 
     fn set_chain_id(&mut self, chain_id: ChainId) {
@@ -158,57 +169,86 @@ impl alloy_network::TransactionBuilder<SeismicFoundry> for SeismicFoundryTransac
     }
 
     fn nonce(&self) -> Option<u64> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::nonce(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::nonce(
+            &self.inner,
+        )
     }
 
     fn set_nonce(&mut self, nonce: u64) {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_nonce(&mut self.inner, nonce)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_nonce(
+            &mut self.inner,
+            nonce,
+        )
     }
 
     fn input(&self) -> Option<&Bytes> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::input(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::input(
+            &self.inner,
+        )
     }
 
     fn set_input<T: Into<Bytes>>(&mut self, input: T) {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_input(&mut self.inner, input)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_input(
+            &mut self.inner,
+            input,
+        )
     }
 
     fn from(&self) -> Option<Address> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::from(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::from(
+            &self.inner,
+        )
     }
 
     fn set_from(&mut self, from: Address) {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_from(&mut self.inner, from)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_from(
+            &mut self.inner,
+            from,
+        )
     }
 
     /// Get the kind of transaction.
     fn kind(&self) -> Option<TxKind> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::kind(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::kind(
+            &self.inner,
+        )
     }
 
     /// Clear the kind of transaction.
     fn clear_kind(&mut self) {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::clear_kind(&mut self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::clear_kind(
+            &mut self.inner,
+        )
     }
 
     /// Set the kind of transaction.
     fn set_kind(&mut self, kind: TxKind) {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_kind(&mut self.inner, kind)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_kind(
+            &mut self.inner,
+            kind,
+        )
     }
 
     /// Get the value for the transaction.
     fn value(&self) -> Option<U256> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::value(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::value(
+            &self.inner,
+        )
     }
 
     /// Set the value for the transaction.
     fn set_value(&mut self, value: U256) {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_value(&mut self.inner, value)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::set_value(
+            &mut self.inner,
+            value,
+        )
     }
 
     /// Get the legacy gas price for the transaction.
     fn gas_price(&self) -> Option<u128> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::gas_price(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::gas_price(
+            &self.inner,
+        )
     }
 
     /// Set the legacy gas price for the transaction.
@@ -238,7 +278,9 @@ impl alloy_network::TransactionBuilder<SeismicFoundry> for SeismicFoundryTransac
 
     /// Get the gas limit for the transaction.
     fn gas_limit(&self) -> Option<u64> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::gas_limit(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::gas_limit(
+            &self.inner,
+        )
     }
 
     /// Set the gas limit for the transaction.
@@ -258,20 +300,27 @@ impl alloy_network::TransactionBuilder<SeismicFoundry> for SeismicFoundryTransac
 
     /// Check if all necessary keys are present to build the specified type,
     /// returning a list of missing keys.
-    fn complete_type(&self, ty: <SeismicFoundry as alloy_network::Network>::TxType) -> Result<(), Vec<&'static str>> {
+    fn complete_type(
+        &self,
+        ty: <SeismicFoundry as alloy_network::Network>::TxType,
+    ) -> Result<(), Vec<&'static str>> {
         <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::complete_type(&self.inner, ty)
     }
 
     /// True if the builder contains all necessary information to be submitted
     /// to the `eth_sendTransaction` endpoint.
     fn can_submit(&self) -> bool {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::can_submit(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::can_submit(
+            &self.inner,
+        )
     }
 
     /// True if the builder contains all necessary information to be built into
     /// a valid transaction.
     fn can_build(&self) -> bool {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::can_build(&self.inner)
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::can_build(
+            &self.inner,
+        )
     }
 
     /// Returns the transaction type that this builder will attempt to build.
@@ -300,15 +349,23 @@ impl alloy_network::TransactionBuilder<SeismicFoundry> for SeismicFoundryTransac
     }
 
     /// Build an unsigned, but typed, transaction.
-    fn build_unsigned(self) -> BuildResult<<SeismicFoundry as alloy_network::Network>::UnsignedTx, SeismicFoundry> {
+    fn build_unsigned(
+        self,
+    ) -> BuildResult<<SeismicFoundry as alloy_network::Network>::UnsignedTx, SeismicFoundry> {
         <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::build_unsigned(self.inner)
-    }   
+    }
 
     /// Build a signed transaction.
     async fn build<W: NetworkWallet<SeismicFoundry>>(
         self,
         wallet: &W,
-    ) -> Result<<SeismicFoundry as alloy_network::Network>::TxEnvelope, TransactionBuilderError<SeismicFoundry>> {
-        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::build(self.inner, wallet).await
+    ) -> Result<
+        <SeismicFoundry as alloy_network::Network>::TxEnvelope,
+        TransactionBuilderError<SeismicFoundry>,
+    > {
+        <SeismicTransactionRequest as alloy_network::TransactionBuilder<SeismicFoundry>>::build(
+            self.inner, wallet,
+        )
+        .await
     }
 }

@@ -424,6 +424,14 @@ impl SeismicTxEnvelope {
         }
     }
 
+    /// Returns the [`TxEip4844`] variant if the transaction is an EIP-4844 transaction.
+    pub const fn as_eip4844(&self) -> Option<&Signed<TxEip4844Variant>> {
+        match self {
+            Self::Eip4844(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
     /// Returns the [`TxEip1559`] variant if the transaction is an EIP-1559 transaction.
     pub const fn as_seismic(&self) -> Option<&Signed<TxSeismic>> {
         match self {

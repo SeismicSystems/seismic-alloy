@@ -1,58 +1,42 @@
 //! Seismic RPC network implementation
+pub mod block;
 pub mod envelope;
-pub mod typed_tx;
 pub mod tx_request;
+pub mod typed_tx;
 
 use alloy_eip7702::constants::EIP7702_TX_TYPE_ID;
-use alloy_network::eip2718::{EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID, LEGACY_TX_TYPE_ID};
-pub use alloy_network::*;
+use alloy_network::{
+    eip2718::{EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID, LEGACY_TX_TYPE_ID},
+    AnyHeader, AnyRpcHeader, AnyTxType, BuildResult, Ethereum, EthereumWallet, Network,
+    NetworkWallet, TransactionBuilder, TransactionBuilderError,
+};
 
-use alloy_consensus::{SignableTransaction, Signed, TxEnvelope, TxType, TypedTransaction};
+use alloy_consensus::{
+    EthereumTxEnvelope, SignableTransaction, Signed, TxEnvelope, TxType, TypedTransaction,
+};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
     BlobGasFiller, ChainIdFiller, GasFiller, JoinFill, NonceFiller, RecommendedFillers,
 };
-use alloy_serde::WithOtherFields;
 use alloy_rpc_types_eth::AccessList;
+use alloy_serde::WithOtherFields;
 use envelope::SeismicFoundryTxEnvelope;
-use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic};
+use seismic_alloy_consensus::{
+    SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic,
+};
 use seismic_alloy_rpc_types::{SeismicTransactionReceipt, SeismicTransactionRequest};
 use typed_tx::SeismicFoundryTypedTransaction;
 
+use crate::foundry::tx_request::SeismicFoundryRpcTransaction;
+
 /// TODO
 pub type SeismicFoundryReceiptResponse = WithOtherFields<SeismicTransactionReceipt>;
-
-
-
-
 
 /// Types for an Op-stack network.
 #[derive(Clone, Copy, Debug)]
 pub struct SeismicFoundry {
     _private: (),
 }
-
-/*
-    type TxType = AnyTxType;
-
-    type TxEnvelope = AnyTxEnvelope;
-
-    type UnsignedTx = AnyTypedTransaction;
-
-    type ReceiptEnvelope = AnyReceiptEnvelope;
-
-    type Header = AnyHeader;
-
-    type TransactionRequest = WithOtherFields<TransactionRequest>;
-
-    type TransactionResponse = AnyRpcTransaction;
-
-    type ReceiptResponse = AnyTransactionReceipt;
-
-    type HeaderResponse = AnyRpcHeader;
-
-    type BlockResponse = AnyRpcBlock;
-*/
 
 impl Network for SeismicFoundry {
     type TxType = AnyTxType;
@@ -67,7 +51,7 @@ impl Network for SeismicFoundry {
 
     type TransactionRequest = tx_request::SeismicFoundryTransactionRequest;
 
-    type TransactionResponse = alloy_rpc_types_eth::Transaction<SeismicTxEnvelope>;
+    type TransactionResponse = SeismicFoundryRpcTransaction;
 
     type ReceiptResponse = SeismicFoundryReceiptResponse;
 
@@ -185,7 +169,8 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
         match seismic_tx_type {
             SeismicTxType::Seismic => self.complete_seismic(),
             _ => {
-                let ty = TxType::try_from(seismic_tx_type as u8).map_err(|_| vec!["invalid tx type"])?;
+                let ty =
+                    TxType::try_from(seismic_tx_type as u8).map_err(|_| vec!["invalid tx type"])?;
                 self.inner.complete_type(ty)
             }
         }
@@ -230,16 +215,67 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
         if let Err((tx_type, missing)) = self.inner.missing_keys() {
             let tx_type = AnyTxType(tx_type as u8);
             return Err(TransactionBuilderError::InvalidTransactionRequest(tx_type, missing)
-                .into_unbuilt(WithOtherFields::new(self.inner.0)));
+                .into_unbuilt(WithOtherFields::new(SeismicTransactionRequest {
+                    inner: self.inner,
+                    seismic_elements: self.seismic_elements,
+                })));
         }
-        Ok(self.inner.build_typed_tx().expect("checked by missing_keys"))
+        let typed_tx = self.build_typed_tx().expect("checked by missing_keys");
+        match typed_tx {
+            SeismicTypedTransaction::Seismic(tx) => Ok(SeismicFoundryTypedTransaction::Seismic(tx)),
+            SeismicTypedTransaction::Legacy(tx) => {
+                Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Legacy(tx)))
+            }
+            SeismicTypedTransaction::Eip2930(tx) => {
+                Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Eip2930(tx)))
+            }
+            SeismicTypedTransaction::Eip1559(tx) => {
+                Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Eip1559(tx)))
+            }
+            SeismicTypedTransaction::Eip4844(tx) => {
+                Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Eip4844(tx)))
+            }
+            SeismicTypedTransaction::Eip7702(tx) => {
+                Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Eip7702(tx)))
+            }
+        }
     }
 
     async fn build<W: NetworkWallet<SeismicFoundry>>(
         self,
         wallet: &W,
-    ) -> Result<<SeismicFoundry as Network>::TxEnvelope, TransactionBuilderError<SeismicFoundry>> {
-        Ok(wallet.sign_request(self).await?)
+    ) -> Result<<SeismicFoundry as Network>::TxEnvelope, TransactionBuilderError<SeismicFoundry>>
+    {
+        Ok(wallet.sign_request(WithOtherFields::new(self)).await?)
+    }
+}
+
+impl From<alloy_consensus::Signed<TxSeismic>> for SeismicFoundryTxEnvelope {
+    fn from(tx: Signed<TxSeismic>) -> Self {
+        SeismicFoundryTxEnvelope::Seismic(tx)
+    }
+}
+
+impl From<SeismicTxEnvelope> for SeismicFoundryTxEnvelope {
+    fn from(value: SeismicTxEnvelope) -> Self {
+        match value {
+            SeismicTxEnvelope::Seismic(tx) => SeismicFoundryTxEnvelope::Seismic(tx),
+            SeismicTxEnvelope::Eip1559(tx) => {
+                SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip1559(tx))
+            }
+            SeismicTxEnvelope::Eip2930(tx) => {
+                SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip2930(tx))
+            }
+            SeismicTxEnvelope::Eip4844(tx) => {
+                SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip4844(tx))
+            }
+            SeismicTxEnvelope::Eip7702(tx) => {
+                SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip7702(tx))
+            }
+            SeismicTxEnvelope::Legacy(tx) => {
+                SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Legacy(tx))
+            }
+        }
     }
 }
 
@@ -261,35 +297,30 @@ impl NetworkWallet<SeismicFoundry> for EthereumWallet {
         sender: Address,
         tx: SeismicFoundryTypedTransaction,
     ) -> alloy_signer::Result<SeismicFoundryTxEnvelope> {
-        if let SeismicFoundryTypedTransaction::Seismic(mut tx) = tx {
-            let signature = self
-                .signer_by_address(sender)
-                .ok_or_else(|| {
-                    alloy_signer::Error::other(format!("Missing signing credential for {}", sender))
-                })?
-                .sign_transaction(&mut tx)
-                .await?;
+        let tx_signer = self.signer_by_address(sender).ok_or_else(|| {
+            alloy_signer::Error::other(format!("Missing signing credential for {}", sender))
+        })?;
 
-            Ok(tx.into_signed(signature).into())
-        } else {
-            let tx = match tx {
-                SeismicTypedTransaction::Legacy(tx) => TypedTransaction::Legacy(tx),
-                SeismicTypedTransaction::Eip2930(tx) => TypedTransaction::Eip2930(tx),
-                SeismicTypedTransaction::Eip1559(tx) => TypedTransaction::Eip1559(tx),
-                SeismicTypedTransaction::Eip4844(tx) => TypedTransaction::Eip4844(tx),
-                SeismicTypedTransaction::Eip7702(tx) => TypedTransaction::Eip7702(tx),
-                SeismicTypedTransaction::Seismic(_tx) => unreachable!(),
-            };
-
-            let tx = NetworkWallet::<Ethereum>::sign_transaction_from(self, sender, tx).await?;
-
-            Ok(match tx {
-                TxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
-                TxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
-                TxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx),
-                TxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
-                TxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
-            })
-        }
+        let signed_envelope = match tx {
+            SeismicFoundryTypedTransaction::Seismic(mut tx) => {
+                let signature = tx_signer.sign_transaction(&mut tx).await?;
+                let signed_tx = tx.into_signed(signature).into();
+                signed_tx
+            }
+            SeismicFoundryTypedTransaction::Ethereum(tx) => {
+                let signed_tx =
+                    NetworkWallet::<Ethereum>::sign_transaction_from(self, sender, tx).await?;
+                match signed_tx {
+                    TxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
+                    TxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
+                    TxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx),
+                    TxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
+                    TxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
+                }
+                .into()
+            }
+            SeismicFoundryTypedTransaction::Unknown(_) => unreachable!(),
+        };
+        Ok(signed_envelope)
     }
 }

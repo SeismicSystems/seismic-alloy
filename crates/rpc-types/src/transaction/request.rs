@@ -197,8 +197,8 @@ impl SeismicTransactionRequest {
             TypedTransaction::Legacy(tx) => Ok(SeismicTypedTransaction::Legacy(tx)),
             TypedTransaction::Eip1559(tx) => Ok(SeismicTypedTransaction::Eip1559(tx)),
             TypedTransaction::Eip2930(tx) => Ok(SeismicTypedTransaction::Eip2930(tx)),
+            TypedTransaction::Eip4844(tx) => Ok(SeismicTypedTransaction::Eip4844(tx)),
             TypedTransaction::Eip7702(tx) => Ok(SeismicTypedTransaction::Eip7702(tx)),
-            _ => panic!("Unsupported transaction type."),
         }
     }
 

@@ -1,21 +1,17 @@
+//! Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
+use alloy_consensus::transaction::RlpEcdsaDecodableTx;
+use alloy_consensus::{EthereumTxEnvelope, Signed, TxEnvelope};
 use alloy_consensus::{Transaction as TransactionTrait, Typed2718};
-use alloy_consensus::{SignableTransaction, Signed, TxEnvelope, TxType, TypedTransaction};
 use alloy_eip7702::SignedAuthorization;
-use alloy_network::{eip2718::{Decodable2718, Encodable2718}, AnyTxEnvelope, UnknownTxEnvelope};
+use alloy_network::{
+    eip2718::{Decodable2718, Encodable2718},
+    AnyTxEnvelope, UnknownTxEnvelope,
+};
 use alloy_primitives::{Address, Bytes, ChainId, Selector, TxKind, B256, U256};
-use alloy_provider::fillers::{
-    BlobGasFiller, ChainIdFiller, GasFiller, JoinFill, NonceFiller, RecommendedFillers,
-};
-use alloy_consensus::{
-    transaction::RlpEcdsaDecodableTx, Transaction, TxEip1559, TxEip2930, TxEip4844Variant,
-    TxEip7702, TxLegacy, 
-};
-
-use alloy_serde::WithOtherFields;
 use alloy_rpc_types_eth::AccessList;
-use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic};
-use seismic_alloy_rpc_types::{SeismicTransactionReceipt, SeismicTransactionRequest};
+use seismic_alloy_consensus::{SeismicTxEnvelope, TxSeismic};
 
+/// Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]
 pub enum SeismicFoundryTxEnvelope {
@@ -28,12 +24,21 @@ pub enum SeismicFoundryTxEnvelope {
 }
 
 impl SeismicFoundryTxEnvelope {
+    /// Convert to AnyTxEnvelope
     pub fn to_any_tx_envelope(&self) -> AnyTxEnvelope {
         match self {
             SeismicFoundryTxEnvelope::Ethereum(tx) => AnyTxEnvelope::Ethereum(tx.clone()),
             SeismicFoundryTxEnvelope::Unknown(tx) => AnyTxEnvelope::Unknown(tx.clone()),
-            SeismicFoundryTxEnvelope::Seismic(_) => panic!("Can't convert Seismic transaction to AnyTxEnvelope"),
+            SeismicFoundryTxEnvelope::Seismic(_) => {
+                panic!("Can't convert Seismic transaction to AnyTxEnvelope")
+            }
         }
+    }
+}
+
+impl From<SeismicFoundryTxEnvelope> for AnyTxEnvelope {
+    fn from(value: SeismicFoundryTxEnvelope) -> Self {
+        value.to_any_tx_envelope()
     }
 }
 
@@ -48,7 +53,7 @@ impl Typed2718 for SeismicFoundryTxEnvelope {
 }
 
 impl Encodable2718 for SeismicFoundryTxEnvelope {
-    fn encode_2718(&self,out: &mut dyn alloy_primitives::bytes::BufMut) {
+    fn encode_2718(&self, out: &mut dyn alloy_primitives::bytes::BufMut) {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.encode_2718(out);
         } else {
@@ -87,8 +92,6 @@ impl Encodable2718 for SeismicFoundryTxEnvelope {
 //         Ok(Self::network_decode(buf)?)
 //     }
 // }
-
-
 
 impl Decodable2718 for SeismicFoundryTxEnvelope {
     fn typed_decode(ty: u8, buf: &mut &[u8]) -> alloy_network::eip2718::Eip2718Result<Self> {
@@ -296,3 +299,63 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         }
     }
 }
+
+impl From<SeismicFoundryTxEnvelope> for SeismicTxEnvelope {
+    fn from(foundry_tx: SeismicFoundryTxEnvelope) -> Self {
+        match foundry_tx {
+            SeismicFoundryTxEnvelope::Seismic(tx) => SeismicTxEnvelope::Seismic(tx),
+            SeismicFoundryTxEnvelope::Ethereum(tx_envelope) => match tx_envelope {
+                EthereumTxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
+                EthereumTxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
+                EthereumTxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx),
+                EthereumTxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
+                EthereumTxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
+            },
+            SeismicFoundryTxEnvelope::Unknown(_) => unimplemented!(),
+        }
+    }
+}
+
+/*
+impl AsRef<SeismicFoundryTxEnvelope> for alloy_rpc_types_eth::Transaction<SeismicTxEnvelope> {
+    fn as_ref(&self) -> &SeismicFoundryTxEnvelope {
+        &self.inner().inner()
+        // match self.inner.inner() {
+        //     SeismicTxEnvelope::Seismic(tx) => &SeismicFoundryTxEnvelope::Seismic(tx),
+        //     // SeismicTxEnvelope::Eip1559(tx) => {
+        //     //     &SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip1559(tx.clone()))
+        //     // }
+        //     // SeismicTxEnvelope::Eip2930(tx) => {
+        //     //     &SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip2930(tx.clone()))
+        //     // }
+        //     // SeismicTxEnvelope::Eip4844(tx) => {
+        //     //     &SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip4844(tx.clone()))
+        //     // }
+        //     // SeismicTxEnvelope::Eip7702(tx) => {
+        //     //     &SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip7702(tx.clone()))
+        //     // }
+        //     // SeismicTxEnvelope::Legacy(tx) => {
+        //     //     &SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Legacy(tx.clone()))
+        //     // }
+        //     _ => unimplemented!(),
+        // }
+    }
+}
+
+
+impl AsRef<SeismicTxEnvelope> for SeismicFoundryTxEnvelope {
+    fn as_ref(&self) -> &SeismicTxEnvelope {
+        match self {
+            SeismicFoundryTxEnvelope::Seismic(tx) => &SeismicTxEnvelope::Seismic(*tx),
+            SeismicFoundryTxEnvelope::Ethereum(tx) => match tx {
+                EthereumTxEnvelope::Eip1559(tx) => &SeismicTxEnvelope::Eip1559(*tx),
+                EthereumTxEnvelope::Eip2930(tx) => &SeismicTxEnvelope::Eip2930(*tx),
+                EthereumTxEnvelope::Eip4844(tx) => &SeismicTxEnvelope::Eip4844(*tx),
+                EthereumTxEnvelope::Eip7702(tx) => &SeismicTxEnvelope::Eip7702(*tx),
+                EthereumTxEnvelope::Legacy(tx) => &SeismicTxEnvelope::Legacy(*tx),
+            },
+            SeismicFoundryTxEnvelope::Unknown(tx) => unimplemented!(),
+        }
+    }
+}
+ */

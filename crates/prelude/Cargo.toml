@@ -1,5 +1,5 @@
 [package]
-name = "seismic-foundry-prelude"
+name = "seismic-prelude"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
