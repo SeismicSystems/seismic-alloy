@@ -165,16 +165,12 @@ pub type SeismicJoinedRecommendedFillers =
 type EthRecFiller = <alloy_network::Ethereum as RecommendedFillers>::RecommendedFillers; // EthRecFiller;
 
 /// Seismic provider type alias for signed provider
-pub type SeismicSignedProviderInner = FillProvider<
-    JoinFill<Identity, EthRecFiller>,
-    SeismicProvider<
-        FillProvider<
-            JoinFill<EthRecFiller, WalletFiller<EthereumWallet>>,
-            RootProvider<Seismic>,
-            Seismic,
-        >,
+pub type SeismicSignedProviderInner = SeismicProvider<
+    FillProvider<
+        JoinFill<EthRecFiller, WalletFiller<EthereumWallet>>,
+        RootProvider<Seismic>,
+        Seismic,
     >,
-    Seismic,
 >;
 
 /// Seismic signed provider
@@ -189,17 +185,7 @@ impl SeismicSignedProvider {
             JoinFill::new(Seismic::recommended_fillers(), WalletFiller::new(wallet.clone()));
 
         // Build and return the provider
-        let inner: FillProvider<
-            JoinFill<Identity, EthRecFiller>,
-            SeismicProvider<
-                FillProvider<
-                    JoinFill<EthRecFiller, WalletFiller<EthereumWallet>>,
-                    RootProvider<Seismic>,
-                    Seismic,
-                >,
-            >,
-            Seismic,
-        > = ProviderBuilder::new()
+        let inner = ProviderBuilder::<_, _, Seismic>::default()
             .network::<Seismic>()
             .layer(SeismicLayer {})
             .layer(wallet_layer)
@@ -220,17 +206,8 @@ impl Deref for SeismicSignedProvider {
 /// Seismic unsigned provider
 
 /// Seismic unsigned provider type alias
-pub type SeismicUnsignedProviderInner = FillProvider<
-    JoinFill<Identity, EthRecFiller>,
-    SeismicProvider<
-        FillProvider<
-            JoinFill<Identity, EthRecFiller>,
-            RootProvider<Seismic>,
-            Seismic,
-        >,
-    >,
-    Seismic,
->;
+pub type SeismicUnsignedProviderInner =
+    SeismicProvider<FillProvider<JoinFill<Identity, EthRecFiller>, RootProvider<Seismic>, Seismic>>;
 
 /// Seismic unsigned provider
 #[derive(Debug, Clone)]
@@ -243,11 +220,12 @@ impl SeismicUnsignedProvider {
         let tx_filler_layer =
             JoinFill::new(Identity, <Seismic as RecommendedFillers>::recommended_fillers());
 
-        let inner = ProviderBuilder::new()
+        let inner = ProviderBuilder::<_, _, Seismic>::default()
             .network::<Seismic>()
             .layer(SeismicLayer {})
             .layer(tx_filler_layer)
             .on_client(RpcClient::new_http(url));
+        
         Self(inner)
     }
 }
@@ -270,24 +248,19 @@ mod tests {
     use alloy_signer_local::PrivateKeySigner;
     use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
-    // use crate::{
-    //     layers::seismic::{layer::SeismicLayer, test_utils::ContractTestContext},
-    //     Provider, ProviderBuilder, SeismicSignedProvider, SeismicUnsignedProvider, SendableTx,
-    // };
+    #[tokio::test]
+    async fn test_seismic_signed_call() {
+        let plaintext = ContractTestContext::get_deploy_input_plaintext();
+        let anvil = Anvil::new().spawn();
+        let wallet = get_wallet(&anvil);
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
-    // #[tokio::test]
-    // async fn test_seismic_signed_call() {
-    //     let plaintext = ContractTestContext::get_deploy_input_plaintext();
-    //     let anvil = Anvil::new().spawn();
-    //     let wallet = get_wallet(&anvil);
-    //     let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+        let tx = SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create);
 
-    //     let tx = SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create);
+        let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
 
-    //     let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
-
-    //     assert_eq!(res, ContractTestContext::get_code());
-    // }
+        assert_eq!(res, ContractTestContext::get_code());
+    }
 
     #[tokio::test]
     async fn test_seismic_unsigned_call() {
@@ -305,47 +278,47 @@ mod tests {
         assert_eq!(res, ContractTestContext::get_code());
     }
 
-    // #[tokio::test]
-    // async fn test_send_transaction() {
-    //     let plaintext = ContractTestContext::get_deploy_input_plaintext();
-    //     let anvil = Anvil::new().spawn();
-    //     let wallet = get_wallet(&anvil);
-    //     let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+    #[tokio::test]
+    async fn test_send_transaction() {
+        let plaintext = ContractTestContext::get_deploy_input_plaintext();
+        let anvil = Anvil::new().spawn();
+        let wallet = get_wallet(&anvil);
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
-    //     // testing send transaction
-    //     let tx = SeismicTransactionRequest::default()
-    //     .with_input(plaintext)
-    //     .with_kind(TxKind::Create)
-    //     .with_nonce(1)
-    //     ;
+        // testing send transaction
+        let tx = SeismicTransactionRequest::default()
+        .with_input(plaintext)
+        .with_kind(TxKind::Create)
+        .with_nonce(1)
+        ;
 
-    //     let contract_address = provider
-    //         .send_transaction(tx)
-    //         .await
-    //         .unwrap()
-    //         .get_receipt()
-    //         .await
-    //         .unwrap()
-    //         .contract_address
-    //         .unwrap();
+        let contract_address = provider
+            .send_transaction(tx)
+            .await
+            .unwrap()
+            .get_receipt()
+            .await
+            .unwrap()
+            .contract_address
+            .unwrap();
 
-    //     let code = provider.get_code_at(contract_address).await.unwrap();
-    //     assert_eq!(code, ContractTestContext::get_code());
-    // }
+        let code = provider.get_code_at(contract_address).await.unwrap();
+        assert_eq!(code, ContractTestContext::get_code());
+    }
 
-    // #[tokio::test]
-    // async fn test_send_transaction_with_emtpy_input() {
-    //     let plaintext = Bytes::new();
-    //     let anvil = Anvil::new().spawn();
-    //     let wallet = get_wallet(&anvil);
-    //     let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+    #[tokio::test]
+    async fn test_send_transaction_with_emtpy_input() {
+        let plaintext = Bytes::new();
+        let anvil = Anvil::new().spawn();
+        let wallet = get_wallet(&anvil);
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
-    //     let tx = SeismicTransactionRequest::default().with_input(plaintext).with_to(Address::ZERO);
+        let tx = SeismicTransactionRequest::default().with_input(plaintext).with_to(Address::ZERO);
 
-    //     let res = provider.send_transaction(tx).await.unwrap();
-    //     let receipt = res.get_receipt().await.unwrap();
-    //     assert_eq!(receipt.inner.status(), true);
-    // }
+        let res = provider.send_transaction(tx).await.unwrap();
+        let receipt = res.get_receipt().await.unwrap();
+        assert_eq!(receipt.inner.status(), true);
+    }
 
     // #[tokio::test]
     // async fn test_get_tee_pubkey() {
