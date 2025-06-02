@@ -1,6 +1,8 @@
 //! Seismic overrides to types commonly used in foundry
+use std::ops::{Deref, DerefMut};
+
 use alloy_consensus::error::ValueError;
-use alloy_network::{AnyRpcHeader, Network};
+use alloy_network::{AnyHeader, AnyRpcHeader, Network};
 use alloy_network_primitives::BlockResponse;
 use alloy_rpc_types_eth::{Block, BlockTransactions};
 use alloy_serde::WithOtherFields;
@@ -28,7 +30,7 @@ impl SeismicFoundryRpcBlock {
         self.0.into_inner()
     }
 
-    /// Tries to convert inner transactions into a vector of [`AnyRpcTransaction`].
+    /// Tries to convert inner transactions into a vector of [`SeismicFoundryRpcTransaction`].
     ///
     /// Returns an error if the block contains only transaction hashes or if it is an uncle block.
     pub fn try_into_transactions(
@@ -64,5 +66,47 @@ impl BlockResponse for SeismicFoundryRpcBlock {
 
     fn other_fields(&self) -> Option<&alloy_serde::OtherFields> {
         self.0.other_fields()
+    }
+}
+
+impl AsRef<WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>>>
+    for SeismicFoundryRpcBlock
+{
+    fn as_ref(&self) -> &WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>> {
+        &self.0
+    }
+}
+
+impl Deref for SeismicFoundryRpcBlock {
+    type Target = WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for SeismicFoundryRpcBlock {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>> for SeismicFoundryRpcBlock {
+    fn from(value: Block<SeismicFoundryRpcTransaction, AnyRpcHeader>) -> Self {
+        let block = value.map_header(|h| h.map(|h| AnyHeader { ..h.into() }));
+        Self(WithOtherFields::new(block))
+    }
+}
+
+impl From<SeismicFoundryRpcBlock> for Block<SeismicFoundryRpcTransaction, AnyRpcHeader> {
+    fn from(value: SeismicFoundryRpcBlock) -> Self {
+        value.into_inner()
+    }
+}
+impl From<SeismicFoundryRpcBlock>
+    for WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>>
+{
+    fn from(value: SeismicFoundryRpcBlock) -> Self {
+        value.0
     }
 }
