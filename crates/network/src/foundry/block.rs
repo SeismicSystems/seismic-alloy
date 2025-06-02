@@ -11,22 +11,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::foundry::{tx_request::SeismicFoundryRpcTransaction, SeismicFoundry};
 
+type SeismicFoundryRpcBlockInner = Block<SeismicFoundryRpcTransaction, AnyRpcHeader>;
+
 /// Seismic RPC block with other fields
 #[derive(Clone, Debug, From, PartialEq, Eq, Deserialize, Serialize)]
-pub struct SeismicFoundryRpcBlock(
-    pub WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>>,
-);
+pub struct SeismicFoundryRpcBlock(pub WithOtherFields<SeismicFoundryRpcBlockInner>);
 
 impl SeismicFoundryRpcBlock {
     /// Create a new [`SeismicFoundryRpcBlock`].
-    pub const fn new(
-        inner: WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>>,
-    ) -> Self {
+    pub const fn new(inner: WithOtherFields<SeismicFoundryRpcBlockInner>) -> Self {
         Self(inner)
     }
 
     /// Consumes the type and returns the wrapped rpc block.
-    pub fn into_inner(self) -> Block<SeismicFoundryRpcTransaction, AnyRpcHeader> {
+    pub fn into_inner(self) -> SeismicFoundryRpcBlockInner {
         self.0.into_inner()
     }
 
@@ -69,16 +67,14 @@ impl BlockResponse for SeismicFoundryRpcBlock {
     }
 }
 
-impl AsRef<WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>>>
-    for SeismicFoundryRpcBlock
-{
-    fn as_ref(&self) -> &WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>> {
+impl AsRef<WithOtherFields<SeismicFoundryRpcBlockInner>> for SeismicFoundryRpcBlock {
+    fn as_ref(&self) -> &WithOtherFields<SeismicFoundryRpcBlockInner> {
         &self.0
     }
 }
 
 impl Deref for SeismicFoundryRpcBlock {
-    type Target = WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>>;
+    type Target = WithOtherFields<SeismicFoundryRpcBlockInner>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -91,21 +87,20 @@ impl DerefMut for SeismicFoundryRpcBlock {
     }
 }
 
-impl From<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>> for SeismicFoundryRpcBlock {
-    fn from(value: Block<SeismicFoundryRpcTransaction, AnyRpcHeader>) -> Self {
+impl From<SeismicFoundryRpcBlockInner> for SeismicFoundryRpcBlock {
+    fn from(value: SeismicFoundryRpcBlockInner) -> Self {
         let block = value.map_header(|h| h.map(|h| AnyHeader { ..h.into() }));
         Self(WithOtherFields::new(block))
     }
 }
 
-impl From<SeismicFoundryRpcBlock> for Block<SeismicFoundryRpcTransaction, AnyRpcHeader> {
+impl From<SeismicFoundryRpcBlock> for SeismicFoundryRpcBlockInner {
     fn from(value: SeismicFoundryRpcBlock) -> Self {
         value.into_inner()
     }
 }
-impl From<SeismicFoundryRpcBlock>
-    for WithOtherFields<Block<SeismicFoundryRpcTransaction, AnyRpcHeader>>
-{
+
+impl From<SeismicFoundryRpcBlock> for WithOtherFields<SeismicFoundryRpcBlockInner> {
     fn from(value: SeismicFoundryRpcBlock) -> Self {
         value.0
     }
