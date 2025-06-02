@@ -47,7 +47,7 @@ impl SeismicFoundryRpcBlock {
 }
 
 impl BlockResponse for SeismicFoundryRpcBlock {
-    type Header = <SeismicFoundry as Network>::Header;
+    type Header = <SeismicFoundry as Network>::HeaderResponse;
     type Transaction = <SeismicFoundry as Network>::TransactionResponse;
 
     fn header(&self) -> &Self::Header {

@@ -27,7 +27,7 @@ use seismic_alloy_consensus::{
 use seismic_alloy_rpc_types::{SeismicTransactionReceipt, SeismicTransactionRequest};
 use typed_tx::SeismicFoundryTypedTransaction;
 
-use crate::foundry::tx_request::SeismicFoundryRpcTransaction;
+use crate::{foundry::tx_request::SeismicFoundryRpcTransaction, SeismicFoundryRpcBlock};
 
 /// TODO
 pub type SeismicFoundryReceiptResponse = WithOtherFields<SeismicTransactionReceipt>;
@@ -57,8 +57,7 @@ impl Network for SeismicFoundry {
 
     type HeaderResponse = AnyRpcHeader;
 
-    type BlockResponse =
-        alloy_rpc_types_eth::Block<Self::TransactionResponse, Self::HeaderResponse>;
+    type BlockResponse = SeismicFoundryRpcBlock;
 }
 
 // TODO: unclear if this is correct
