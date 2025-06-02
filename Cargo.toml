@@ -56,6 +56,8 @@ alloy-rpc-types-eth = { version = "0.12", default-features = false }
 alloy-rpc-types-engine = { version = "0.12", default-features = false }
 alloy-network-primitives = { version = "0.12", default-features = false }
 alloy-rpc-types = { version = "0.12", default-features = false }
+alloy-node-bindings = { version = "0.12", default-features = false }
+alloy-signer-local = { version = "0.12", default-features = false }
 # Alloy RLP
 alloy-rlp = { version = "0.3", default-features = false }
 alloy-rpc-client = { version = "0.12", default-features = false }

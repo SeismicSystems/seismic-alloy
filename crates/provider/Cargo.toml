@@ -31,3 +31,9 @@ seismic-alloy-consensus.workspace = true
 seismic-alloy-rpc-types.workspace = true
 seismic-alloy-network.workspace = true
 seismic-enclave.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-signer-local.workspace = true
+alloy-node-bindings = { workspace = true }

@@ -383,7 +383,7 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         &mut self,
         data: alloy_primitives::Bytes,
     ) -> Result<(), seismic_alloy_consensus::InputDecryptionElementsError> {
-        let new_self = std::mem::take(self).input(data.into());
+        let new_self = core::mem::take(self).input(data.into());
         *self = new_self;
         Ok(())
     }

@@ -199,6 +199,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-genesis"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a40de6f5b53ecf5fd7756072942f41335426d9a3704cd961f77d854739933bcf"
+dependencies = [
+ "alloy-eips",
+ "alloy-primitives",
+ "alloy-serde",
+ "alloy-trie",
+ "serde",
+]
+
+[[package]]
+name = "alloy-hardforks"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "473ee2ab7f5262b36e8fbc1b5327d5c9d488ab247e31ac739b929dbe2444ae79"
+dependencies = [
+ "alloy-chains",
+ "alloy-eip2124",
+ "alloy-primitives",
+ "auto_impl",
+ "dyn-clone",
+]
+
+[[package]]
 name = "alloy-json-abi"
 version = "0.8.25"
 source = "git+https://github.com/SeismicSystems/seismic-alloy-core.git?rev=fac24f1#fac24f18776eadd0961aab55b2b174bf5ed68d7d"
@@ -260,6 +286,27 @@ dependencies = [
  "alloy-primitives",
  "alloy-serde",
  "serde",
+]
+
+[[package]]
+name = "alloy-node-bindings"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "846c2248472c3a7efa8d9d6c51af5b545a88335af0ed7a851d01debfc3b03395"
+dependencies = [
+ "alloy-genesis",
+ "alloy-hardforks",
+ "alloy-network",
+ "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
+ "k256",
+ "rand 0.8.5",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.12",
+ "tracing",
+ "url",
 ]
 
 [[package]]
@@ -429,6 +476,22 @@ dependencies = [
  "either",
  "elliptic-curve",
  "k256",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "alloy-signer-local"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc6e72002cc1801d8b41e9892165e3a6551b7bd382bd9d0414b21e90c0c62551"
+dependencies = [
+ "alloy-consensus",
+ "alloy-network",
+ "alloy-primitives",
+ "alloy-signer",
+ "async-trait",
+ "k256",
+ "rand 0.8.5",
  "thiserror 2.0.12",
 ]
 
@@ -1424,6 +1487,12 @@ name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+
+[[package]]
+name = "dyn-clone"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c7a8fb8a9fbf66c1f703fe16184d10ca0ee9d23be5b4436400408ba54a95005"
 
 [[package]]
 name = "ecdsa"
@@ -3528,10 +3597,13 @@ version = "0.0.1"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
+ "alloy-node-bindings",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-client",
+ "alloy-rpc-types-eth",
  "alloy-signer",
+ "alloy-signer-local",
  "alloy-transport",
  "alloy-transport-http",
  "async-trait",
@@ -3540,6 +3612,7 @@ dependencies = [
  "seismic-alloy-network",
  "seismic-alloy-rpc-types",
  "seismic-enclave",
+ "tokio",
 ]
 
 [[package]]
