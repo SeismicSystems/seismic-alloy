@@ -15,4 +15,9 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
+seismic-alloy-consensus.workspace = true
+seismic-alloy-network.workspace = true
+seismic-alloy-rpc-types.workspace = true
+
 alloy-primitives.workspace = true
+alloy-provider.workspace = true
