@@ -2,6 +2,7 @@
 pub use seismic_alloy_network::foundry::{
     block::SeismicFoundryRpcBlock as AnyRpcBlock,
     envelope::SeismicFoundryTxEnvelope as AnyTxEnvelope,
+    tx_request::SeismicTransaction as RpcTransaction,
     tx_request::{
         SeismicFoundryRpcTransaction as AnyRpcTransaction,
         SeismicFoundryTransactionRequest as AnyTransactionRequest,

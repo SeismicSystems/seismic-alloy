@@ -17,9 +17,12 @@ use crate::foundry::{
 /// Seismic RPC transaction
 pub type SeismicFoundryTransactionRequest = WithOtherFields<SeismicTransactionRequest>;
 
+/// Seismic transaction
+pub type SeismicTransaction = Transaction<SeismicFoundryTxEnvelope>;
+
 /// Seismic RPC transaction with other fields
 #[derive(Clone, Debug, From, PartialEq, Eq, Deserialize, Serialize)]
-pub struct SeismicFoundryRpcTransaction(pub WithOtherFields<Transaction<SeismicFoundryTxEnvelope>>);
+pub struct SeismicFoundryRpcTransaction(pub WithOtherFields<SeismicTransaction>);
 
 impl Typed2718 for SeismicFoundryRpcTransaction {
     fn ty(&self) -> u8 {

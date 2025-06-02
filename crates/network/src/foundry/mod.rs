@@ -18,7 +18,7 @@ use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
     BlobGasFiller, ChainIdFiller, GasFiller, JoinFill, NonceFiller, RecommendedFillers,
 };
-use alloy_rpc_types_eth::AccessList;
+use alloy_rpc_types_eth::{AccessList, Transaction};
 use alloy_serde::WithOtherFields;
 use envelope::SeismicFoundryTxEnvelope;
 use seismic_alloy_consensus::{
@@ -29,7 +29,7 @@ use typed_tx::SeismicFoundryTypedTransaction;
 
 use crate::{foundry::tx_request::SeismicFoundryRpcTransaction, SeismicFoundryRpcBlock};
 
-/// TODO
+/// Seismic foundry receipt response
 pub type SeismicFoundryReceiptResponse = WithOtherFields<SeismicTransactionReceipt>;
 
 /// Types for an Op-stack network.
