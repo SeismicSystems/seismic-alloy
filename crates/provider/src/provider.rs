@@ -255,17 +255,48 @@ mod tests {
     use alloy_signer_local::PrivateKeySigner;
     use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
+    /// Path to local sanvil binary
+    const SANVIL_PATH: &str = "sanvil";
+
+    #[tokio::test]
+    async fn test_get_tee_pubkey() {
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
+        let wallet = get_wallet(&anvil);
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+        
+        // If this fails with a message like "Method Not Found", then you may be using anvil instead of sanvil
+        let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
+        
+        assert_eq!(tee_pubkey, seismic_enclave::crypto::get_unsecure_sample_secp256k1_pk());
+    }
+
+    #[tokio::test]
+    async fn test_send_transaction_with_emtpy_input() {
+        let plaintext = Bytes::new();
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
+        let wallet = get_wallet(&anvil);
+        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+
+        let tx = SeismicTransactionRequest::default().with_input(plaintext).with_to(Address::ZERO);
+
+        let res = provider.send_transaction(tx).await.unwrap();
+        let receipt = res.get_receipt().await.unwrap();
+        assert_eq!(receipt.inner.status(), true);
+    }
+
     #[tokio::test]
     async fn test_seismic_signed_call() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        let anvil = Anvil::at("sanvil").spawn();
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
         let tx =
             SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create);
 
-        let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
+        let res = provider.seismic_call(SendableTx::Builder(tx)).await;
+        assert!(res.is_ok(), "seismic_call failed: {:?}", res.unwrap_err());
+        let res = res.unwrap();
 
         assert_eq!(res, ContractTestContext::get_code());
     }
@@ -273,7 +304,7 @@ mod tests {
     #[tokio::test]
     async fn test_seismic_unsigned_call() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        let anvil = Anvil::at("~/.seismic/bin/sanvil").spawn();
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
         let from = get_wallet(&anvil).default_signer().address();
         let unsigned_provider = SeismicUnsignedProvider::new(anvil.endpoint_url());
 
@@ -289,7 +320,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_transaction() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        let anvil = Anvil::at("~/.seismic/bin/sanvil").spawn();
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
@@ -312,28 +343,6 @@ mod tests {
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());
     }
-
-    #[tokio::test]
-    async fn test_send_transaction_with_emtpy_input() {
-        let plaintext = Bytes::new();
-        let anvil = Anvil::at("~/.seismic/bin/sanvil").spawn();
-        let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
-
-        let tx = SeismicTransactionRequest::default().with_input(plaintext).with_to(Address::ZERO);
-
-        let res = provider.send_transaction(tx).await.unwrap();
-        let receipt = res.get_receipt().await.unwrap();
-        assert_eq!(receipt.inner.status(), true);
-    }
-
-    // #[tokio::test]
-    // async fn test_get_tee_pubkey() {
-    //     let provider =
-    //         ProviderBuilder::new().network::<Seismic>().layer(SeismicLayer {}).on_anvil();
-    //     let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
-    //     println!("test_get_tee_pubkey: tee_pubkey: {:?}", tee_pubkey);
-    // }
 
     fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {
         let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
