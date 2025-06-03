@@ -346,6 +346,18 @@ impl<T: Into<SeismicTransactionRequest>> From<EthereumTxEnvelope<T>> for Seismic
     }
 }
 
+impl Into<SeismicTransactionRequest> for WithOtherFields<SeismicTransactionRequest> {
+    fn into(self) -> SeismicTransactionRequest {
+        self.inner.into()
+    }
+}
+
+impl From<SeismicTransactionRequest> for WithOtherFields<SeismicTransactionRequest> {
+    fn from(value: SeismicTransactionRequest) -> Self {
+        WithOtherFields::new(value)
+    }
+}
+
 impl TransactionBuilder4844 for SeismicTransactionRequest {
     fn blob_sidecar(&self) -> Option<&alloy_consensus::BlobTransactionSidecar> {
         self.inner.sidecar.as_ref()
