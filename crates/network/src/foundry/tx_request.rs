@@ -25,6 +25,18 @@ pub type SeismicTransaction = Transaction<SeismicTxEnvelope>;
 #[derive(Clone, Debug, From, PartialEq, Eq, Deserialize, Serialize)]
 pub struct SeismicFoundryRpcTransaction(pub WithOtherFields<Transaction<SeismicFoundryTxEnvelope>>);
 
+impl SeismicFoundryRpcTransaction {
+    /// Return the inner transaction.
+    pub fn inner(&self) -> &Transaction<SeismicFoundryTxEnvelope> {
+        &self.0.inner
+    }
+
+    /// Convert the transaction into its inner transaction.
+    pub fn into_inner(self) -> Transaction<SeismicFoundryTxEnvelope> {
+        self.0.into_inner()
+    }
+}
+
 impl Typed2718 for SeismicFoundryRpcTransaction {
     fn ty(&self) -> u8 {
         self.0.inner.ty()
