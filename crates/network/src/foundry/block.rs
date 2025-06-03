@@ -4,9 +4,10 @@ use std::ops::{Deref, DerefMut};
 use alloy_consensus::error::ValueError;
 use alloy_network::{AnyHeader, AnyRpcHeader, Network};
 use alloy_network_primitives::BlockResponse;
-use alloy_rpc_types_eth::{Block, BlockTransactions};
+use alloy_rpc_types_eth::{state::StateOverride, Block, BlockOverrides, BlockTransactions};
 use alloy_serde::WithOtherFields;
 use derive_more::From;
+use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use serde::{Deserialize, Serialize};
 
 use crate::foundry::{tx_request::SeismicFoundryRpcTransaction, SeismicFoundry};
@@ -103,5 +104,52 @@ impl From<SeismicFoundryRpcBlock> for SeismicFoundryRpcBlockInner {
 impl From<SeismicFoundryRpcBlock> for WithOtherFields<SeismicFoundryRpcBlockInner> {
     fn from(value: SeismicFoundryRpcBlock) -> Self {
         value.0
+    }
+}
+
+/// Represents a batch of calls to be simulated sequentially within a block.
+/// This struct includes block and state overrides as well as the transaction requests to be
+/// executed.
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct SeismicFoundrySimBlock {
+    /// Modifications to the default block characteristics.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    pub block_overrides: Option<BlockOverrides>,
+    /// State modifications to apply before executing the transactions.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    pub state_overrides: Option<StateOverride>,
+    /// A vector of transactions to be simulated.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub calls: Vec<SeismicTransactionRequest>,
+}
+
+impl SeismicFoundrySimBlock {
+    /// Enables state overrides
+    pub fn with_state_overrides(mut self, overrides: StateOverride) -> Self {
+        self.state_overrides = Some(overrides);
+        self
+    }
+
+    /// Enables block overrides
+    pub fn with_block_overrides(mut self, overrides: BlockOverrides) -> Self {
+        self.block_overrides = Some(overrides);
+        self
+    }
+
+    /// Adds a call to the block.
+    pub fn call(mut self, call: SeismicTransactionRequest) -> Self {
+        self.calls.push(call);
+        self
+    }
+
+    /// Adds multiple calls to the block.
+    pub fn extend_calls(
+        mut self,
+        calls: impl IntoIterator<Item = SeismicTransactionRequest>,
+    ) -> Self {
+        self.calls.extend(calls);
+        self
     }
 }
