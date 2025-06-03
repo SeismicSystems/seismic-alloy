@@ -5,7 +5,10 @@ pub use seismic_alloy_consensus::{
     SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope,
 };
 pub use seismic_alloy_network::foundry::{
-    block::{SeismicFoundryRpcBlock as AnyRpcBlock, SeismicFoundrySimBlock as SimBlock},
+    block::{
+        SeismicFoundryRpcBlock as AnyRpcBlock, SeismicFoundrySimBlock as SimBlock,
+        SeismicFoundrySimulatePayload as SimPayload,
+    },
     envelope::SeismicFoundryTxEnvelope as AnyTxEnvelope,
     tx_request::{
         SeismicFoundryRpcTransaction as AnyRpcTransaction,

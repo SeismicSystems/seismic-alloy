@@ -153,3 +153,60 @@ impl SeismicFoundrySimBlock {
         self
     }
 }
+
+/// Simulation options for executing multiple blocks and transactions.
+///
+/// This struct configures how simulations are executed, including whether to trace token transfers,
+/// validate transaction sequences, and whether to return full transaction objects.
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct SeismicFoundrySimulatePayload {
+    /// Array of block state calls to be executed at specific, optional block/state.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub block_state_calls: Vec<SeismicFoundrySimBlock>,
+    /// Flag to determine whether to trace ERC20/ERC721 token transfers within transactions.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub trace_transfers: bool,
+    /// Flag to enable or disable validation of the transaction sequence in the blocks.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub validation: bool,
+    /// Flag to decide if full transactions should be returned instead of just their hashes.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub return_full_transactions: bool,
+}
+
+impl SeismicFoundrySimulatePayload {
+    /// Adds a block to the simulation payload.
+    pub fn extend(mut self, block: SeismicFoundrySimBlock) -> Self {
+        self.block_state_calls.push(block);
+        self
+    }
+
+    /// Adds multiple blocks to the simulation payload.
+    pub fn extend_blocks(
+        mut self,
+        blocks: impl IntoIterator<Item = SeismicFoundrySimBlock>,
+    ) -> Self {
+        self.block_state_calls.extend(blocks);
+        self
+    }
+
+    /// Enables tracing of token transfers.
+    pub const fn with_trace_transfers(mut self) -> Self {
+        self.trace_transfers = true;
+        self
+    }
+
+    /// Enables validation of the transaction sequence.
+    pub const fn with_validation(mut self) -> Self {
+        self.validation = true;
+        self
+    }
+
+    /// Enables returning full transactions.
+    pub const fn with_full_transactions(mut self) -> Self {
+        self.return_full_transactions = true;
+        self
+    }
+}
