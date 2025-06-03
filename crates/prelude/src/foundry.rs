@@ -21,4 +21,5 @@ pub use seismic_alloy_consensus::SeismicTxEnvelope as TxEnvelope;
 //     SeismicFoundry,
 // };
 
+pub use seismic_alloy_consensus::SeismicTypedTransaction as TypedTransaction;
 pub use seismic_alloy_rpc_types::SeismicTransactionRequest as TransactionRequest;
