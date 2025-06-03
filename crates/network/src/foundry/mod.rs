@@ -18,7 +18,7 @@ use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
     BlobGasFiller, ChainIdFiller, GasFiller, JoinFill, NonceFiller, RecommendedFillers,
 };
-use alloy_rpc_types_eth::{AccessList, Transaction};
+use alloy_rpc_types_eth::AccessList;
 use alloy_serde::WithOtherFields;
 use envelope::SeismicFoundryTxEnvelope;
 use seismic_alloy_consensus::{

@@ -7,7 +7,7 @@ use alloy_primitives::{Address, Bytes, ChainId, TxKind, B256, U256};
 use alloy_rpc_types_eth::{AccessList, Transaction};
 use alloy_serde::WithOtherFields;
 use derive_more::From;
-use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTypedTransaction};
+use seismic_alloy_consensus::SeismicTxEnvelope;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use serde::{Deserialize, Serialize};
 
