@@ -3,8 +3,8 @@
 use seismic_alloy_consensus::SeismicReceiptEnvelope;
 
 /// Seismic transaction receipt type
-pub type SeismicTransactionReceipt =
-    alloy_rpc_types_eth::TransactionReceipt<SeismicReceiptEnvelope<alloy_rpc_types_eth::Log>>;
+pub type SeismicTransactionReceipt<T = SeismicReceiptEnvelope<alloy_rpc_types_eth::Log>> =
+    alloy_rpc_types_eth::TransactionReceipt<T>;
 
 #[cfg(test)]
 mod tests {
