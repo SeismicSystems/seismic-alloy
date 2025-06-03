@@ -166,14 +166,14 @@ impl<T> SeismicReceiptEnvelope<T> {
     }
 
     /// Return the inner receipt with the bloom.
-    pub fn as_receipt_with_bloom(&self) -> Option<&ReceiptWithBloom<Receipt<T>>> {
+    pub fn as_receipt_with_bloom(&self) -> &ReceiptWithBloom<Receipt<T>> {
         match self {
-            Self::Legacy(t) => Some(t),
-            Self::Eip2930(t) => Some(t),
-            Self::Eip1559(t) => Some(t),
-            Self::Eip4844(t) => Some(t),
-            Self::Eip7702(t) => Some(t),
-            Self::Seismic(t) => Some(t),
+            Self::Legacy(t) => t,
+            Self::Eip2930(t) => t,
+            Self::Eip1559(t) => t,
+            Self::Eip4844(t) => t,
+            Self::Eip7702(t) => t,
+            Self::Seismic(t) => t,
         }
     }
 }
