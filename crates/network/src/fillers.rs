@@ -1,6 +1,6 @@
 //! Custom fillers for the Seismic provider
-//! 
-//! Normally fillers go in alloy-provider, but we need to put them here because 
+//!
+//! Normally fillers go in alloy-provider, but we need to put them here because
 //! we need it to impl RecommendedFillers for the [`Seismic`] network.
 
 use alloy_network::{Network, TransactionBuilder};
@@ -77,7 +77,7 @@ where
         P: Provider<N>,
     {
         if tx.get_decryption_elements().is_ok() {
-           // tx is a seismic transaction, repeat logic for legacy tx
+            // tx is a seismic transaction, repeat logic for legacy tx
             SeismicGasFiller::seismic_prepare_legacy(self, provider, tx).await
         } else {
             GasFiller::prepare(&self.0, provider, tx).await

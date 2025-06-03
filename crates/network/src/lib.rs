@@ -6,13 +6,13 @@
 pub use alloy_network::*;
 pub mod fillers;
 
+use crate::fillers::SeismicGasFiller;
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::RecommendedFillers;
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
-use crate::fillers::SeismicGasFiller;
 
 /// Types for an Op-stack network.
 #[derive(Clone, Copy, Debug)]
@@ -198,13 +198,11 @@ impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
     }
 }
 
-use alloy_provider::fillers::JoinFill;
-use alloy_provider::fillers::BlobGasFiller;
-use alloy_provider::fillers::NonceFiller;
-use alloy_provider::fillers::ChainIdFiller;
+use alloy_provider::fillers::{BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller};
 
 impl RecommendedFillers for Seismic {
-    type RecommendedFillers = JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+    type RecommendedFillers =
+        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
 
     fn recommended_fillers() -> Self::RecommendedFillers {
         Default::default()

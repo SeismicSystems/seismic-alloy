@@ -192,8 +192,10 @@ pub struct SeismicSignedProvider(SeismicSignedProviderInner);
 impl SeismicSignedProvider {
     /// Creates a new seismic signed provider
     pub fn new(wallet: EthereumWallet, url: reqwest::Url) -> Self {
-        let tx_filler_layer =
-            JoinFill::new(<Seismic as RecommendedFillers>::recommended_fillers(), WalletFiller::new(wallet.clone()));
+        let tx_filler_layer = JoinFill::new(
+            <Seismic as RecommendedFillers>::recommended_fillers(),
+            WalletFiller::new(wallet.clone()),
+        );
 
         // Build and return the provider
         let inner = ProviderBuilder::<_, _, Seismic>::default()
@@ -217,8 +219,9 @@ impl Deref for SeismicSignedProvider {
 /// Seismic unsigned provider
 
 /// Seismic unsigned provider type alias
-pub type SeismicUnsignedProviderInner =
-    SeismicProvider<FillProvider<JoinFill<Identity, SeismicRecFillers>, RootProvider<Seismic>, Seismic>>;
+pub type SeismicUnsignedProviderInner = SeismicProvider<
+    FillProvider<JoinFill<Identity, SeismicRecFillers>, RootProvider<Seismic>, Seismic>,
+>;
 
 /// Seismic unsigned provider
 #[derive(Debug, Clone)]
@@ -255,11 +258,10 @@ mod tests {
     use crate::test_utils::ContractTestContext;
     use alloy_network::{EthereumWallet, TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
-    use alloy_primitives::{Address, Bytes, TxKind};
+    use alloy_primitives::{address, Address, Bytes, TxKind};
+    use alloy_provider::ext::AnvilApi;
     use alloy_signer_local::PrivateKeySigner;
     use seismic_alloy_rpc_types::SeismicTransactionRequest;
-    use alloy_provider::ext::AnvilApi;
-    use alloy_primitives::address;
 
     /// Path to local sanvil binary
     const SANVIL_PATH: &str = "sanvil";
@@ -270,7 +272,8 @@ mod tests {
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
-        // If this fails with a message like "Method Not Found", then you may be using anvil instead of sanvil
+        // If this fails with a message like "Method Not Found", then you may be using anvil instead
+        // of sanvil
         let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
 
         assert_eq!(tee_pubkey, seismic_enclave::crypto::get_unsecure_sample_secp256k1_pk());
@@ -290,10 +293,11 @@ mod tests {
         assert_eq!(receipt.inner.status(), true);
     }
 
-    /// Check that SeismicUnsignedProvider can inherit alloy_provider ext traits (and that they work)
+    /// Check that SeismicUnsignedProvider can inherit alloy_provider ext traits (and that they
+    /// work)
     #[tokio::test]
     async fn test_anvil_set_code() {
-         let anvil = Anvil::at(SANVIL_PATH).spawn();
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
         let provider = SeismicUnsignedProvider::new(anvil.endpoint_url());
 
         let address = address!("0xd8da6bf26964af9d7eed9e03e53415d37aa96045");
