@@ -55,9 +55,11 @@ impl<P> SeismicProvider<P>
 where
     P: Provider<Seismic>,
 {
-    async fn seismic_call(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+    /// Makes a call request, handling encryption and decryption if necessary
+    pub async fn seismic_call(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
         if let Some(builder) = tx.as_mut_builder() {
             if self.should_encrypt_input(builder) {
+                // Encrypt using recipient's public key and generated private key
                 let network_pk = self.get_tee_pubkey().await.map_err(|e| {
                     TransportErrorKind::custom_str(&format!(
                         "Error getting tee pubkey from server: {:?}",
@@ -69,7 +71,6 @@ where
                     .with_encryption_pubkey(encryption_keypair.public_key())
                     .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
 
-                // Encrypt using recipient's public key and generated private key
                 let plaintext_input = builder.inner.input.input().unwrap();
                 let encrypted_input = seismic_elements
                     .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
@@ -80,23 +81,23 @@ where
                 builder.set_input(Bytes::from(encrypted_input));
                 builder.set_seismic_elements(seismic_elements);
 
-                // decrypting output
-                return self.inner.call(builder.clone()).await.and_then(|encrypted_output| {
-                    // Decrypt the output using the encryption keypair
-                    let decrypted_output = seismic_elements
-                        .client_decrypt(
-                            &encrypted_output,
-                            &network_pk,
-                            &encryption_keypair.secret_key(),
-                        )
-                        .map_err(|e| {
-                            TransportErrorKind::custom_str(&format!(
-                                "Error decrypting output: {:?}",
-                                e
-                            ))
-                        })?;
-                    Ok(Bytes::from(decrypted_output))
-                });
+                // make the rpc call
+                let encrypted_output = self.inner.call(builder.clone()).await?;
+                println!("Encrypted output: {:?}", encrypted_output);
+
+                // decrypt the output
+                let decrypted_output = seismic_elements
+                    .client_decrypt(
+                        &encrypted_output,
+                        &network_pk,
+                        &encryption_keypair.secret_key(),
+                    )
+                    .map_err(|e| {
+                        TransportErrorKind::custom_str(&format!("Error decrypting output: {:?}", e))
+                    })
+                    .unwrap(); // TODO: replace with ?
+
+                return Ok(Bytes::from(decrypted_output));
             }
         }
         match tx {
@@ -263,10 +264,10 @@ mod tests {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
-        
+
         // If this fails with a message like "Method Not Found", then you may be using anvil instead of sanvil
         let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
-        
+
         assert_eq!(tee_pubkey, seismic_enclave::crypto::get_unsecure_sample_secp256k1_pk());
     }
 
