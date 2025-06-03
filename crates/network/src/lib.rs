@@ -9,7 +9,9 @@ pub mod fillers;
 use crate::fillers::SeismicGasFiller;
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
-use alloy_provider::fillers::RecommendedFillers;
+use alloy_provider::fillers::{
+    BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller, RecommendedFillers,
+};
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
@@ -197,8 +199,6 @@ impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
         Ok(wallet.sign_request(self).await?)
     }
 }
-
-use alloy_provider::fillers::{BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller};
 
 impl RecommendedFillers for Seismic {
     type RecommendedFillers =

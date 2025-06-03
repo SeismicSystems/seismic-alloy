@@ -29,15 +29,17 @@ where
         Self { inner }
     }
 
-    /// Should encrypt input
+    /// Whether the input data should be encrypted
     pub(crate) fn should_encrypt_input<B: TransactionBuilder<Seismic>>(&self, tx: &B) -> bool {
         tx.input().map_or(false, |input| !input.is_empty())
     }
 
+    /// call seismic_getTeePublicKey RPC
     fn _get_tee_pubkey_str(&self) -> ProviderCall<NoParams, String> {
         self.client().request_noparams("seismic_getTeePublicKey").into()
     }
 
+    /// Get the PublicKey of the enclave
     async fn get_tee_pubkey(&self) -> TransportResult<PublicKey> {
         let r = self._get_tee_pubkey_str().await?;
         let stripped = r.strip_prefix("0x").unwrap_or(&r);
@@ -86,10 +88,6 @@ where
                 println!("Encrypted output: {:?}", encrypted_output);
 
                 // decrypt the output
-                if encrypted_output.is_empty() {
-                    return Ok(Bytes::new());
-                }
-
                 let decrypted_output = seismic_elements
                     .client_decrypt(
                         &encrypted_output,
@@ -173,7 +171,8 @@ where
     }
 }
 
-// TODO: clean this up
+/// Type alias for the recommended fillers for the seismic network
+/// Defined for code clarity
 type SeismicRecFillers = <seismic_alloy_network::Seismic as RecommendedFillers>::RecommendedFillers; // EthRecFiller;
 
 /// Seismic provider type alias for signed provider
@@ -215,8 +214,6 @@ impl Deref for SeismicSignedProvider {
         &self.0
     }
 }
-
-/// Seismic unsigned provider
 
 /// Seismic unsigned provider type alias
 pub type SeismicUnsignedProviderInner = SeismicProvider<

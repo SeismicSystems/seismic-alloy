@@ -15,7 +15,7 @@ use std::future::IntoFuture;
 
 pub use alloy_provider::fillers::GasFiller;
 
-/// A wrapper for alloy_providerLLI::fillers::GasFiller that handles gas for seismic transactions
+/// A wrapper for alloy_provider::fillers::GasFiller that handles gas for seismic transactions
 /// Seismic tx need to be treated like a legacy tx
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SeismicGasFiller(GasFiller);

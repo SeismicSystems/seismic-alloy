@@ -3610,19 +3610,15 @@ dependencies = [
 name = "seismic-alloy-provider"
 version = "0.0.1"
 dependencies = [
- "alloy-consensus",
  "alloy-network",
  "alloy-node-bindings",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-client",
  "alloy-rpc-types-eth",
- "alloy-signer",
  "alloy-signer-local",
  "alloy-transport",
- "alloy-transport-http",
  "async-trait",
- "futures",
  "reqwest",
  "seismic-alloy-consensus",
  "seismic-alloy-network",
