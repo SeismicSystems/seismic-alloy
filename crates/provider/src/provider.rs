@@ -345,12 +345,10 @@ mod tests {
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
         // testing send transaction
-        let gas_price = provider.get_gas_price().await.unwrap();
         let tx = SeismicTransactionRequest::default()
             .with_input(plaintext)
             .with_kind(TxKind::Create)
-            .with_nonce(1)
-            .with_gas_price(gas_price);
+            .with_nonce(1);
 
         let contract_address = provider
             .send_transaction(tx)
