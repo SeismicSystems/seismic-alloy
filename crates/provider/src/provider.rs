@@ -10,11 +10,11 @@ use alloy_provider::{
     RootProvider, SendableTx,
 };
 use alloy_rpc_client::{NoParams, RpcClient};
-use alloy_transport::{TransportErrorKind, TransportResult};
+use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
-use std::ops::Deref;
+use std::{ops::Deref, str::FromStr};
 
 /// Seismic middleware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
@@ -37,8 +37,20 @@ where
         tx.input().map_or(false, |input| !input.is_empty())
     }
 
-    fn get_tee_pubkey(&self) -> ProviderCall<NoParams, PublicKey> {
+    fn _get_tee_pubkey_str(&self) -> ProviderCall<NoParams, String> {
         self.client().request_noparams("seismic_getTeePublicKey").into()
+    }
+
+    async fn get_tee_pubkey(&self) -> TransportResult<PublicKey> {
+        let r = self._get_tee_pubkey_str().await?;
+        let stripped = r.strip_prefix("0x").unwrap_or(&r);
+        match PublicKey::from_str(stripped) {
+            Ok(pk) => Ok(pk),
+            Err(e) => Err(TransportErrorKind::custom_str(&format!(
+                "Error getting tee pubkey from server: {:?}",
+                e
+            ))),
+        }
     }
 }
 
@@ -225,7 +237,7 @@ impl SeismicUnsignedProvider {
             .layer(SeismicLayer {})
             .layer(tx_filler_layer)
             .on_client(RpcClient::new_http(url));
-        
+
         Self(inner)
     }
 }
@@ -251,11 +263,12 @@ mod tests {
     #[tokio::test]
     async fn test_seismic_signed_call() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        let anvil = Anvil::new().spawn();
+        let anvil = Anvil::at("sanvil").spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
-        let tx = SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create);
+        let tx =
+            SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create);
 
         let res = provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
 
@@ -265,7 +278,7 @@ mod tests {
     #[tokio::test]
     async fn test_seismic_unsigned_call() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        let anvil = Anvil::new().spawn();
+        let anvil = Anvil::at("~/.seismic/bin/sanvil").spawn();
         let from = get_wallet(&anvil).default_signer().address();
         let unsigned_provider = SeismicUnsignedProvider::new(anvil.endpoint_url());
 
@@ -281,16 +294,15 @@ mod tests {
     #[tokio::test]
     async fn test_send_transaction() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        let anvil = Anvil::new().spawn();
+        let anvil = Anvil::at("~/.seismic/bin/sanvil").spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
         // testing send transaction
         let tx = SeismicTransactionRequest::default()
-        .with_input(plaintext)
-        .with_kind(TxKind::Create)
-        .with_nonce(1)
-        ;
+            .with_input(plaintext)
+            .with_kind(TxKind::Create)
+            .with_nonce(1);
 
         let contract_address = provider
             .send_transaction(tx)
@@ -309,7 +321,7 @@ mod tests {
     #[tokio::test]
     async fn test_send_transaction_with_emtpy_input() {
         let plaintext = Bytes::new();
-        let anvil = Anvil::new().spawn();
+        let anvil = Anvil::at("~/.seismic/bin/sanvil").spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
