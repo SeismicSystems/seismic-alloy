@@ -1,4 +1,5 @@
 use alloy_primitives::Bytes;
+use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::TypedDataRequest;
 
 use crate::SeismicTransactionRequest;
@@ -60,5 +61,11 @@ impl Into<SeismicCallRequest> for SeismicTransactionRequest {
 impl Into<SeismicCallRequest> for Bytes {
     fn into(self) -> SeismicCallRequest {
         SeismicCallRequest::Bytes(self)
+    }
+}
+
+impl Into<SeismicCallRequest> for WithOtherFields<SeismicTransactionRequest> {
+    fn into(self) -> SeismicCallRequest {
+        SeismicCallRequest::TransactionRequest(self.inner.into())
     }
 }
