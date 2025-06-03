@@ -1,5 +1,7 @@
 //! Seismic Foundry transaction request, meant to behave like WithOtherFields<TransactionRequest>
-use alloy_consensus::{EthereumTypedTransaction, Transaction as TransactionTrait, Typed2718};
+use alloy_consensus::{
+    transaction::Recovered, EthereumTypedTransaction, Transaction as TransactionTrait, Typed2718,
+};
 use alloy_eip7702::SignedAuthorization;
 use alloy_network::{BuildResult, NetworkWallet, TransactionBuilderError};
 use alloy_network_primitives::TransactionResponse;
@@ -7,7 +9,7 @@ use alloy_primitives::{Address, Bytes, ChainId, TxKind, B256, U256};
 use alloy_rpc_types_eth::{AccessList, Transaction};
 use alloy_serde::WithOtherFields;
 use derive_more::From;
-use seismic_alloy_consensus::SeismicTxEnvelope;
+use seismic_alloy_consensus::{SeismicTxEnvelope, TxSeismic};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use serde::{Deserialize, Serialize};
 
@@ -383,5 +385,11 @@ impl alloy_network::TransactionBuilder<SeismicFoundry> for SeismicFoundryTransac
             self.inner, wallet,
         )
         .await
+    }
+}
+
+impl From<SeismicFoundryRpcTransaction> for SeismicFoundryTxEnvelope {
+    fn from(value: SeismicFoundryRpcTransaction) -> Self {
+        value.0.inner.inner.into_inner()
     }
 }
