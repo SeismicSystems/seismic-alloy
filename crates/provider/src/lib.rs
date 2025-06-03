@@ -1,7 +1,7 @@
 //! Seismic provider
 pub mod provider;
 pub use provider::{
-    SeismicSignedProvider, 
+    SeismicSignedProvider,
     // SeismicUnsignedProvider
 };
 

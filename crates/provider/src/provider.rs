@@ -2,15 +2,12 @@
 use alloy_network::{EthereumWallet, TransactionBuilder};
 use alloy_primitives::Bytes;
 use alloy_provider::{
-    fillers::{
-        BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
-        RecommendedFillers, SimpleNonceManager, WalletFiller,
-    },
+    fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
     Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderCall, ProviderLayer,
     RootProvider, SendableTx,
 };
 use alloy_rpc_client::{NoParams, RpcClient};
-use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
+use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
@@ -171,9 +168,7 @@ where
     }
 }
 
-pub type SeismicJoinedRecommendedFillers =
-    JoinFill<Identity, <Seismic as RecommendedFillers>::RecommendedFillers>;
-
+// TODO: clean this up
 type EthRecFiller = <alloy_network::Ethereum as RecommendedFillers>::RecommendedFillers; // EthRecFiller;
 
 /// Seismic provider type alias for signed provider
