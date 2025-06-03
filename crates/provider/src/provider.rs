@@ -86,6 +86,10 @@ where
                 println!("Encrypted output: {:?}", encrypted_output);
 
                 // decrypt the output
+                if encrypted_output.is_empty() {
+                    return Ok(Bytes::new());
+                }
+
                 let decrypted_output = seismic_elements
                     .client_decrypt(
                         &encrypted_output,
@@ -255,6 +259,8 @@ mod tests {
     use alloy_primitives::{Address, Bytes, TxKind};
     use alloy_signer_local::PrivateKeySigner;
     use seismic_alloy_rpc_types::SeismicTransactionRequest;
+    use alloy_provider::ext::AnvilApi;
+    use alloy_primitives::address;
 
     /// Path to local sanvil binary
     const SANVIL_PATH: &str = "sanvil";
@@ -283,6 +289,19 @@ mod tests {
         let res = provider.send_transaction(tx).await.unwrap();
         let receipt = res.get_receipt().await.unwrap();
         assert_eq!(receipt.inner.status(), true);
+    }
+
+    /// Check that SeismicUnsignedProvider can inherit alloy_provider ext traits (and that they work)
+    #[tokio::test]
+    async fn test_anvil_set_code() {
+         let anvil = Anvil::at(SANVIL_PATH).spawn();
+        let provider = SeismicUnsignedProvider::new(anvil.endpoint_url());
+
+        let address = address!("0xd8da6bf26964af9d7eed9e03e53415d37aa96045");
+        provider.anvil_set_code(address, Bytes::from("0xbeef")).await.unwrap();
+
+        let code = provider.get_code_at(address).await.unwrap();
+        assert_eq!(code, Bytes::from("0xbeef"));
     }
 
     #[tokio::test]
