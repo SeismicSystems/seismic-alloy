@@ -1,6 +1,5 @@
 //! Seismic provider
 
-pub mod fillers;
 pub mod provider;
 pub use provider::SeismicSignedProvider;
 

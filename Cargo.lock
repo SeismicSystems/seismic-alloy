@@ -3600,6 +3600,8 @@ dependencies = [
  "alloy-provider",
  "alloy-rpc-types-eth",
  "alloy-signer",
+ "alloy-transport",
+ "futures",
  "seismic-alloy-consensus",
  "seismic-alloy-rpc-types",
 ]

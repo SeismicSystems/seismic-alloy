@@ -174,12 +174,12 @@ where
 }
 
 // TODO: clean this up
-type EthRecFiller = <alloy_network::Ethereum as RecommendedFillers>::RecommendedFillers; // EthRecFiller;
+type SeismicRecFillers = <seismic_alloy_network::Seismic as RecommendedFillers>::RecommendedFillers; // EthRecFiller;
 
 /// Seismic provider type alias for signed provider
 pub type SeismicSignedProviderInner = SeismicProvider<
     FillProvider<
-        JoinFill<EthRecFiller, WalletFiller<EthereumWallet>>,
+        JoinFill<SeismicRecFillers, WalletFiller<EthereumWallet>>,
         RootProvider<Seismic>,
         Seismic,
     >,
@@ -192,25 +192,8 @@ pub struct SeismicSignedProvider(SeismicSignedProviderInner);
 impl SeismicSignedProvider {
     /// Creates a new seismic signed provider
     pub fn new(wallet: EthereumWallet, url: reqwest::Url) -> Self {
-        use alloy_provider::fillers::GasFiller;
-        use alloy_provider::fillers::BlobGasFiller;
-        use alloy_provider::fillers::SimpleNonceManager;
-        use alloy_provider::fillers::NonceFiller;
-        use alloy_provider::fillers::ChainIdFiller;
-        // Create wallet layer with recommended fillers
-        let tx_filler_layer = JoinFill::new(
-            JoinFill::new(
-                GasFiller,
-                JoinFill::new(
-                    BlobGasFiller,
-                    JoinFill::new(
-                        NonceFiller::<SimpleNonceManager>::default(),
-                        ChainIdFiller::default(),
-                    ),
-                ),
-            ),
-            WalletFiller::new(wallet.clone()),
-        );
+        let tx_filler_layer =
+            JoinFill::new(<Seismic as RecommendedFillers>::recommended_fillers(), WalletFiller::new(wallet.clone()));
 
         // Build and return the provider
         let inner = ProviderBuilder::<_, _, Seismic>::default()
@@ -235,7 +218,7 @@ impl Deref for SeismicSignedProvider {
 
 /// Seismic unsigned provider type alias
 pub type SeismicUnsignedProviderInner =
-    SeismicProvider<FillProvider<JoinFill<Identity, EthRecFiller>, RootProvider<Seismic>, Seismic>>;
+    SeismicProvider<FillProvider<JoinFill<Identity, SeismicRecFillers>, RootProvider<Seismic>, Seismic>>;
 
 /// Seismic unsigned provider
 #[derive(Debug, Clone)]

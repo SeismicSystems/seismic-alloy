@@ -1,14 +1,19 @@
 //! Custom fillers for the Seismic provider
+//! 
+//! Normally fillers go in alloy-provider, but we need to put them here because 
+//! we need it to impl RecommendedFillers for the [`Seismic`] network.
 
 use alloy_network::{Network, TransactionBuilder};
 use alloy_provider::{
-    fillers::{FillerControlFlow, GasFillable, GasFiller, TxFiller},
+    fillers::{FillerControlFlow, GasFillable, TxFiller},
     Provider, SendableTx,
 };
 use alloy_transport::TransportResult;
 use futures::FutureExt;
 use seismic_alloy_consensus::InputDecryptionElements;
 use std::future::IntoFuture;
+
+pub use alloy_provider::fillers::GasFiller;
 
 /// A wrapper for alloy_providerLLI::fillers::GasFiller that handles gas for seismic transactions
 /// Seismic tx need to be treated like a legacy tx
