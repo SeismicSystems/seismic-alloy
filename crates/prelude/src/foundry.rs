@@ -7,7 +7,7 @@ pub use seismic_alloy_consensus::{
 pub use seismic_alloy_network::foundry::{
     block::{
         SeismicFoundryRpcBlock as AnyRpcBlock, SeismicFoundrySimBlock as SimBlock,
-        SeismicFoundrySimulatePayload as SimPayload,
+        SeismicFoundrySimulatePayload as SimulatePayload,
     },
     envelope::SeismicFoundryTxEnvelope as AnyTxEnvelope,
     tx_request::{
