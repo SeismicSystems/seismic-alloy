@@ -143,12 +143,25 @@ impl<T> SeismicReceiptEnvelope<T> {
     /// receipt types may be added.
     pub const fn as_receipt(&self) -> Option<&Receipt<T>> {
         match self {
-            Self::Legacy(t) |
-            Self::Eip2930(t) |
-            Self::Eip1559(t) |
-            Self::Eip4844(t) |
-            Self::Eip7702(t) |
-            Self::Seismic(t) => Some(&t.receipt),
+            Self::Legacy(t)
+            | Self::Eip2930(t)
+            | Self::Eip1559(t)
+            | Self::Eip4844(t)
+            | Self::Eip7702(t)
+            | Self::Seismic(t) => Some(&t.receipt),
+        }
+    }
+
+    /// Create a new [`SeismicReceiptEnvelope`] from the values that alloy's AnyReceiptEnvelope contains
+    pub fn new(inner: ReceiptWithBloom<Receipt<T>>, tx_type: u8) -> Self {
+        match tx_type {
+            0 => Self::Legacy(inner),
+            1 => Self::Eip2930(inner),
+            2 => Self::Eip1559(inner),
+            3 => Self::Eip4844(inner),
+            4 => Self::Eip7702(inner),
+            0x4A => Self::Seismic(inner),
+            _ => panic!("Invalid transaction type: {}", tx_type),
         }
     }
 }
@@ -257,11 +270,11 @@ impl Encodable2718 for SeismicReceiptEnvelope {
         }
         match self {
             Self::Seismic(t) => t.encode(out),
-            Self::Legacy(t) |
-            Self::Eip2930(t) |
-            Self::Eip1559(t) |
-            Self::Eip4844(t) |
-            Self::Eip7702(t) => t.encode(out),
+            Self::Legacy(t)
+            | Self::Eip2930(t)
+            | Self::Eip1559(t)
+            | Self::Eip4844(t)
+            | Self::Eip7702(t) => t.encode(out),
         }
     }
 }
