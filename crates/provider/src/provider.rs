@@ -192,15 +192,31 @@ pub struct SeismicSignedProvider(SeismicSignedProviderInner);
 impl SeismicSignedProvider {
     /// Creates a new seismic signed provider
     pub fn new(wallet: EthereumWallet, url: reqwest::Url) -> Self {
+        use alloy_provider::fillers::GasFiller;
+        use alloy_provider::fillers::BlobGasFiller;
+        use alloy_provider::fillers::SimpleNonceManager;
+        use alloy_provider::fillers::NonceFiller;
+        use alloy_provider::fillers::ChainIdFiller;
         // Create wallet layer with recommended fillers
-        let wallet_layer =
-            JoinFill::new(Seismic::recommended_fillers(), WalletFiller::new(wallet.clone()));
+        let tx_filler_layer = JoinFill::new(
+            JoinFill::new(
+                GasFiller,
+                JoinFill::new(
+                    BlobGasFiller,
+                    JoinFill::new(
+                        NonceFiller::<SimpleNonceManager>::default(),
+                        ChainIdFiller::default(),
+                    ),
+                ),
+            ),
+            WalletFiller::new(wallet.clone()),
+        );
 
         // Build and return the provider
         let inner = ProviderBuilder::<_, _, Seismic>::default()
             .network::<Seismic>()
             .layer(SeismicLayer {})
-            .layer(wallet_layer)
+            .layer(tx_filler_layer)
             .on_client(RpcClient::new_http(url));
 
         Self(inner)

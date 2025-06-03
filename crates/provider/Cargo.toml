@@ -26,6 +26,7 @@ alloy-transport-http.workspace = true
 
 reqwest.workspace = true
 async-trait.workspace = true
+futures.workspace = true
 
 seismic-alloy-consensus.workspace = true
 seismic-alloy-rpc-types.workspace = true

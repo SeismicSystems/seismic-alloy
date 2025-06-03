@@ -3620,6 +3620,7 @@ dependencies = [
  "alloy-transport",
  "alloy-transport-http",
  "async-trait",
+ "futures",
  "reqwest",
  "seismic-alloy-consensus",
  "seismic-alloy-network",

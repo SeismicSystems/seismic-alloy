@@ -1,9 +1,8 @@
 //! Seismic provider
+
+pub mod fillers;
 pub mod provider;
-pub use provider::{
-    SeismicSignedProvider,
-    // SeismicUnsignedProvider
-};
+pub use provider::SeismicSignedProvider;
 
 pub mod test_utils {
     //! Test utilities for seismic provider
