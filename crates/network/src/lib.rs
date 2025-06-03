@@ -4,9 +4,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 pub use alloy_network::*;
+pub mod fillers;
 
+use crate::fillers::SeismicGasFiller;
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
+use alloy_provider::fillers::{
+    BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller, RecommendedFillers,
+};
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
@@ -192,6 +197,15 @@ impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
         wallet: &W,
     ) -> Result<<Seismic as Network>::TxEnvelope, TransactionBuilderError<Seismic>> {
         Ok(wallet.sign_request(self).await?)
+    }
+}
+
+impl RecommendedFillers for Seismic {
+    type RecommendedFillers =
+        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+
+    fn recommended_fillers() -> Self::RecommendedFillers {
+        Default::default()
     }
 }
 

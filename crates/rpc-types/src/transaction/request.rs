@@ -5,7 +5,7 @@ use alloy_consensus::{
     SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip7702, TxLegacy, TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
-use alloy_network_primitives::TransactionBuilder7702;
+use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
 use alloy_primitives::{Address, PrimitiveSignature as Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use seismic_alloy_consensus::{
@@ -113,6 +113,11 @@ impl SeismicTransactionRequest {
     pub fn seismic_elements(mut self, seismic_elements: TxSeismicElements) -> Self {
         self.seismic_elements = Some(seismic_elements);
         self
+    }
+
+    /// Sets the seismic elements for the transaction.
+    pub fn set_seismic_elements(&mut self, seismic_elements: TxSeismicElements) {
+        self.seismic_elements = Some(seismic_elements);
     }
 
     fn check_seismic_fields(&self, missing: &mut Vec<&'static str>) {
@@ -322,6 +327,29 @@ impl From<SeismicTxEnvelope> for SeismicTransactionRequest {
     }
 }
 
+impl TransactionBuilder4844 for SeismicTransactionRequest {
+    fn blob_sidecar(&self) -> Option<&alloy_consensus::BlobTransactionSidecar> {
+        self.inner.blob_sidecar()
+    }
+    fn max_fee_per_blob_gas(&self) -> Option<u128> {
+        self.inner.max_fee_per_blob_gas.as_ref().map(|x| *x)
+    }
+    fn set_blob_sidecar(&mut self, sidecar: alloy_consensus::BlobTransactionSidecar) {
+        self.inner.set_blob_sidecar(sidecar);
+    }
+    fn set_max_fee_per_blob_gas(&mut self, max_fee_per_blob_gas: u128) {
+        self.inner.set_max_fee_per_blob_gas(max_fee_per_blob_gas);
+    }
+    fn with_blob_sidecar(mut self, sidecar: alloy_consensus::BlobTransactionSidecar) -> Self {
+        self.inner.set_blob_sidecar(sidecar);
+        self
+    }
+    fn with_max_fee_per_blob_gas(mut self, max_fee_per_blob_gas: u128) -> Self {
+        self.inner.set_max_fee_per_blob_gas(max_fee_per_blob_gas);
+        self
+    }
+}
+
 impl TransactionBuilder7702 for SeismicTransactionRequest {
     fn authorization_list(&self) -> Option<&Vec<SignedAuthorization>> {
         self.inner.authorization_list()
@@ -336,7 +364,7 @@ impl Decodable712 for SeismicTransactionRequest {
     fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
         let tx = TxSeismic::eip712_decode(&typed_data.data)?;
         let signed_tx = tx.into_signed(typed_data.signature);
-        
+
         // Note: into will not recover the signer address unless the k256 feature is enabled
         Ok(signed_tx.into())
     }
@@ -355,7 +383,7 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         &mut self,
         data: alloy_primitives::Bytes,
     ) -> Result<(), seismic_alloy_consensus::InputDecryptionElementsError> {
-        let new_self = std::mem::take(self).input(data.into());
+        let new_self = core::mem::take(self).input(data.into());
         *self = new_self;
         Ok(())
     }

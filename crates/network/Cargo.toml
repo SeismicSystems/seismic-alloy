@@ -24,7 +24,12 @@ alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-primitives.workspace = true
 alloy-rpc-types-eth.workspace = true
+alloy-provider.workspace = true
 alloy-signer.workspace = true
+alloy-transport.workspace = true
+
+# misc
+futures.workspace = true
 
 [features]
 std = [

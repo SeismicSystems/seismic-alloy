@@ -15,4 +15,23 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
+alloy-network.workspace = true
 alloy-primitives.workspace = true
+alloy-provider.workspace = true
+alloy-rpc-client = { workspace = true, features = ["reqwest"] }
+alloy-transport.workspace = true
+
+reqwest.workspace = true
+async-trait.workspace = true
+
+seismic-alloy-consensus.workspace = true
+seismic-alloy-network.workspace = true
+seismic-enclave.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-signer-local.workspace = true
+alloy-node-bindings = { workspace = true }
+alloy-provider = { workspace = true, features = ["anvil-api"] }
+seismic-alloy-rpc-types.workspace = true
