@@ -1,4 +1,5 @@
 //! Aliases to drop into foundry so we don't have to rename all the types
+use alloy_network::{Network, TransactionBuilder};
 use alloy_serde::WithOtherFields;
 
 pub use seismic_alloy_consensus::{
@@ -26,10 +27,7 @@ pub use seismic_alloy_rpc_types::{
 /// A transaction receipt with the SeismicReceiptEnvelope wrapped in a WithOtherFields
 pub type AnyTransactionReceipt = WithOtherFields<TransactionReceipt>;
 
-// pub use seismic_alloy_network::foundry::{
-//     block::SeismicFoundryRpcBlock,
-//     envelope::SeismicFoundryTxEnvelope,
-//     tx_request::{SeismicFoundryRpcTransaction, SeismicFoundryTransactionRequest},
-//     typed_tx::SeismicFoundryTypedTransaction,
-//     SeismicFoundry,
-// };
+/// A transaction builder for the AnyNetwork
+pub fn tx_builder() -> impl TransactionBuilder<AnyNetwork> + Into<TransactionRequest> {
+    TransactionRequest::default()
+}
