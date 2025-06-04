@@ -12,7 +12,7 @@ exclude.workspace = true
 [dependencies]
 seismic-alloy-consensus.workspace = true
 seismic-alloy-rpc-types.workspace = true
-seismic-alloy-network.workspace = true
+seismic-alloy-network = { workspace = true, features = ["serde"] }
 seismic-alloy-provider.workspace = true
 
 alloy-consensus.workspace = true
