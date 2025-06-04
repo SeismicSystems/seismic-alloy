@@ -1,5 +1,5 @@
 //! Seismic provider for HTTP requests
-use alloy_network::{EthereumWallet};
+use alloy_network::EthereumWallet;
 use alloy_provider::{
     fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
     Identity, Provider, ProviderBuilder, ProviderLayer, RootProvider,
@@ -11,6 +11,7 @@ use std::ops::Deref;
 use crate::SeismicProviderExt;
 
 /// Seismic middleware for encrypting transactions and decrypting responses
+/// Impliments [`SeismicProviderExt`] trait
 #[derive(Debug, Clone)]
 pub struct SeismicProvider<P> {
     /// Inner provider.
@@ -60,7 +61,7 @@ where
 
 /// Type alias for the recommended fillers for the seismic network
 /// Defined for code clarity
-type SeismicRecFillers = <seismic_alloy_network::Seismic as RecommendedFillers>::RecommendedFillers; // EthRecFiller;
+type SeismicRecFillers = <seismic_alloy_network::Seismic as RecommendedFillers>::RecommendedFillers;
 
 /// Seismic provider type alias for signed provider
 pub type SeismicSignedProviderInner = SeismicProvider<
@@ -143,10 +144,9 @@ mod tests {
     use alloy_network::{EthereumWallet, TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::{address, Address, Bytes, TxKind};
-    use alloy_provider::ext::AnvilApi;
+    use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
     use alloy_signer_local::PrivateKeySigner;
     use seismic_alloy_rpc_types::SeismicTransactionRequest;
-    use alloy_provider::{Provider, SendableTx};
 
     /// Path to local sanvil binary
     const SANVIL_PATH: &str = "sanvil";

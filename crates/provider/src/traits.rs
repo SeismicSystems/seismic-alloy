@@ -1,13 +1,11 @@
-//! A seismic provider trait that extends alloy_provider::Provider and is implimented for relevant types.
-//! Extends the provider trait with ...
-use alloy_network::eip2718::Encodable2718;
-use alloy_network::TransactionBuilder;
+//! A seismic provider trait that extends alloy_provider::Provider and is implimented for relevant
+//! types. Extends the provider trait with ...
+use alloy_network::{eip2718::Encodable2718, TransactionBuilder};
 use alloy_primitives::Bytes;
 use alloy_provider::{Provider, ProviderCall, SendableTx};
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::InputDecryptionElements;
-use seismic_alloy_consensus::TxSeismicElements;
+use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
@@ -53,8 +51,7 @@ pub trait SeismicProviderExt: Provider<Seismic> {
     }
 
     /// Encrypts the input data, runs self.call_conditionally_signed, and decrypts the output data
-    async fn call_with_encryption(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes>
-    {
+    async fn call_with_encryption(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
         // set up elements unrelated to the input tx
         let network_pk = self.get_tee_pubkey().await.map_err(|e| {
             TransportErrorKind::custom_str(&format!(
@@ -108,8 +105,7 @@ pub trait SeismicProviderExt: Provider<Seismic> {
     }
 
     /// Makes a call request, perhaps making the call signed depinding on the input type
-    async fn call_conditionally_signed(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes>
-    {
+    async fn call_conditionally_signed(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
         println!("call_conditionally_signed entered. tx: {:?}\n", tx);
         match tx {
             SendableTx::Builder(builder) => {
