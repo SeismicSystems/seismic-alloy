@@ -1,5 +1,5 @@
 //! Aliases to drop into foundry so we don't have to rename all the types
-use alloy_network::{Network, TransactionBuilder};
+use alloy_network::{Network, TransactionBuilder, TransactionBuilder4844, TransactionBuilder7702};
 use alloy_serde::WithOtherFields;
 
 pub use seismic_alloy_consensus::{
@@ -28,6 +28,9 @@ pub use seismic_alloy_rpc_types::{
 pub type AnyTransactionReceipt = WithOtherFields<TransactionReceipt>;
 
 /// A transaction builder for the AnyNetwork
-pub fn tx_builder() -> impl TransactionBuilder<AnyNetwork> + Into<TransactionRequest> {
+pub fn tx_builder() -> impl TransactionBuilder<AnyNetwork>
+       + TransactionBuilder4844
+       + TransactionBuilder7702
+       + Into<TransactionRequest> {
     TransactionRequest::default()
 }
