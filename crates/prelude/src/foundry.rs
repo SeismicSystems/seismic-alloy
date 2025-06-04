@@ -1,9 +1,9 @@
 //! Aliases to drop into foundry so we don't have to rename all the types
-use alloy_network::{Network, TransactionBuilder, TransactionBuilder4844, TransactionBuilder7702};
+use alloy_network::{TransactionBuilder, TransactionBuilder4844, TransactionBuilder7702};
 use alloy_serde::WithOtherFields;
 
 pub use seismic_alloy_consensus::{
-    SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope, TxSeismic,
+    SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope, TxSeismic, Decodable712
 };
 pub use seismic_alloy_network::foundry::{
     block::{
