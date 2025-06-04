@@ -7,7 +7,9 @@ use alloy_provider::{
 use alloy_rpc_client::RpcClient;
 use seismic_alloy_network::Seismic;
 use std::ops::Deref;
-
+use alloy_provider::{SendableTx};
+use alloy_primitives::Bytes;
+use alloy_transport::{TransportResult};
 use crate::SeismicProviderExt;
 
 /// Seismic middleware for encrypting transactions and decrypting responses
@@ -32,15 +34,23 @@ where
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl<P> Provider<Seismic> for SeismicProvider<P>
-where
-    P: Provider<Seismic>,
+    where P: SeismicProviderExt,
 {
     fn root(&self) -> &RootProvider<Seismic> {
         self.inner.root()
     }
 }
 
-impl<P> SeismicProviderExt for SeismicProvider<P> where P: Provider<Seismic> {}
+// use alloy_provider::{SendableTx};
+// use alloy_primitives::Bytes;
+// use alloy_transport::{TransportResult};
+#[async_trait::async_trait]
+impl<P> SeismicProviderExt for SeismicProvider<P> where P: SeismicProviderExt {
+    async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        // call the inner provider's seismic_call fn to ensure that all layers are called, e.g. GasFiller, etc
+        self.inner.seismic_call(tx).await
+    }
+}
 
 /// Seismic layer
 /// Consists of a SeismicProvider wrapping other layers
@@ -50,7 +60,7 @@ pub(crate) struct SeismicLayer;
 
 impl<P> ProviderLayer<P, Seismic> for SeismicLayer
 where
-    P: Provider<Seismic>,
+    P: SeismicProviderExt,
 {
     type Provider = SeismicProvider<P>;
 

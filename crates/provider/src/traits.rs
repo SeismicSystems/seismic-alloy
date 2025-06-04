@@ -10,6 +10,7 @@ use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
 use tracing::warn;
+use alloy_provider::fillers::FillProvider;
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
 #[async_trait::async_trait]
@@ -123,5 +124,14 @@ pub trait SeismicProviderExt: Provider<Seismic> {
                 Ok(output)
             }
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl<F, P, N> SeismicProviderExt for FillProvider<F, P, N> where P: SeismicProviderExt {
+    async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        tx = self.prepare_call(&mut tx).await?;
+        // Errors in tx building happen further down the stack.
+        self.inner.seismic_call(tx).await
     }
 }
