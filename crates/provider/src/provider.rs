@@ -1,4 +1,5 @@
 //! Seismic provider for HTTP requests
+use alloy_network::eip2718::Encodable2718;
 use alloy_network::{EthereumWallet, TransactionBuilder};
 use alloy_primitives::Bytes;
 use alloy_provider::{
@@ -103,7 +104,14 @@ where
         }
         match tx {
             SendableTx::Builder(builder) => self.inner.call(builder.clone()).await,
-            SendableTx::Envelope(envelope) => self.inner.call(envelope.into()).await,
+            SendableTx::Envelope(envelope) => {
+                // Seismic makes use of signed calls. By default calls come from the zero address,
+                // while signed calls come from the sender. If the tx comes in an envelope with a signature,
+                // we directly encode the tx and send it to the node
+                let encoded_tx = envelope.encoded_2718();
+                let output = self.client().request("eth_call", (encoded_tx,)).await?;
+                Ok(output)
+            }
         }
     }
 }
