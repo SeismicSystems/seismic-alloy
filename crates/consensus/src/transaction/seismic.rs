@@ -1,7 +1,7 @@
 //! Seismic transaction types and utilities
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
-    SignableTransaction, Signed, Transaction, Typed2718,
+    SignableTransaction, Signed, Transaction, TxLegacy, Typed2718,
 };
 use alloy_dyn_abi::TypedData;
 use alloy_eips::{eip2930::AccessList, eip7702::SignedAuthorization};
@@ -368,6 +368,19 @@ impl TxSeismic {
         let typed_data = self.eip712_to_type_data();
 
         typed_data.eip712_signing_hash().expect("Failed to hash seismic transaction in eip712")
+    }
+
+    /// Convert a [`TxSeismic`] to a [`TxLegacy`] transaction (dropping the seismic elements)
+    pub fn to_legacy_tx(&self) -> TxLegacy {
+        TxLegacy {
+            chain_id: Some(self.chain_id),
+            nonce: self.nonce,
+            gas_price: self.gas_price,
+            gas_limit: self.gas_limit,
+            to: self.to,
+            value: self.value,
+            input: self.input.clone(),
+        }
     }
 }
 
