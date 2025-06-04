@@ -1,19 +1,14 @@
 //! Seismic provider for HTTP requests
-use alloy_network::eip2718::Encodable2718;
-use alloy_network::{EthereumWallet, TransactionBuilder};
-use alloy_primitives::Bytes;
+use alloy_network::{EthereumWallet};
 use alloy_provider::{
     fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
-    Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderCall, ProviderLayer,
-    RootProvider, SendableTx,
+    Identity, Provider, ProviderBuilder, ProviderLayer, RootProvider,
 };
-use alloy_rpc_client::{NoParams, RpcClient};
-use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::TxSeismicElements;
+use alloy_rpc_client::RpcClient;
 use seismic_alloy_network::Seismic;
-use seismic_enclave::PublicKey;
-use std::{ops::Deref, str::FromStr};
-use tracing::{warn};
+use std::ops::Deref;
+
+use crate::SeismicProviderTr;
 
 /// Seismic middleware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
@@ -30,115 +25,6 @@ where
     pub(crate) fn new(inner: P) -> Self {
         Self { inner }
     }
-
-    /// Whether the input data should be encrypted
-    pub(crate) fn should_encrypt_input<B: TransactionBuilder<Seismic>>(&self, tx: &B) -> bool {
-        tx.input().map_or(false, |input| !input.is_empty())
-    }
-
-    /// call seismic_getTeePublicKey RPC
-    fn _get_tee_pubkey_str(&self) -> ProviderCall<NoParams, String> {
-        self.client().request_noparams("seismic_getTeePublicKey").into()
-    }
-
-    /// Get the PublicKey of the enclave
-    async fn get_tee_pubkey(&self) -> TransportResult<PublicKey> {
-        let r = self._get_tee_pubkey_str().await?;
-        let stripped = r.strip_prefix("0x").unwrap_or(&r);
-        match PublicKey::from_str(stripped) {
-            Ok(pk) => Ok(pk),
-            Err(e) => Err(TransportErrorKind::custom_str(&format!(
-                "Error getting tee pubkey from server: {:?}",
-                e
-            ))),
-        }
-    }
-}
-
-impl<P> SeismicProvider<P>
-where
-    P: Provider<Seismic>,
-{
-    /// Makes a call request while handling seismic specific aspects
-    /// e.g. encrypting input data and decrypting output data
-    /// e.g. sending signed call requests
-    pub async fn seismic_call(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
-        println!("seismic_call entered. tx: {:?}\n", tx);
-        if let Some(builder) = tx.as_mut_builder() {
-            if self.should_encrypt_input(builder) {
-                return self.call_with_encryption(tx).await
-            }
-        }
-
-        // If we get here, we are not encrypting the input data
-        self.call_conditionally_signed(tx).await
-    }
-
-    /// Encrypts the input data, runs self.call_conditionally_signed, and decrypts the output data
-    async fn call_with_encryption(
-        &self,
-        mut tx: SendableTx<Seismic>,
-    ) -> TransportResult<Bytes> {
-        let mut builder = tx.as_mut_builder().unwrap();
-        
-        // Encrypt using recipient's public key and generated private key
-        let network_pk = self.get_tee_pubkey().await.map_err(|e| {
-            TransportErrorKind::custom_str(&format!(
-                "Error getting tee pubkey from server: {:?}",
-                e
-            ))
-        })?;
-        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
-        let seismic_elements = TxSeismicElements::default()
-            .with_encryption_pubkey(encryption_keypair.public_key())
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
-        let plaintext_input = builder.inner.input.input().unwrap();
-        let encrypted_input = seismic_elements
-            .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
-            .map_err(|e| {
-                TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
-            })?;
-
-        builder.set_input(Bytes::from(encrypted_input));
-        builder.set_seismic_elements(seismic_elements);
-
-        // make the rpc call
-        // let encrypted_output = self.call_conditionally_signed(SendableTx::Builder(builder)).await?;
-        println!("call_with_encryption. about to make inner.call, builder: {:?}\n", builder);
-        let encrypted_output = self.inner.call(builder.clone()).await?;
-
-        // decrypt the output
-        let decrypted_output = seismic_elements
-            .client_decrypt(&encrypted_output, &network_pk, &encryption_keypair.secret_key())
-            .map_err(|e| {
-                TransportErrorKind::custom_str(&format!("Error decrypting output: {:?}", e))
-            })?;
-
-        return Ok(Bytes::from(decrypted_output));
-    }
-
-    /// Makes a call request, perhaps making the call signed depinding on the input type
-    async fn call_conditionally_signed(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
-        println!("call_conditionally_signed entered. tx: {:?}\n", tx);
-        match tx {
-            SendableTx::Builder(builder) => {
-                warn!("seismic_call: sending unsigned transaction");
-                println!("seismic_call: sending unsigned transaction");
-                self.inner.call(builder.clone()).await
-            }
-            SendableTx::Envelope(envelope) => {
-                warn!("seismic_call: sending signed transaction");
-                println!("seismic_call: sending signed transaction");
-                // Seismic makes use of signed calls. By default calls come from the zero address,
-                // while signed calls come from the sender. If the tx comes in an envelope with a signature,
-                // we directly encode the tx and send it to the node
-                let encoded_tx = envelope.encoded_2718();
-                let output = self.client().request("eth_call", (encoded_tx,)).await?;
-                Ok(output)
-            }
-        }
-    }
 }
 
 /// Implement the Provider trait for the SeismicProvider
@@ -151,40 +37,9 @@ where
     fn root(&self) -> &RootProvider<Seismic> {
         self.inner.root()
     }
-
-    async fn send_transaction_internal(
-        &self,
-        mut tx: SendableTx<Seismic>,
-    ) -> TransportResult<PendingTransactionBuilder<Seismic>> {
-        if let Some(builder) = tx.as_mut_builder() {
-            if self.should_encrypt_input(builder) {
-                let network_pk = self.get_tee_pubkey().await.map_err(|e| {
-                    TransportErrorKind::custom_str(&format!(
-                        "Error getting tee pubkey from server: {:?}",
-                        e
-                    ))
-                })?;
-                let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
-                let seismic_elements = TxSeismicElements::default()
-                    .with_encryption_pubkey(encryption_keypair.public_key())
-                    .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
-                // Encrypt using recipient's public key and generated private key
-                let plaintext_input = builder.inner.input.input().unwrap();
-                let encrypted_input = seismic_elements
-                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
-                    .map_err(|e| {
-                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
-                    })?;
-
-                builder.set_input(Bytes::from(encrypted_input));
-                builder.set_seismic_elements(seismic_elements);
-            }
-        }
-        let res = self.inner.send_transaction_internal(tx).await;
-        res
-    }
 }
+
+impl<P> SeismicProviderTr for SeismicProvider<P> where P: Provider<Seismic> {}
 
 /// Seismic layer
 /// Consists of a SeismicProvider wrapping other layers
@@ -291,6 +146,7 @@ mod tests {
     use alloy_provider::ext::AnvilApi;
     use alloy_signer_local::PrivateKeySigner;
     use seismic_alloy_rpc_types::SeismicTransactionRequest;
+    use alloy_provider::{Provider, SendableTx};
 
     /// Path to local sanvil binary
     const SANVIL_PATH: &str = "sanvil";

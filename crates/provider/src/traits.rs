@@ -13,7 +13,9 @@ use seismic_enclave::PublicKey;
 use std::str::FromStr;
 use tracing::warn;
 
-pub trait SeismicProviderTr: Provider {
+/// Extends the alloy_provider::Provider with Seismic specific functionality
+#[async_trait::async_trait]
+pub trait SeismicProviderTr: Provider<Seismic> {
     /// Makes a call request while handling seismic specific aspects
     /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
@@ -75,7 +77,7 @@ pub trait SeismicProviderTr: Provider {
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
 
-                InputDecryptionElements::set_input(&mut builder, Bytes::from(encrypted_input));
+                TransactionBuilder::set_input(&mut builder, Bytes::from(encrypted_input));
                 builder.set_seismic_elements(seismic_elements);
                 SendableTx::Builder(builder)
             }
@@ -86,7 +88,7 @@ pub trait SeismicProviderTr: Provider {
                     .map_err(|e| {
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
-                envelope.set_input(Bytes::from(encrypted_input));
+                envelope.set_input(Bytes::from(encrypted_input)).unwrap();
                 SendableTx::Envelope(envelope)
             }
         };
@@ -105,6 +107,7 @@ pub trait SeismicProviderTr: Provider {
         return Ok(Bytes::from(decrypted_output));
     }
 
+    /// Makes a call request, perhaps making the call signed depinding on the input type
     async fn call_conditionally_signed(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes>
     {
         println!("call_conditionally_signed entered. tx: {:?}\n", tx);
