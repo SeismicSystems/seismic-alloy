@@ -13,6 +13,7 @@ use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
 use std::{ops::Deref, str::FromStr};
+use tracing::{debug, error, info, warn};
 
 /// Seismic middleware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
@@ -103,8 +104,14 @@ where
             }
         }
         match tx {
-            SendableTx::Builder(builder) => self.inner.call(builder.clone()).await,
+            SendableTx::Builder(builder) => {
+                warn!("seismic_call: sending unsigned transaction");
+                println!("seismic_call: sending unsigned transaction");
+                self.inner.call(builder.clone()).await
+            }
             SendableTx::Envelope(envelope) => {
+                warn!("seismic_call: sending signed transaction");
+                println!("seismic_call: sending signed transaction");
                 // Seismic makes use of signed calls. By default calls come from the zero address,
                 // while signed calls come from the sender. If the tx comes in an envelope with a signature,
                 // we directly encode the tx and send it to the node
