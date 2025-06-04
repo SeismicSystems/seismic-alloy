@@ -96,8 +96,7 @@ where
                     )
                     .map_err(|e| {
                         TransportErrorKind::custom_str(&format!("Error decrypting output: {:?}", e))
-                    })
-                    .unwrap(); // TODO: replace with ?
+                    })?;
 
                 return Ok(Bytes::from(decrypted_output));
             }
