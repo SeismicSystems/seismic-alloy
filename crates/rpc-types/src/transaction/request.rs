@@ -111,10 +111,15 @@ impl SeismicTransactionRequest {
         self
     }
 
-    /// Sets the seismic elements for the transaction.
+    /// Sets the seismic elements for the transaction, returning a new request
     pub fn seismic_elements(mut self, seismic_elements: TxSeismicElements) -> Self {
         self.seismic_elements = Some(seismic_elements);
         self
+    }
+
+    /// Sets the seismic elements for the transaction
+    pub fn set_seismic_elements(&mut self, seismic_elements: TxSeismicElements) {
+        self.seismic_elements = Some(seismic_elements);
     }
 
     fn check_seismic_fields(&self, missing: &mut Vec<&'static str>) {

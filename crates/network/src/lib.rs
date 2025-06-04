@@ -1,6 +1,7 @@
 //! Seismic network types
 pub mod foundry;
 pub mod reth;
+pub mod seismic_network;
 
 pub use foundry::{
     block::SeismicFoundryRpcBlock,

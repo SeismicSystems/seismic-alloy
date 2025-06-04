@@ -19,11 +19,58 @@ use seismic_enclave::{
     tx_io::{IoDecryptionRequest, IoEncryptionRequest},
     Keypair, PublicKey, Secp256k1, SecretKey,
 };
+use thiserror::Error;
+
 
 #[cfg(feature = "serde")]
 use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
+
+
+/// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
+pub trait InputDecryptionElements: Clone {
+    /// Returns the elements necessary to decrypt the 'input' field of the transaction.
+    /// May return `None` if the Seismic tx type does not support decryption.
+    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
+
+    /// Returns the 'input' field of the transaction.
+    fn get_input(&self) -> Bytes;
+
+    /// Sets the 'input' field of the transaction to the provided data.
+    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
+
+    /// Creates a copy of the transaction with the input field set to the plaintext.
+    /// Errors if the decryption fails, etc.
+    fn plaintext_copy<C>(&self, client: &C) -> Result<Self, InputDecryptionElementsError>
+    where
+        C: SyncEnclaveApiClient,
+    {
+        let mut tx = self.clone();
+        if let Ok(seismic_elements) = tx.get_decryption_elements() {
+            let ciphertext = tx.get_input();
+            let decrypted_data = seismic_elements
+                .server_decrypt(client, &ciphertext)
+                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
+            tx.set_input(decrypted_data)?;
+        }
+        Ok(tx)
+    }
+}
+
+/// Error type for [`InputDecryptionElements`] trait
+#[derive(Debug, Clone, Error)]
+pub enum InputDecryptionElementsError {
+    /// The transaction type does not support decryption.
+    #[error("Unsupported transaction type: {0}")]
+    UnsupportedTxType(String),
+    /// The decryption failed
+    #[error("Decryption failed: {0}")]
+    DecryptionError(String),
+    /// No elements were found
+    #[error("Expected Elemements but no elements found")]
+    NoElements,
+}
 
 /// Contains Seismic-specific encryption and message fields
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
@@ -515,6 +562,21 @@ impl Transaction for TxSeismic {
     #[inline]
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
         None
+    }
+}
+
+impl InputDecryptionElements for TxSeismic {
+    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
+        Ok(self.seismic_elements)
+    }
+
+    fn get_input(&self) -> Bytes {
+        self.input.clone()
+    }
+
+    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
+        self.input = data;
+        Ok(())
     }
 }
 

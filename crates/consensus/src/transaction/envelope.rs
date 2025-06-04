@@ -1,7 +1,7 @@
 //! Transaction envelope types and utilities
 use std::hash::{Hash, Hasher};
 
-use crate::{SeismicTxType, SeismicTypedTransaction, TxSeismic};
+use crate::{InputDecryptionElements, InputDecryptionElementsError, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements};
 use alloy_consensus::{
     transaction::RlpEcdsaDecodableTx, Signed, Transaction, TxEip1559, TxEip2930, TxEip4844Variant,
     TxEip7702, TxLegacy, Typed2718,
@@ -371,6 +371,54 @@ impl Transaction for SeismicTxEnvelope {
             Self::Eip4844(tx) => tx.tx().authorization_list(),
             Self::Eip7702(tx) => tx.tx().authorization_list(),
             Self::Seismic(tx) => tx.tx().authorization_list(),
+        }
+    }
+}
+
+impl InputDecryptionElements for SeismicTxEnvelope {
+    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
+        match self {
+            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Legacy".to_string(),
+            )),
+            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Eip2930".to_string(),
+            )),
+            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Eip1559".to_string(),
+            )),
+            Self::Eip4844(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Eip4844".to_string(),
+            )),
+            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Eip7702".to_string(),
+            )),
+            Self::Seismic(tx) => Ok(tx.tx().get_decryption_elements().unwrap()),
+        }
+    }
+
+    fn get_input(&self) -> Bytes {
+        self.input().clone()
+    }
+
+    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
+        match self {
+            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Legacy".to_string(),
+            )),
+            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Eip2930".to_string(),
+            )),
+            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Eip1559".to_string(),
+            )),
+            Self::Eip4844(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Eip4844".to_string(),
+            )),
+            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTxEnvelope::Eip7702".to_string(),
+            )),
+            Self::Seismic(tx) => tx.tx_mut().set_input(data),
         }
     }
 }

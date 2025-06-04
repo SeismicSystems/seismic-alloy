@@ -1,7 +1,6 @@
 //! Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
 use alloy_consensus::{
-    transaction::RlpEcdsaDecodableTx, EthereumTxEnvelope, Signed, Transaction as TransactionTrait,
-    TxEnvelope, Typed2718,
+    transaction::RlpEcdsaDecodableTx, EthereumTxEnvelope, Signed, Transaction as TransactionTrait, TxEip4844Variant, TxEnvelope, Typed2718
 };
 use alloy_eip7702::SignedAuthorization;
 use alloy_network::{
@@ -32,6 +31,46 @@ impl SeismicFoundryTxEnvelope {
             SeismicFoundryTxEnvelope::Unknown(tx) => AnyTxEnvelope::Unknown(tx.clone()),
             SeismicFoundryTxEnvelope::Seismic(_) => {
                 panic!("Can't convert Seismic transaction to AnyTxEnvelope")
+            }
+        }
+    }
+
+    /// Set the input of the transaction
+    pub fn set_input(&mut self, input: Bytes) {
+        match self {
+            SeismicFoundryTxEnvelope::Seismic(tx) => {
+                let tx = tx.tx_mut();
+                tx.input = input;
+            }
+            SeismicFoundryTxEnvelope::Ethereum(tx) => {
+                match tx {
+                    EthereumTxEnvelope::Eip1559(tx) => {
+                        tx.tx_mut().input = input;
+                    }
+                    EthereumTxEnvelope::Eip2930(tx) => {
+                        tx.tx_mut().input = input;
+                    }
+                    EthereumTxEnvelope::Eip4844(tx) => {
+                        match tx.tx_mut() {
+                            TxEip4844Variant::TxEip4844(tx) => {
+                                tx.input = input;
+                            }
+                            TxEip4844Variant::TxEip4844WithSidecar(tx) => {
+                                tx.tx.input = input;
+                            }
+                        }
+                    }
+                    EthereumTxEnvelope::Eip7702(tx) => {
+                        tx.tx_mut().input = input;
+                    }
+                    EthereumTxEnvelope::Legacy(tx) => {
+                        tx.tx_mut().input = input;
+                    }
+                    _ => panic!("Can't set input for non-Seismic transaction"),
+                }
+            }
+            SeismicFoundryTxEnvelope::Unknown(tx) => {
+                unimplemented!("Can't set input for unknown transaction");
             }
         }
     }
