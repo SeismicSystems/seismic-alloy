@@ -15,7 +15,7 @@ use tracing::warn;
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
 #[async_trait::async_trait]
-pub trait SeismicProviderTr: Provider<Seismic> {
+pub trait SeismicProviderExt: Provider<Seismic> {
     /// Makes a call request while handling seismic specific aspects
     /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests

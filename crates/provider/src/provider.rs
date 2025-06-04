@@ -8,7 +8,7 @@ use alloy_rpc_client::RpcClient;
 use seismic_alloy_network::Seismic;
 use std::ops::Deref;
 
-use crate::SeismicProviderTr;
+use crate::SeismicProviderExt;
 
 /// Seismic middleware for encrypting transactions and decrypting responses
 #[derive(Debug, Clone)]
@@ -39,7 +39,7 @@ where
     }
 }
 
-impl<P> SeismicProviderTr for SeismicProvider<P> where P: Provider<Seismic> {}
+impl<P> SeismicProviderExt for SeismicProvider<P> where P: Provider<Seismic> {}
 
 /// Seismic layer
 /// Consists of a SeismicProvider wrapping other layers

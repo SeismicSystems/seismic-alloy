@@ -3,7 +3,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 mod traits;
-pub use traits::SeismicProviderTr;
+pub use traits::SeismicProviderExt;
 
 pub mod provider;
 pub use provider::SeismicSignedProvider;
