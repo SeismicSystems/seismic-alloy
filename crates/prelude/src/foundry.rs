@@ -4,6 +4,7 @@ use alloy_serde::WithOtherFields;
 
 pub use seismic_alloy_consensus::{
     SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope,
+    TxSeismic
 };
 pub use seismic_alloy_network::foundry::{
     block::{
