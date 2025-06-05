@@ -18,7 +18,8 @@ pub trait SeismicProviderExt: Provider<Seismic> {
     /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
     async fn seismic_call(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
-        println!("seismic_call entered. tx: {:?}\n", tx);
+        // This check is probably wrong. need to encrypt no matter what?
+        // need to encrypt before signing?
         if let Some(builder) = tx.as_mut_builder() {
             if self.should_encrypt_input(builder) {
                 return self.call_with_encryption(tx).await;

@@ -81,7 +81,9 @@ impl SeismicSignedProvider {
     /// Makes a call request while handling seismic specific aspects
     pub async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
         let builder = tx.as_builder().unwrap().clone();
+        println!("builder: {:?}\n", builder);
         let built_tx = self.inner.fill(builder).await?;
+        println!("built_tx: {:?}\n", built_tx);
         let clone = self.clone();
         SeismicProviderExt::seismic_call(&clone.0, built_tx).await
     }
