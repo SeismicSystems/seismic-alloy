@@ -97,10 +97,10 @@ where
     N::UnsignedTx: Send + Sync,
 {
     /// Creates a new seismic signed provider
-    pub fn new(wallet: SeismicWallet<N>, url: reqwest::Url) -> Self {
+    pub fn new(wallet: impl Into<SeismicWallet<N>>, url: reqwest::Url) -> Self {
         let tx_filler_layer = JoinFill::new(
             <N as RecommendedFillers>::recommended_fillers(),
-            WalletFiller::new(wallet.clone()),
+            WalletFiller::new(wallet.into()),
         );
 
         // Build and return the provider
@@ -164,6 +164,32 @@ where
     fn deref(&self) -> &Self::Target {
         &self.0
     }
+}
+
+/// Create a new SeismicSignedProvider for the SeismicReth network
+pub fn sreth_signed_provider(
+    wallet: impl Into<SeismicWallet<SeismicReth>>,
+    url: reqwest::Url,
+) -> SeismicSignedProvider<SeismicReth> {
+    SeismicSignedProvider::new(wallet, url)
+}
+
+/// Create a new SeismicUnsignedProvider for the SeismicReth network
+pub fn sreth_unsigned_provider(url: reqwest::Url) -> SeismicUnsignedProvider<SeismicReth> {
+    SeismicUnsignedProvider::new(url)
+}
+
+/// Create a new SeismicSignedProvider for the SeismicFoundry network
+pub fn sfoundry_signed_provider(
+    wallet: impl Into<SeismicWallet<SeismicFoundry>>,
+    url: reqwest::Url,
+) -> SeismicSignedProvider<SeismicFoundry> {
+    SeismicSignedProvider::new(wallet, url)
+}
+
+/// Create a new SeismicUnsignedProvider for the SeismicFoundry network
+pub fn sfoundry_unsigned_provider(url: reqwest::Url) -> SeismicUnsignedProvider<SeismicFoundry> {
+    SeismicUnsignedProvider::new(url)
 }
 
 #[cfg(test)]

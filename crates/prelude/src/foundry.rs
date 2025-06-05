@@ -1,5 +1,6 @@
 //! Aliases to drop into foundry so we don't have to rename all the types
 use alloy_serde::WithOtherFields;
+use seismic_alloy_network::wallet::SeismicWallet;
 
 pub use seismic_alloy_consensus::{
     Decodable712, SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope,
@@ -20,6 +21,10 @@ pub use seismic_alloy_network::foundry::{
     typed_tx::SeismicFoundryTypedTransaction as AnyTypedTransaction,
     SeismicFoundry as AnyNetwork,
 };
+pub use seismic_alloy_provider::provider::{
+    sfoundry_signed_provider, sfoundry_unsigned_provider, SeismicSignedProvider,
+    SeismicUnsignedProvider,
+};
 pub use seismic_alloy_rpc_types::{
     SeismicTransactionReceipt as TransactionReceipt,
     SeismicTransactionRequest as TransactionRequest,
@@ -27,3 +32,6 @@ pub use seismic_alloy_rpc_types::{
 
 /// A transaction receipt with the SeismicReceiptEnvelope wrapped in a WithOtherFields
 pub type AnyTransactionReceipt = WithOtherFields<TransactionReceipt>;
+
+/// A wallet for the Seismic network, renamed as EthereumWallet for compatibility with Foundry
+pub type EthereumWallet = SeismicWallet<AnyNetwork>;
