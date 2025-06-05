@@ -1,16 +1,20 @@
 //! Seismic provider for HTTP requests
+use crate::SeismicProviderExt;
 use alloy_network::EthereumWallet;
+use alloy_network::TransactionBuilder;
+use alloy_primitives::Bytes;
+use alloy_provider::PendingTransactionBuilder;
+use alloy_provider::SendableTx;
 use alloy_provider::{
     fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
     Identity, Provider, ProviderBuilder, ProviderLayer, RootProvider,
 };
 use alloy_rpc_client::RpcClient;
+use alloy_transport::TransportErrorKind;
+use alloy_transport::TransportResult;
+use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
 use std::ops::Deref;
-use alloy_provider::{SendableTx};
-use alloy_primitives::Bytes;
-use alloy_transport::{TransportResult};
-use crate::SeismicProviderExt;
 
 /// Seismic middleware for encrypting transactions and decrypting responses
 /// Impliments [`SeismicProviderExt`] trait
@@ -34,10 +38,44 @@ where
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl<P> Provider<Seismic> for SeismicProvider<P>
-    where P: Provider<Seismic>,
+where
+    P: Provider<Seismic>,
 {
     fn root(&self) -> &RootProvider<Seismic> {
         self.inner.root()
+    }
+
+    async fn send_transaction_internal(
+        &self,
+        mut tx: SendableTx<Seismic>,
+    ) -> TransportResult<PendingTransactionBuilder<Seismic>> {
+        if let Some(builder) = tx.as_mut_builder() {
+            if self.should_encrypt_input(builder) {
+                let network_pk = self.get_tee_pubkey().await.map_err(|e| {
+                    TransportErrorKind::custom_str(&format!(
+                        "Error getting tee pubkey from server: {:?}",
+                        e
+                    ))
+                })?;
+                let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+                let seismic_elements = TxSeismicElements::default()
+                    .with_encryption_pubkey(encryption_keypair.public_key())
+                    .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+
+                // Encrypt using recipient's public key and generated private key
+                let plaintext_input = builder.inner.input.input().unwrap();
+                let encrypted_input = seismic_elements
+                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
+                    .map_err(|e| {
+                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+                    })?;
+
+                builder.set_input(Bytes::from(encrypted_input));
+                builder.set_seismic_elements(seismic_elements);
+            }
+        }
+        let res = self.inner.send_transaction_internal(tx).await;
+        res
     }
 }
 
@@ -66,7 +104,7 @@ where
 type SeismicRecFillers = <seismic_alloy_network::Seismic as RecommendedFillers>::RecommendedFillers;
 
 /// Seismic provider type alias for signed provider
-/// 
+///
 // / TODO: make an encryption filler layer?
 pub type SeismicSignedProviderInner = SeismicProvider<
     FillProvider<
