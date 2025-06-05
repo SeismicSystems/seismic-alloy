@@ -1,4 +1,6 @@
 //! Seismic RPC network implementation
+pub mod builder;
+
 pub use alloy_network::*;
 
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
@@ -12,11 +14,11 @@ use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
 /// Types for an Op-stack network.
 #[derive(Clone, Copy, Debug)]
-pub struct Seismic {
+pub struct SeismicReth {
     _private: (),
 }
 
-impl Network for Seismic {
+impl Network for SeismicReth {
     type TxType = SeismicTxType;
 
     type TxEnvelope = seismic_alloy_consensus::SeismicTxEnvelope;
@@ -40,7 +42,7 @@ impl Network for Seismic {
 }
 
 // TODO: unclear if this is correct
-impl RecommendedFillers for Seismic {
+impl RecommendedFillers for SeismicReth {
     type RecommendedFillers =
         JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
 
@@ -49,7 +51,7 @@ impl RecommendedFillers for Seismic {
     }
 }
 
-impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
+impl TransactionBuilder<SeismicReth> for SeismicTransactionRequest {
     fn chain_id(&self) -> Option<ChainId> {
         self.inner.chain_id()
     }
@@ -187,7 +189,7 @@ impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
         self.inner.prep_for_submission();
     }
 
-    fn build_unsigned(self) -> BuildResult<SeismicTypedTransaction, Seismic> {
+    fn build_unsigned(self) -> BuildResult<SeismicTypedTransaction, SeismicReth> {
         if let Err((tx_type, missing)) = self.inner.missing_keys() {
             let tx_type = SeismicTxType::try_from(tx_type as u8).unwrap();
             return Err(TransactionBuilderError::InvalidTransactionRequest(tx_type, missing)
@@ -196,15 +198,15 @@ impl TransactionBuilder<Seismic> for SeismicTransactionRequest {
         Ok(self.build_typed_tx().expect("checked by missing_keys"))
     }
 
-    async fn build<W: NetworkWallet<Seismic>>(
+    async fn build<W: NetworkWallet<SeismicReth>>(
         self,
         wallet: &W,
-    ) -> Result<<Seismic as Network>::TxEnvelope, TransactionBuilderError<Seismic>> {
+    ) -> Result<<SeismicReth as Network>::TxEnvelope, TransactionBuilderError<SeismicReth>> {
         Ok(wallet.sign_request(self).await?)
     }
 }
 
-impl NetworkWallet<Seismic> for EthereumWallet {
+impl NetworkWallet<SeismicReth> for EthereumWallet {
     fn default_signer_address(&self) -> Address {
         NetworkWallet::<Ethereum>::default_signer_address(self)
     }

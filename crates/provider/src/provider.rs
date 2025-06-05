@@ -1,11 +1,10 @@
 //! Seismic provider for HTTP requests
-use alloy_network::EthereumWallet;
 use alloy_provider::{
     fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
     Identity, Provider, ProviderBuilder, ProviderLayer, RootProvider,
 };
 use alloy_rpc_client::RpcClient;
-use seismic_alloy_network::{foundry::SeismicFoundry, seismic_network::SeismicNetwork, Seismic};
+use seismic_alloy_network::{foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth};
 use std::ops::Deref;
 
 use crate::SeismicProviderExt;
@@ -42,7 +41,7 @@ where
     }
 }
 
-impl<P> SeismicProviderExt<Seismic> for SeismicProvider<Seismic, P> where P: Provider<Seismic> {}
+impl<P> SeismicProviderExt<SeismicReth> for SeismicProvider<SeismicReth, P> where P: Provider<SeismicReth> {}
 impl<P> SeismicProviderExt<SeismicFoundry> for SeismicProvider<SeismicFoundry, P> where P: Provider<SeismicFoundry> {}
 
 /// Seismic layer
@@ -64,12 +63,12 @@ where
 
 /// Type alias for the recommended fillers for the seismic network
 /// Defined for code clarity
-type SeismicRecFillers = <seismic_alloy_network::Seismic as RecommendedFillers>::RecommendedFillers;
+type SeismicRecFillers<N: SeismicNetwork> = <N as RecommendedFillers>::RecommendedFillers;
 
 /// Seismic provider type alias for signed provider
-pub type SeismicSignedProviderInner<N> = SeismicProvider<N,
+pub type SeismicSignedProviderInner<N: SeismicNetwork> = SeismicProvider<N,
     FillProvider<
-        JoinFill<SeismicRecFillers, WalletFiller<EthereumWallet>>,
+        JoinFill<SeismicRecFillers<N>, WalletFiller<SeismicWallet<N>>>,
         RootProvider<N>,
         N,
     >,
@@ -81,15 +80,15 @@ pub struct SeismicSignedProvider<N: SeismicNetwork>(SeismicSignedProviderInner<N
 
 impl<N: SeismicNetwork> SeismicSignedProvider<N> {
     /// Creates a new seismic signed provider
-    pub fn new(wallet: EthereumWallet, url: reqwest::Url) -> Self {
+    pub fn new(wallet: SeismicWallet<N>, url: reqwest::Url) -> Self {
         let tx_filler_layer = JoinFill::new(
-            <Seismic as RecommendedFillers>::recommended_fillers(),
+            <N as RecommendedFillers>::recommended_fillers(),
             WalletFiller::new(wallet.clone()),
         );
 
         // Build and return the provider
         let inner = ProviderBuilder::<_, _, N>::default()
-            .network::<Seismic>()
+            .network::<N>()
             .layer(SeismicLayer {})
             .layer(tx_filler_layer)
             .connect_client(RpcClient::new_http(url));
@@ -98,8 +97,8 @@ impl<N: SeismicNetwork> SeismicSignedProvider<N> {
     }
 }
 
-impl Deref for SeismicSignedProvider {
-    type Target = SeismicSignedProviderInner;
+impl<N: SeismicNetwork> Deref for SeismicSignedProvider<N> {
+    type Target = SeismicSignedProviderInner<N>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -107,23 +106,28 @@ impl Deref for SeismicSignedProvider {
 }
 
 /// Seismic unsigned provider type alias
-pub type SeismicUnsignedProviderInner = SeismicProvider<
-    FillProvider<JoinFill<Identity, SeismicRecFillers>, RootProvider<Seismic>, Seismic>,
+pub type SeismicUnsignedProviderInner<N: SeismicNetwork> = SeismicProvider<
+    N,
+    FillProvider<
+        JoinFill<Identity, SeismicRecFillers<N>>,
+        RootProvider<N>,
+        N,
+    >,
 >;
 
 /// Seismic unsigned provider
 #[derive(Debug, Clone)]
-pub struct SeismicUnsignedProvider(SeismicUnsignedProviderInner);
+pub struct SeismicUnsignedProvider<N: SeismicNetwork>(SeismicUnsignedProviderInner<N>);
 
-impl SeismicUnsignedProvider {
+impl<N: SeismicNetwork> SeismicUnsignedProvider<N> {
     /// Creates a new seismic unsigned provider
     pub fn new(url: reqwest::Url) -> Self {
         // Create layer with recommended fillers and Identity
         let tx_filler_layer =
-            JoinFill::new(Identity, <Seismic as RecommendedFillers>::recommended_fillers());
+            JoinFill::new(Identity, <N as RecommendedFillers>::recommended_fillers());
 
-        let inner = ProviderBuilder::<_, _, Seismic>::default()
-            .network::<Seismic>()
+        let inner = ProviderBuilder::<_, _, N>::default()
+            .network::<N>()
             .layer(SeismicLayer {})
             .layer(tx_filler_layer)
             .connect_client(RpcClient::new_http(url));
@@ -132,8 +136,8 @@ impl SeismicUnsignedProvider {
     }
 }
 
-impl Deref for SeismicUnsignedProvider {
-    type Target = SeismicUnsignedProviderInner;
+impl<N: SeismicNetwork> Deref for SeismicUnsignedProvider<N> {
+    type Target = SeismicUnsignedProviderInner<N>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -144,13 +148,12 @@ impl Deref for SeismicUnsignedProvider {
 mod tests {
     use super::*;
     use crate::test_utils::ContractTestContext;
-    use alloy_network::{EthereumWallet, TransactionBuilder};
+    use alloy_network::{TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::{address, Address, Bytes, TxKind};
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
-    use alloy_rpc_types_eth::TransactionRequest;
     use alloy_signer_local::PrivateKeySigner;
-    use seismic_alloy_rpc_types::SeismicTransactionRequest;
+    use seismic_alloy_network::foundry::builder::seismic_foundry_tx_builder;
 
     /// Path to local sanvil binary
     const SANVIL_PATH: &str = "sanvil";
@@ -159,7 +162,7 @@ mod tests {
     async fn test_get_tee_pubkey() {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
         // If this fails with a message like "Method Not Found", then you may be using anvil instead
         // of sanvil
@@ -173,12 +176,12 @@ mod tests {
         let plaintext = Bytes::new();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
-        let tx = TransactionRequest::default().with_input(plaintext).with_to(Address::ZERO).into();
-        let res = provider.send_transaction(tx).await.unwrap();
+        let tx = seismic_foundry_tx_builder().with_input(plaintext).with_to(Address::ZERO).into();
+        let res = provider.send_transaction(tx.into()).await.unwrap();
         let receipt = res.get_receipt().await.unwrap();
-        assert_eq!(receipt.inner.status(), true);
+        assert_eq!(receipt.inner.inner.status(), true);
     }
 
     /// Check that SeismicUnsignedProvider can inherit alloy_provider ext traits (and that they
@@ -186,7 +189,7 @@ mod tests {
     #[tokio::test]
     async fn test_anvil_set_code() {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
-        let provider = SeismicUnsignedProvider::new(anvil.endpoint_url());
+        let provider = SeismicUnsignedProvider::<SeismicFoundry>::new(anvil.endpoint_url());
 
         let address = address!("0xd8da6bf26964af9d7eed9e03e53415d37aa96045");
         provider.anvil_set_code(address, Bytes::from("0xbeef")).await.unwrap();
@@ -200,15 +203,15 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let from = get_wallet(&anvil).default_signer().address();
-        let unsigned_provider = SeismicUnsignedProvider::new(anvil.endpoint_url());
+        let unsigned_provider = SeismicUnsignedProvider::<SeismicFoundry>::new(anvil.endpoint_url());
 
-        let tx = TransactionRequest::default()
+        let tx = seismic_foundry_tx_builder()
             .with_input(plaintext)
             .with_kind(TxKind::Create)
             .with_from(from)
             .into();
 
-        let res = unsigned_provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
+        let res = unsigned_provider.seismic_call(SendableTx::Builder(tx.into())).await.unwrap();
         assert_eq!(res, ContractTestContext::get_code());
     }
 
@@ -217,12 +220,12 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
         let tx =
-            TransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create).into();
+            seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
 
-        let res = provider.seismic_call(SendableTx::Builder(tx)).await;
+        let res = provider.seismic_call(SendableTx::Builder(tx.into())).await;
         assert!(res.is_ok(), "seismic_call failed: {:?}", res.unwrap_err());
         let res = res.unwrap();
 
@@ -234,17 +237,17 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
+        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
         // testing send transaction
-        let tx = TransactionRequest::default()
+        let tx = seismic_foundry_tx_builder()
             .with_input(plaintext)
             .with_kind(TxKind::Create)
             .with_nonce(1)
             .into();
 
         let contract_address = provider
-            .send_transaction(tx)
+            .send_transaction(tx.into())
             .await
             .unwrap()
             .get_receipt()
@@ -257,9 +260,9 @@ mod tests {
         assert_eq!(code, ContractTestContext::get_code());
     }
 
-    fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {
+    fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {
         let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
-        let wallet = EthereumWallet::from(bob.clone());
+        let wallet = SeismicWallet::from(bob.clone());
         wallet
     }
 }

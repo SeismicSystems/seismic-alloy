@@ -10,6 +10,7 @@ pub use seismic_alloy_network::foundry::{
         SeismicFoundryRpcBlock as AnyRpcBlock, SeismicFoundrySimBlock as SimBlock,
         SeismicFoundrySimulatePayload as SimulatePayload,
     },
+    builder::seismic_foundry_tx_builder as tx_builder,
     envelope::SeismicFoundryTxEnvelope as AnyTxEnvelope,
     tx_request::{
         SeismicFoundryRpcTransaction as AnyRpcTransaction,
@@ -26,11 +27,3 @@ pub use seismic_alloy_rpc_types::{
 
 /// A transaction receipt with the SeismicReceiptEnvelope wrapped in a WithOtherFields
 pub type AnyTransactionReceipt = WithOtherFields<TransactionReceipt>;
-
-/// A transaction builder for the AnyNetwork
-pub fn tx_builder() -> impl TransactionBuilder<AnyNetwork>
-       + TransactionBuilder4844
-       + TransactionBuilder7702
-       + Into<TransactionRequest> {
-    TransactionRequest::default()
-}

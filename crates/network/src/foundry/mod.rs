@@ -3,6 +3,7 @@ pub mod block;
 pub mod envelope;
 pub mod tx_request;
 pub mod typed_tx;
+pub mod builder;
 
 use alloy_eip7702::constants::EIP7702_TX_TYPE_ID;
 use alloy_network::{

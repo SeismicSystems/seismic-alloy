@@ -2,6 +2,7 @@
 pub mod foundry;
 pub mod reth;
 pub mod seismic_network;
+pub mod wallet;
 
 pub use foundry::{
     block::SeismicFoundryRpcBlock,
@@ -10,4 +11,5 @@ pub use foundry::{
     typed_tx::SeismicFoundryTypedTransaction,
 };
 
-pub use reth::Seismic;
+pub use reth::SeismicReth;
+pub use SeismicReth as Seismic;

@@ -9,7 +9,9 @@ use alloy_network::{
 };
 use alloy_primitives::{Address, Bytes, ChainId, Selector, TxKind, B256, U256};
 use alloy_rpc_types_eth::AccessList;
-use seismic_alloy_consensus::{SeismicTxEnvelope, TxSeismic};
+use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic};
+
+use crate::SeismicFoundryTypedTransaction;
 
 /// Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -354,4 +356,25 @@ impl From<SeismicFoundryTxEnvelope> for SeismicTxEnvelope {
             SeismicFoundryTxEnvelope::Unknown(_) => unimplemented!(),
         }
     }
+}
+
+// Add this test to see which types are problematic
+fn _assert_send_sync() {
+    fn assert_send<T: Send>() {}
+    fn assert_sync<T: Sync>() {}
+    
+    assert_send::<TxEnvelope>();
+    assert_sync::<TxEnvelope>();
+    
+    assert_send::<UnknownTxEnvelope>();
+    assert_sync::<UnknownTxEnvelope>();
+    
+    assert_send::<Signed<TxSeismic>>();
+    assert_sync::<Signed<TxSeismic>>();
+    
+    assert_send::<SeismicFoundryTxEnvelope>();
+    assert_sync::<SeismicFoundryTxEnvelope>();
+
+    assert_send::<SeismicTypedTransaction>();
+    assert_sync::<SeismicFoundryTypedTransaction>();
 }
