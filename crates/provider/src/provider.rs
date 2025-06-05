@@ -1,17 +1,14 @@
 //! Seismic provider for HTTP requests
 use crate::SeismicProviderExt;
-use alloy_network::EthereumWallet;
-use alloy_network::TransactionBuilder;
+use alloy_network::{EthereumWallet, TransactionBuilder};
 use alloy_primitives::Bytes;
-use alloy_provider::PendingTransactionBuilder;
-use alloy_provider::SendableTx;
 use alloy_provider::{
     fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
-    Identity, Provider, ProviderBuilder, ProviderLayer, RootProvider,
+    Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider,
+    SendableTx,
 };
 use alloy_rpc_client::RpcClient;
-use alloy_transport::TransportErrorKind;
-use alloy_transport::TransportResult;
+use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
 use std::ops::Deref;
@@ -86,6 +83,7 @@ where
     P: SeismicProviderExt,
 {
     async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        // delegate to inner provider, ex a FillProvider, RootProvider, etc
         self.inner.seismic_call(tx).await
     }
 }
@@ -111,8 +109,6 @@ where
 type SeismicRecFillers = <seismic_alloy_network::Seismic as RecommendedFillers>::RecommendedFillers;
 
 /// Seismic provider type alias for signed provider
-///
-// / TODO: make an encryption filler layer?
 pub type SeismicSignedProviderInner = SeismicProvider<
     FillProvider<
         JoinFill<SeismicRecFillers, WalletFiller<EthereumWallet>>,
@@ -153,6 +149,7 @@ impl Deref for SeismicSignedProvider {
 }
 
 /// Seismic unsigned provider type alias
+/// Defined for code clarity
 pub type SeismicUnsignedProviderInner = SeismicProvider<
     FillProvider<JoinFill<Identity, SeismicRecFillers>, RootProvider<Seismic>, Seismic>,
 >;

@@ -27,7 +27,6 @@ seismic-enclave.workspace = true
 
 reqwest.workspace = true
 async-trait.workspace = true
-tracing.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
