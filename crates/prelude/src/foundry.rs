@@ -4,7 +4,7 @@ use seismic_alloy_network::wallet::SeismicWallet;
 
 pub use seismic_alloy_consensus::{
     Decodable712, SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope,
-    TxSeismic,
+    TxSeismic, TypedDataRequest,
 };
 pub use seismic_alloy_network::foundry::{
     block::{
@@ -29,7 +29,7 @@ pub use seismic_alloy_provider::{
     test_utils, SeismicProviderExt,
 };
 pub use seismic_alloy_rpc_types::{
-    SeismicTransactionReceipt as TransactionReceipt,
+    SeismicCallRequest, SeismicTransactionReceipt as TransactionReceipt,
     SeismicTransactionRequest as TransactionRequest,
 };
 
