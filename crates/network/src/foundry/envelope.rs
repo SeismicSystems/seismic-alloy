@@ -67,7 +67,7 @@ impl SeismicFoundryTxEnvelope {
                     tx.tx_mut().input = input;
                 }
             },
-            SeismicFoundryTxEnvelope::Unknown(tx) => {
+            SeismicFoundryTxEnvelope::Unknown(_) => {
                 unimplemented!("Can't set input for unknown transaction");
             }
         }
