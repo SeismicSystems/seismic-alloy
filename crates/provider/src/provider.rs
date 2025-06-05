@@ -250,7 +250,10 @@ mod tests {
             .with_kind(TxKind::Create)
             .with_from(from);
 
-        let res = unsigned_provider.seismic_call(SendableTx::Builder(tx)).await.map_err(|e| e.to_string())?;
+        let res = unsigned_provider
+            .seismic_call(SendableTx::Builder(tx))
+            .await
+            .map_err(|e| e.to_string())?;
         assert_eq!(res, ContractTestContext::get_code());
         Ok(())
     }
@@ -265,7 +268,8 @@ mod tests {
         let tx =
             SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create);
 
-        let res = provider.seismic_call(SendableTx::Builder(tx)).await.map_err(|e| e.to_string())?;
+        let res =
+            provider.seismic_call(SendableTx::Builder(tx)).await.map_err(|e| e.to_string())?;
 
         assert_eq!(res, ContractTestContext::get_code());
         Ok(())
