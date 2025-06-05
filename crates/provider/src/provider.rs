@@ -1,17 +1,14 @@
 //! Seismic provider for HTTP requests
 use crate::SeismicProviderExt;
-use alloy_network::EthereumWallet;
-use alloy_network::TransactionBuilder;
+use alloy_network::{EthereumWallet, TransactionBuilder};
 use alloy_primitives::Bytes;
-use alloy_provider::PendingTransactionBuilder;
-use alloy_provider::SendableTx;
 use alloy_provider::{
     fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
-    Identity, Provider, ProviderBuilder, ProviderLayer, RootProvider,
+    Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider,
+    SendableTx,
 };
 use alloy_rpc_client::RpcClient;
-use alloy_transport::TransportErrorKind;
-use alloy_transport::TransportResult;
+use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
 use std::ops::Deref;
@@ -26,7 +23,7 @@ pub struct SeismicProvider<P> {
 
 impl<P> SeismicProvider<P>
 where
-    P: Provider<Seismic>,
+    P: SeismicProviderExt,
 {
     /// Create a new seismic provider
     pub(crate) fn new(inner: P) -> Self {
@@ -35,11 +32,12 @@ where
 }
 
 /// Implement the Provider trait for the SeismicProvider
+/// Overriding the send_transaction_internal method to encrypt and decrypt transactions
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl<P> Provider<Seismic> for SeismicProvider<P>
 where
-    P: Provider<Seismic>,
+    P: SeismicProviderExt,
 {
     fn root(&self) -> &RootProvider<Seismic> {
         self.inner.root()
@@ -80,17 +78,24 @@ where
 }
 
 #[async_trait::async_trait]
-impl<P> SeismicProviderExt for SeismicProvider<P> where P: Provider<Seismic> {}
+impl<P> SeismicProviderExt for SeismicProvider<P>
+where
+    P: SeismicProviderExt,
+{
+    async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        // delegate to inner provider, ex a FillProvider, RootProvider, etc
+        self.inner.seismic_call(tx).await
+    }
+}
 
-/// Seismic layer
+/// Seismic layer, incorperating [`SeismicProviderExt`] functionality
 /// Consists of a SeismicProvider wrapping other layers
-/// the SeismicProvider is responsible for encrypting and decrypting transactions
 #[derive(Debug, Clone)]
 pub(crate) struct SeismicLayer;
 
 impl<P> ProviderLayer<P, Seismic> for SeismicLayer
 where
-    P: Provider<Seismic>,
+    P: SeismicProviderExt,
 {
     type Provider = SeismicProvider<P>;
 
@@ -104,8 +109,6 @@ where
 type SeismicRecFillers = <seismic_alloy_network::Seismic as RecommendedFillers>::RecommendedFillers;
 
 /// Seismic provider type alias for signed provider
-///
-// / TODO: make an encryption filler layer?
 pub type SeismicSignedProviderInner = SeismicProvider<
     FillProvider<
         JoinFill<SeismicRecFillers, WalletFiller<EthereumWallet>>,
@@ -113,19 +116,6 @@ pub type SeismicSignedProviderInner = SeismicProvider<
         Seismic,
     >,
 >;
-
-// #[async_trait::async_trait]
-impl SeismicSignedProvider {
-    /// Makes a call request while handling seismic specific aspects
-    pub async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
-        let builder = tx.as_builder().unwrap().clone();
-        println!("builder: {:?}\n", builder);
-        let built_tx = self.inner.fill(builder).await?;
-        println!("built_tx: {:?}\n", built_tx);
-        let clone = self.clone();
-        SeismicProviderExt::seismic_call(&clone.0, built_tx).await
-    }
-}
 
 /// Seismic signed provider
 #[derive(Debug, Clone)]
@@ -159,6 +149,7 @@ impl Deref for SeismicSignedProvider {
 }
 
 /// Seismic unsigned provider type alias
+/// Defined for code clarity
 pub type SeismicUnsignedProviderInner = SeismicProvider<
     FillProvider<JoinFill<Identity, SeismicRecFillers>, RootProvider<Seismic>, Seismic>,
 >;
@@ -181,17 +172,6 @@ impl SeismicUnsignedProvider {
             .on_client(RpcClient::new_http(url));
 
         Self(inner)
-    }
-}
-
-// #[async_trait::async_trait]
-impl SeismicUnsignedProvider {
-    /// Makes a call request while handling seismic specific aspects
-    pub async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
-        let builder = tx.as_builder().unwrap().clone();
-        let built_tx = self.inner.fill(builder).await?;
-        let clone = self.clone();
-        SeismicProviderExt::seismic_call(&clone.0, built_tx).await
     }
 }
 
