@@ -99,8 +99,8 @@ pub trait SeismicProviderExt: Provider<Seismic> {
         // decrypt the output
         let decrypted_output = seismic_elements
             .client_decrypt(&encrypted_output, &network_pk, &encryption_keypair.secret_key())
-            .map_err(|e| {
-                TransportErrorKind::custom_str(&format!("Error decrypting output: {:?}", e))
+            .map_err(|_| {
+                TransportErrorKind::custom_str(&format!("Error decrypting output during SeismicProviderExt::call_with_encryption"))
             })?;
 
         return Ok(Bytes::from(decrypted_output));

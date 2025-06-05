@@ -239,7 +239,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_seismic_unsigned_call() {
+    async fn test_seismic_unsigned_call() -> Result<(), String> {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let from = get_wallet(&anvil).default_signer().address();
@@ -250,12 +250,13 @@ mod tests {
             .with_kind(TxKind::Create)
             .with_from(from);
 
-        let res = unsigned_provider.seismic_call(SendableTx::Builder(tx)).await.unwrap();
+        let res = unsigned_provider.seismic_call(SendableTx::Builder(tx)).await.map_err(|e| e.to_string())?;
         assert_eq!(res, ContractTestContext::get_code());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_seismic_signed_call() {
+    async fn test_seismic_signed_call() -> Result<(), String> {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
@@ -264,15 +265,14 @@ mod tests {
         let tx =
             SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create);
 
-        let res = provider.seismic_call(SendableTx::Builder(tx)).await;
-        assert!(res.is_ok(), "seismic_call failed: {:?}", res.unwrap_err());
-        let res = res.unwrap();
+        let res = provider.seismic_call(SendableTx::Builder(tx)).await.map_err(|e| e.to_string())?;
 
         assert_eq!(res, ContractTestContext::get_code());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_send_transaction() {
+    async fn test_send_transaction() -> Result<(), String> {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
@@ -287,7 +287,7 @@ mod tests {
         let contract_address = provider
             .send_transaction(tx)
             .await
-            .unwrap()
+            .map_err(|e| e.to_string())?
             .get_receipt()
             .await
             .unwrap()
@@ -296,6 +296,8 @@ mod tests {
 
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());
+
+        Ok(())
     }
 
     fn get_wallet(anvil: &AnvilInstance) -> EthereumWallet {
