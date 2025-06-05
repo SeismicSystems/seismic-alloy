@@ -1,7 +1,9 @@
 //! Seismic provider for HTTP requests
 use alloy_primitives::Bytes;
 use alloy_provider::{
-    fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller}, Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider, SendableTx
+    fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
+    Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider,
+    SendableTx,
 };
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportErrorKind, TransportResult};
@@ -40,7 +42,7 @@ impl<N: SeismicNetwork, P> Provider<N> for SeismicProvider<N, P>
 where
     N::UnsignedTx: Send + Sync,
     P: SeismicProviderExt<N>,
-    RootProvider<N>: SeismicProviderExt<N>
+    RootProvider<N>: SeismicProviderExt<N>,
 {
     fn root(&self) -> &RootProvider<N> {
         self.inner.root()
@@ -71,7 +73,8 @@ where
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
 
-                N::set_request_input(builder, Bytes::from(encrypted_input)).map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
+                N::set_request_input(builder, Bytes::from(encrypted_input))
+                    .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
                 N::set_seismic_elements(&mut builder, seismic_elements);
             }
         }
@@ -98,7 +101,7 @@ impl<N: SeismicNetwork, P> ProviderLayer<P, N> for SeismicLayer
 where
     N::UnsignedTx: Send + Sync,
     P: SeismicProviderExt<N>,
-    RootProvider<N>: SeismicProviderExt<N>
+    RootProvider<N>: SeismicProviderExt<N>,
 {
     type Provider = SeismicProvider<N, P>;
 
@@ -130,7 +133,7 @@ where
 impl<N: SeismicNetwork> SeismicSignedProvider<N>
 where
     N::UnsignedTx: Send + Sync,
-    RootProvider<N>: SeismicProviderExt<N>
+    RootProvider<N>: SeismicProviderExt<N>,
 {
     /// Creates a new seismic signed provider
     pub fn new(wallet: impl Into<SeismicWallet<N>>, url: reqwest::Url) -> Self {
@@ -174,7 +177,7 @@ where
 impl<N: SeismicNetwork> SeismicUnsignedProvider<N>
 where
     N::UnsignedTx: Send + Sync,
-    RootProvider<N>: SeismicProviderExt<N>
+    RootProvider<N>: SeismicProviderExt<N>,
 {
     /// Creates a new seismic unsigned provider
     pub fn new(url: reqwest::Url) -> Self {

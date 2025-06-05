@@ -2,11 +2,16 @@
 //! types. Extends the provider trait with ...
 use alloy_network::{eip2718::Encodable2718, TransactionBuilder};
 use alloy_primitives::Bytes;
-use alloy_provider::{fillers::{FillProvider, TxFiller}, Provider, ProviderCall, RootProvider, SendableTx};
+use alloy_provider::{
+    fillers::{FillProvider, TxFiller},
+    Provider, ProviderCall, RootProvider, SendableTx,
+};
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
-use seismic_alloy_network::{foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth};
+use seismic_alloy_network::{
+    foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
+};
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
 
@@ -88,12 +93,14 @@ where
                     .map_err(|e| {
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
-                N::set_envelope_input(&mut envelope, Bytes::from(encrypted_input)).map_err(|e| {
-                    TransportErrorKind::custom_str(&format!(
-                        "Error setting encrypted input: {:?}",
-                        e
-                    ))
-                })?;
+                N::set_envelope_input(&mut envelope, Bytes::from(encrypted_input)).map_err(
+                    |e| {
+                        TransportErrorKind::custom_str(&format!(
+                            "Error setting encrypted input: {:?}",
+                            e
+                        ))
+                    },
+                )?;
                 SendableTx::Envelope(envelope)
             }
         };
@@ -131,10 +138,12 @@ impl SeismicProviderExt<SeismicReth> for RootProvider<SeismicReth> {}
 impl SeismicProviderExt<SeismicFoundry> for RootProvider<SeismicFoundry> {}
 
 #[async_trait::async_trait]
-impl<F: TxFiller<N>, P: Provider<N>, N: SeismicNetwork> SeismicProviderExt<N> for FillProvider<F, P, N> 
-where N::UnsignedTx: Send + Sync, 
-    RootProvider<N>: SeismicProviderExt<N>
- {
+impl<F: TxFiller<N>, P: Provider<N>, N: SeismicNetwork> SeismicProviderExt<N>
+    for FillProvider<F, P, N>
+where
+    N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>,
+{
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         // Fill the transaction
         let builder = tx.as_builder().unwrap().clone();
