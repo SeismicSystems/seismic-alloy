@@ -21,12 +21,10 @@ use seismic_enclave::{
 };
 use thiserror::Error;
 
-
 #[cfg(feature = "serde")]
 use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
-
 
 /// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
 pub trait InputDecryptionElements: Clone {

@@ -1,7 +1,10 @@
 //! Transaction envelope types and utilities
 use std::hash::{Hash, Hasher};
 
-use crate::{InputDecryptionElements, InputDecryptionElementsError, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements};
+use crate::{
+    InputDecryptionElements, InputDecryptionElementsError, SeismicTxType, SeismicTypedTransaction,
+    TxSeismic, TxSeismicElements,
+};
 use alloy_consensus::{
     transaction::RlpEcdsaDecodableTx, Signed, Transaction, TxEip1559, TxEip2930, TxEip4844Variant,
     TxEip7702, TxLegacy, Typed2718,

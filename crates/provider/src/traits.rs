@@ -5,15 +5,18 @@ use alloy_primitives::Bytes;
 use alloy_provider::{Provider, ProviderCall, SendableTx};
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::{TxSeismicElements};
-use seismic_alloy_network::{seismic_network::SeismicNetwork};
+use seismic_alloy_consensus::TxSeismicElements;
+use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
 use tracing::warn;
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
 #[async_trait::async_trait]
-pub trait SeismicProviderExt<N: SeismicNetwork>: Provider<N> {
+pub trait SeismicProviderExt<N: SeismicNetwork>: Provider<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     /// Makes a call request while handling seismic specific aspects
     /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
@@ -85,7 +88,12 @@ pub trait SeismicProviderExt<N: SeismicNetwork>: Provider<N> {
                     .map_err(|e| {
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
-                N::set_input(&mut envelope, Bytes::from(encrypted_input));
+                N::set_input(&mut envelope, Bytes::from(encrypted_input)).map_err(|e| {
+                    TransportErrorKind::custom_str(&format!(
+                        "Error setting encrypted input: {:?}",
+                        e
+                    ))
+                })?;
                 SendableTx::Envelope(envelope)
             }
         };

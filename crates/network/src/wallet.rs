@@ -1,29 +1,38 @@
-use alloy_network::{AnyNetwork, AnyTxEnvelope, AnyTypedTransaction, Network, NetworkWallet, TxSigner};
-use alloy_consensus::{SignableTransaction, TxEnvelope, TypedTransaction};
-use alloy_primitives::{map::AddressHashMap, Address, Signature};
+//! A wallet capable of signing any transaction for the Seismic network.
 use crate::seismic_network::SeismicNetwork;
-use std::{fmt::Debug, sync::Arc};
+use alloy_consensus::SignableTransaction;
+use alloy_network::{NetworkWallet, TxSigner};
+use alloy_primitives::{map::AddressHashMap, Address, Signature};
+use std::sync::Arc;
 
-
-/// A wallet capable of signing any transaction for the Ethereum network.
+/// A wallet capable of signing any transaction for the Seismic network.
 #[derive(Clone)]
-pub struct SeismicWallet<N: SeismicNetwork> {
+pub struct SeismicWallet<N: SeismicNetwork>
+where
+    N::UnsignedTx: Send + Sync,
+{
     default: Address,
     signers: AddressHashMap<Arc<dyn TxSigner<Signature> + Send + Sync>>,
     _network: std::marker::PhantomData<N>,
 }
 
-impl<N: SeismicNetwork> Default for SeismicWallet<N> {
+impl<N: SeismicNetwork> Default for SeismicWallet<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     fn default() -> Self {
-        Self { 
+        Self {
             default: Address::ZERO,
             signers: AddressHashMap::default(),
-            _network: std::marker::PhantomData 
+            _network: std::marker::PhantomData,
         }
     }
 }
 
-impl<N: SeismicNetwork> std::fmt::Debug for SeismicWallet<N> {
+impl<N: SeismicNetwork> std::fmt::Debug for SeismicWallet<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EthereumWallet")
             .field("default_signer", &self.default)
@@ -34,6 +43,7 @@ impl<N: SeismicNetwork> std::fmt::Debug for SeismicWallet<N> {
 
 impl<N: SeismicNetwork, S> From<S> for SeismicWallet<N>
 where
+    N::UnsignedTx: Send + Sync,
     S: TxSigner<Signature> + Send + Sync + 'static,
 {
     fn from(signer: S) -> Self {
@@ -41,7 +51,10 @@ where
     }
 }
 
-impl<N: SeismicNetwork> SeismicWallet<N> {
+impl<N: SeismicNetwork> SeismicWallet<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     /// Create a new signer with the given signer as the default signer.
     pub fn new<S>(signer: S) -> Self
     where
@@ -129,7 +142,8 @@ impl<N: SeismicNetwork> SeismicWallet<N> {
 }
 
 impl<N: SeismicNetwork> NetworkWallet<N> for SeismicWallet<N>
-where N::UnsignedTx: Send,
+where
+    N::UnsignedTx: Send + Sync,
 {
     fn default_signer_address(&self) -> Address {
         self.default

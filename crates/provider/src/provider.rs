@@ -4,7 +4,9 @@ use alloy_provider::{
     Identity, Provider, ProviderBuilder, ProviderLayer, RootProvider,
 };
 use alloy_rpc_client::RpcClient;
-use seismic_alloy_network::{foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth};
+use seismic_alloy_network::{
+    foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
+};
 use std::ops::Deref;
 
 use crate::SeismicProviderExt;
@@ -20,6 +22,7 @@ pub struct SeismicProvider<N, P> {
 
 impl<N: SeismicNetwork, P> SeismicProvider<N, P>
 where
+    N::UnsignedTx: Send + Sync,
     P: Provider<N>,
     N: SeismicNetwork,
 {
@@ -34,6 +37,7 @@ where
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl<N: SeismicNetwork, P> Provider<N> for SeismicProvider<N, P>
 where
+    N::UnsignedTx: Send + Sync,
     P: Provider<N>,
 {
     fn root(&self) -> &RootProvider<N> {
@@ -41,8 +45,14 @@ where
     }
 }
 
-impl<P> SeismicProviderExt<SeismicReth> for SeismicProvider<SeismicReth, P> where P: Provider<SeismicReth> {}
-impl<P> SeismicProviderExt<SeismicFoundry> for SeismicProvider<SeismicFoundry, P> where P: Provider<SeismicFoundry> {}
+impl<P> SeismicProviderExt<SeismicReth> for SeismicProvider<SeismicReth, P> where
+    P: Provider<SeismicReth>
+{
+}
+impl<P> SeismicProviderExt<SeismicFoundry> for SeismicProvider<SeismicFoundry, P> where
+    P: Provider<SeismicFoundry>
+{
+}
 
 /// Seismic layer
 /// Consists of a SeismicProvider wrapping other layers
@@ -52,6 +62,7 @@ pub(crate) struct SeismicLayer;
 
 impl<N: SeismicNetwork, P> ProviderLayer<P, N> for SeismicLayer
 where
+    N::UnsignedTx: Send + Sync,
     P: Provider<N>,
 {
     type Provider = SeismicProvider<N, P>;
@@ -63,10 +74,11 @@ where
 
 /// Type alias for the recommended fillers for the seismic network
 /// Defined for code clarity
-type SeismicRecFillers<N: SeismicNetwork> = <N as RecommendedFillers>::RecommendedFillers;
+type SeismicRecFillers<N> = <N as RecommendedFillers>::RecommendedFillers;
 
 /// Seismic provider type alias for signed provider
-pub type SeismicSignedProviderInner<N: SeismicNetwork> = SeismicProvider<N,
+pub type SeismicSignedProviderInner<N> = SeismicProvider<
+    N,
     FillProvider<
         JoinFill<SeismicRecFillers<N>, WalletFiller<SeismicWallet<N>>>,
         RootProvider<N>,
@@ -76,9 +88,14 @@ pub type SeismicSignedProviderInner<N: SeismicNetwork> = SeismicProvider<N,
 
 /// Seismic signed provider
 #[derive(Debug, Clone)]
-pub struct SeismicSignedProvider<N: SeismicNetwork>(SeismicSignedProviderInner<N>);
+pub struct SeismicSignedProvider<N: SeismicNetwork>(SeismicSignedProviderInner<N>)
+where
+    N::UnsignedTx: Send + Sync;
 
-impl<N: SeismicNetwork> SeismicSignedProvider<N> {
+impl<N: SeismicNetwork> SeismicSignedProvider<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     /// Creates a new seismic signed provider
     pub fn new(wallet: SeismicWallet<N>, url: reqwest::Url) -> Self {
         let tx_filler_layer = JoinFill::new(
@@ -97,7 +114,10 @@ impl<N: SeismicNetwork> SeismicSignedProvider<N> {
     }
 }
 
-impl<N: SeismicNetwork> Deref for SeismicSignedProvider<N> {
+impl<N: SeismicNetwork> Deref for SeismicSignedProvider<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     type Target = SeismicSignedProviderInner<N>;
 
     fn deref(&self) -> &Self::Target {
@@ -106,20 +126,19 @@ impl<N: SeismicNetwork> Deref for SeismicSignedProvider<N> {
 }
 
 /// Seismic unsigned provider type alias
-pub type SeismicUnsignedProviderInner<N: SeismicNetwork> = SeismicProvider<
-    N,
-    FillProvider<
-        JoinFill<Identity, SeismicRecFillers<N>>,
-        RootProvider<N>,
-        N,
-    >,
->;
+pub type SeismicUnsignedProviderInner<N> =
+    SeismicProvider<N, FillProvider<JoinFill<Identity, SeismicRecFillers<N>>, RootProvider<N>, N>>;
 
 /// Seismic unsigned provider
 #[derive(Debug, Clone)]
-pub struct SeismicUnsignedProvider<N: SeismicNetwork>(SeismicUnsignedProviderInner<N>);
+pub struct SeismicUnsignedProvider<N: SeismicNetwork>(SeismicUnsignedProviderInner<N>)
+where
+    N::UnsignedTx: Send + Sync;
 
-impl<N: SeismicNetwork> SeismicUnsignedProvider<N> {
+impl<N: SeismicNetwork> SeismicUnsignedProvider<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     /// Creates a new seismic unsigned provider
     pub fn new(url: reqwest::Url) -> Self {
         // Create layer with recommended fillers and Identity
@@ -136,7 +155,10 @@ impl<N: SeismicNetwork> SeismicUnsignedProvider<N> {
     }
 }
 
-impl<N: SeismicNetwork> Deref for SeismicUnsignedProvider<N> {
+impl<N: SeismicNetwork> Deref for SeismicUnsignedProvider<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     type Target = SeismicUnsignedProviderInner<N>;
 
     fn deref(&self) -> &Self::Target {
@@ -148,7 +170,7 @@ impl<N: SeismicNetwork> Deref for SeismicUnsignedProvider<N> {
 mod tests {
     use super::*;
     use crate::test_utils::ContractTestContext;
-    use alloy_network::{TransactionBuilder};
+    use alloy_network::TransactionBuilder;
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::{address, Address, Bytes, TxKind};
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
@@ -162,7 +184,8 @@ mod tests {
     async fn test_get_tee_pubkey() {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+        let provider =
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
         // If this fails with a message like "Method Not Found", then you may be using anvil instead
         // of sanvil
@@ -176,7 +199,8 @@ mod tests {
         let plaintext = Bytes::new();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+        let provider =
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
         let tx = seismic_foundry_tx_builder().with_input(plaintext).with_to(Address::ZERO).into();
         let res = provider.send_transaction(tx.into()).await.unwrap();
@@ -203,7 +227,8 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let from = get_wallet(&anvil).default_signer().address();
-        let unsigned_provider = SeismicUnsignedProvider::<SeismicFoundry>::new(anvil.endpoint_url());
+        let unsigned_provider =
+            SeismicUnsignedProvider::<SeismicFoundry>::new(anvil.endpoint_url());
 
         let tx = seismic_foundry_tx_builder()
             .with_input(plaintext)
@@ -220,7 +245,8 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+        let provider =
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
         let tx =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
@@ -237,7 +263,8 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+        let provider =
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
         // testing send transaction
         let tx = seismic_foundry_tx_builder()
