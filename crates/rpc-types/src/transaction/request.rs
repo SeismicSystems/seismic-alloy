@@ -35,6 +35,7 @@ pub struct SeismicTransactionRequest {
     pub inner: TransactionRequest,
     /// Seismic-specific elements to be included in the transaction
     /// For now just encrypted call data
+    #[cfg_attr(feature = "serde", serde(flatten))]
     pub seismic_elements: Option<TxSeismicElements>,
 }
 
