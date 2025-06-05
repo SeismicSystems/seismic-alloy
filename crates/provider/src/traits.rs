@@ -2,14 +2,13 @@
 //! types. Extends the provider trait with ...
 use alloy_network::{eip2718::Encodable2718, TransactionBuilder};
 use alloy_primitives::Bytes;
-use alloy_provider::{Provider, ProviderCall, SendableTx};
+use alloy_provider::{fillers::{FillProvider, TxFiller}, Provider, ProviderCall, RootProvider, SendableTx};
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
-use seismic_alloy_network::seismic_network::SeismicNetwork;
+use seismic_alloy_network::{foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth};
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
-use tracing::warn;
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
 #[async_trait::async_trait]
@@ -21,7 +20,8 @@ where
     /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
     async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
-        println!("seismic_call entered. tx: {:?}\n", tx);
+        // This check is probably wrong. need to encrypt no matter what?
+        // need to encrypt before signing?
         if let Some(builder) = tx.as_mut_builder() {
             if self.should_encrypt_input(builder) {
                 return self.call_with_encryption(tx).await;
@@ -88,7 +88,7 @@ where
                     .map_err(|e| {
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
-                N::set_input(&mut envelope, Bytes::from(encrypted_input)).map_err(|e| {
+                N::set_envelope_input(&mut envelope, Bytes::from(encrypted_input)).map_err(|e| {
                     TransportErrorKind::custom_str(&format!(
                         "Error setting encrypted input: {:?}",
                         e
@@ -99,7 +99,6 @@ where
         };
 
         // make the rpc call
-        println!("call_with_encryption. about to make inner.call, tx: {:?}\n", tx);
         let encrypted_output = self.call_conditionally_signed(tx).await?;
 
         // decrypt the output
@@ -114,22 +113,37 @@ where
 
     /// Makes a call request, perhaps making the call signed depinding on the input type
     async fn call_conditionally_signed(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        println!("call_conditionally_signed entered. tx: {:?}\n", tx);
         match tx {
             SendableTx::Builder(builder) => {
-                warn!("seismic_call: sending unsigned transaction");
-                println!("seismic_call: sending unsigned transaction");
                 let output = self.client().request("eth_call", (builder.clone(),)).await?;
                 Ok(output)
             }
             SendableTx::Envelope(envelope) => {
-                warn!("seismic_call: sending signed transaction");
-                println!("seismic_call: sending signed transaction");
-
                 let encoded_tx = envelope.encoded_2718();
                 let output = self.client().request("eth_call", (encoded_tx,)).await?;
                 Ok(output)
             }
         }
+    }
+}
+
+impl SeismicProviderExt<SeismicReth> for RootProvider<SeismicReth> {}
+impl SeismicProviderExt<SeismicFoundry> for RootProvider<SeismicFoundry> {}
+
+#[async_trait::async_trait]
+impl<F: TxFiller<N>, P: Provider<N>, N: SeismicNetwork> SeismicProviderExt<N> for FillProvider<F, P, N> 
+where N::UnsignedTx: Send + Sync, 
+    RootProvider<N>: SeismicProviderExt<N>
+ {
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
+        // Fill the transaction
+        let builder = tx.as_builder().unwrap().clone();
+        let built_tx = self.fill(builder).await?;
+
+        // self.inner is not public for FillProvider.
+        // However, for our use cases, self.inner is the RootProvider,
+        // so we get it this hacky way
+        let inner = self.root();
+        SeismicProviderExt::seismic_call(inner, built_tx).await
     }
 }

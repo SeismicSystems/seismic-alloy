@@ -1,9 +1,11 @@
 //! Seismic provider for HTTP requests
+use alloy_primitives::Bytes;
 use alloy_provider::{
-    fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
-    Identity, Provider, ProviderBuilder, ProviderLayer, RootProvider,
+    fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller}, Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider, SendableTx
 };
 use alloy_rpc_client::RpcClient;
+use alloy_transport::{TransportErrorKind, TransportResult};
+use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
 };
@@ -23,8 +25,7 @@ pub struct SeismicProvider<N, P> {
 impl<N: SeismicNetwork, P> SeismicProvider<N, P>
 where
     N::UnsignedTx: Send + Sync,
-    P: Provider<N>,
-    N: SeismicNetwork,
+    P: SeismicProviderExt<N>,
 {
     /// Create a new seismic provider
     pub(crate) fn new(inner: P) -> Self {
@@ -38,32 +39,66 @@ where
 impl<N: SeismicNetwork, P> Provider<N> for SeismicProvider<N, P>
 where
     N::UnsignedTx: Send + Sync,
-    P: Provider<N>,
+    P: SeismicProviderExt<N>,
+    RootProvider<N>: SeismicProviderExt<N>
 {
     fn root(&self) -> &RootProvider<N> {
         self.inner.root()
     }
+
+    async fn send_transaction_internal(
+        &self,
+        mut tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        if let Some(mut builder) = tx.as_mut_builder() {
+            if self.inner.should_encrypt_input(builder) {
+                let network_pk = self.inner.get_tee_pubkey().await.map_err(|e| {
+                    TransportErrorKind::custom_str(&format!(
+                        "Error getting tee pubkey from server: {:?}",
+                        e
+                    ))
+                })?;
+                let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+                let seismic_elements = TxSeismicElements::default()
+                    .with_encryption_pubkey(encryption_keypair.public_key())
+                    .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+
+                // Encrypt using recipient's public key and generated private key
+                let plaintext_input = N::get_request_input(builder).unwrap();
+                let encrypted_input = seismic_elements
+                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
+                    .map_err(|e| {
+                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+                    })?;
+
+                N::set_request_input(builder, Bytes::from(encrypted_input)).map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
+                N::set_seismic_elements(&mut builder, seismic_elements);
+            }
+        }
+        let res = self.inner.send_transaction_internal(tx).await;
+        res
+    }
 }
 
 impl<P> SeismicProviderExt<SeismicReth> for SeismicProvider<SeismicReth, P> where
-    P: Provider<SeismicReth>
+    P: SeismicProviderExt<SeismicReth>
 {
 }
 impl<P> SeismicProviderExt<SeismicFoundry> for SeismicProvider<SeismicFoundry, P> where
-    P: Provider<SeismicFoundry>
+    P: SeismicProviderExt<SeismicFoundry>
 {
 }
 
-/// Seismic layer
+/// Seismic layer, incorperating [`SeismicProviderExt`] functionality
 /// Consists of a SeismicProvider wrapping other layers
-/// the SeismicProvider is responsible for encrypting and decrypting transactions
 #[derive(Debug, Clone)]
 pub(crate) struct SeismicLayer;
 
 impl<N: SeismicNetwork, P> ProviderLayer<P, N> for SeismicLayer
 where
     N::UnsignedTx: Send + Sync,
-    P: Provider<N>,
+    P: SeismicProviderExt<N>,
+    RootProvider<N>: SeismicProviderExt<N>
 {
     type Provider = SeismicProvider<N, P>;
 
@@ -95,6 +130,7 @@ where
 impl<N: SeismicNetwork> SeismicSignedProvider<N>
 where
     N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>
 {
     /// Creates a new seismic signed provider
     pub fn new(wallet: impl Into<SeismicWallet<N>>, url: reqwest::Url) -> Self {
@@ -138,6 +174,7 @@ where
 impl<N: SeismicNetwork> SeismicUnsignedProvider<N>
 where
     N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>
 {
     /// Creates a new seismic unsigned provider
     pub fn new(url: reqwest::Url) -> Self {

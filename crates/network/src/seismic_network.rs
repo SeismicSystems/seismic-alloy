@@ -4,6 +4,7 @@ use alloy_consensus::{EthereumTxEnvelope, SignableTransaction, Transaction};
 use alloy_network::{Network, TransactionBuilder};
 use alloy_primitives::{Address, Bytes};
 use alloy_provider::fillers::RecommendedFillers;
+use alloy_rpc_types_eth::TransactionInput;
 use seismic_alloy_consensus::{
     InputDecryptionElements, InputDecryptionElementsError, TxSeismicElements,
 };
@@ -24,7 +25,12 @@ where
     /// Get the envelope input from the transaction envelope.
     fn get_envelope_input(req: &Self::TxEnvelope) -> &Bytes;
     /// Set the input in the transaction envelope.
-    fn set_input(
+    fn set_request_input(
+        req: &mut Self::TransactionRequest,
+        input: Bytes,
+    ) -> Result<(), InputDecryptionElementsError>;
+    /// Set the input in the transaction request.
+    fn set_envelope_input(
         req: &mut Self::TxEnvelope,
         input: Bytes,
     ) -> Result<(), InputDecryptionElementsError>;
@@ -50,7 +56,14 @@ impl SeismicNetwork for SeismicReth {
     fn get_envelope_input(req: &Self::TxEnvelope) -> &Bytes {
         req.input()
     }
-    fn set_input(
+    fn set_request_input(
+        req: &mut Self::TransactionRequest,
+        input: Bytes,
+    ) -> Result<(), InputDecryptionElementsError> {
+        req.inner.input = TransactionInput::new(input);
+        Ok(())
+    }
+    fn set_envelope_input(
         req: &mut Self::TxEnvelope,
         input: Bytes,
     ) -> Result<(), InputDecryptionElementsError> {
@@ -104,7 +117,14 @@ impl SeismicNetwork for SeismicFoundry {
     fn get_envelope_input(req: &Self::TxEnvelope) -> &Bytes {
         req.input()
     }
-    fn set_input(
+    fn set_request_input(
+        req: &mut Self::TransactionRequest,
+        input: Bytes,
+    ) -> Result<(), InputDecryptionElementsError> {
+        req.set_input(input);
+        Ok(())
+    }
+    fn set_envelope_input(
         req: &mut Self::TxEnvelope,
         input: Bytes,
     ) -> Result<(), InputDecryptionElementsError> {
