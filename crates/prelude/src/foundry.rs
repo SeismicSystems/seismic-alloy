@@ -21,9 +21,12 @@ pub use seismic_alloy_network::foundry::{
     typed_tx::SeismicFoundryTypedTransaction as AnyTypedTransaction,
     SeismicFoundry as AnyNetwork,
 };
-pub use seismic_alloy_provider::provider::{
-    sfoundry_signed_provider, sfoundry_unsigned_provider, SeismicSignedProvider,
-    SeismicUnsignedProvider,
+pub use seismic_alloy_provider::{
+    provider::{
+        sfoundry_signed_provider, sfoundry_unsigned_provider, SeismicSignedProvider,
+        SeismicUnsignedProvider,
+    },
+    SeismicProviderExt
 };
 pub use seismic_alloy_rpc_types::{
     SeismicTransactionReceipt as TransactionReceipt,
