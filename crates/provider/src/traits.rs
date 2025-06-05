@@ -3,6 +3,7 @@
 use alloy_network::{eip2718::Encodable2718, TransactionBuilder};
 use alloy_primitives::Bytes;
 use alloy_provider::fillers::FillProvider;
+use alloy_provider::RootProvider;
 use alloy_provider::{fillers::TxFiller, Provider, ProviderCall, SendableTx};
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
@@ -10,7 +11,6 @@ use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
-use tracing::warn;
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
 #[async_trait::async_trait]
@@ -95,7 +95,6 @@ pub trait SeismicProviderExt: Provider<Seismic> {
         };
 
         // make the rpc call
-        println!("call_with_encryption. about to make inner.call, tx: {:?}\n", tx);
         let encrypted_output = self.call_conditionally_signed(tx).await?;
 
         // decrypt the output
@@ -110,18 +109,12 @@ pub trait SeismicProviderExt: Provider<Seismic> {
 
     /// Makes a call request, perhaps making the call signed depinding on the input type
     async fn call_conditionally_signed(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
-        println!("call_conditionally_signed entered. tx: {:?}\n", tx);
         match tx {
             SendableTx::Builder(builder) => {
-                warn!("seismic_call: sending unsigned transaction");
-                println!("seismic_call: sending unsigned transaction");
                 let output = self.client().request("eth_call", (builder.clone(),)).await?;
                 Ok(output)
             }
             SendableTx::Envelope(envelope) => {
-                warn!("seismic_call: sending signed transaction");
-                println!("seismic_call: sending signed transaction");
-
                 let encoded_tx = envelope.encoded_2718();
                 let output = self.client().request("eth_call", (encoded_tx,)).await?;
                 Ok(output)
@@ -129,6 +122,8 @@ pub trait SeismicProviderExt: Provider<Seismic> {
         }
     }
 }
+
+impl SeismicProviderExt for RootProvider<Seismic> {}
 
 #[async_trait::async_trait]
 impl<F, P> SeismicProviderExt for FillProvider<F, P, Seismic>
@@ -139,6 +134,6 @@ where
     async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
         let builder = tx.as_builder().unwrap().clone();
         let built_tx = self.fill(builder).await?;
-        SeismicProviderExt::seismic_call(self, built_tx).await
+        SeismicProviderExt::seismic_call(self.root(), built_tx).await
     }
 }
