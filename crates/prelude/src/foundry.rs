@@ -24,8 +24,9 @@ pub use seismic_alloy_network::foundry::{
 pub use seismic_alloy_provider::{
     provider::{
         sfoundry_signed_provider, sfoundry_unsigned_provider, SeismicSignedProvider,
-        SeismicUnsignedProvider,
+        SeismicUnsignedProvider
     },
+    test_utils,
     SeismicProviderExt
 };
 pub use seismic_alloy_rpc_types::{
