@@ -2,7 +2,8 @@
 //! types. Extends the provider trait with ...
 use alloy_network::{eip2718::Encodable2718, TransactionBuilder};
 use alloy_primitives::Bytes;
-use alloy_provider::{Provider, ProviderCall, SendableTx};
+use alloy_provider::fillers::FillProvider;
+use alloy_provider::{fillers::TxFiller, Provider, ProviderCall, SendableTx};
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
@@ -52,7 +53,7 @@ pub trait SeismicProviderExt: Provider<Seismic> {
     }
 
     /// Encrypts the input data, runs self.call_conditionally_signed, and decrypts the output data
-    /// 
+    ///
     /// TODO: make an encryption filler layer?
     async fn call_with_encryption(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
         // set up elements unrelated to the input tx
@@ -126,5 +127,18 @@ pub trait SeismicProviderExt: Provider<Seismic> {
                 Ok(output)
             }
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl<F, P> SeismicProviderExt for FillProvider<F, P, Seismic>
+where
+    F: TxFiller<Seismic>,
+    P: Provider<Seismic>,
+{
+    async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        let builder = tx.as_builder().unwrap().clone();
+        let built_tx = self.fill(builder).await?;
+        SeismicProviderExt::seismic_call(self, built_tx).await
     }
 }
