@@ -21,12 +21,12 @@ alloy-provider.workspace = true
 alloy-rpc-client = { workspace = true, features = ["reqwest"] }
 alloy-transport.workspace = true
 
-reqwest.workspace = true
-async-trait.workspace = true
-
 seismic-alloy-consensus.workspace = true
 seismic-alloy-network.workspace = true
 seismic-enclave.workspace = true
+
+reqwest.workspace = true
+async-trait.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
