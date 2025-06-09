@@ -32,8 +32,10 @@ use seismic_enclave::EnclaveClient;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SeismicTransactionRequest {
+    #[cfg_attr(feature = "serde", serde(flatten))]
     /// The inner [`TransactionRequest`]
     pub inner: TransactionRequest,
+    #[cfg_attr(feature = "serde", serde(flatten))]
     /// Seismic-specific elements to be included in the transaction
     /// For now just encrypted call data
     pub seismic_elements: Option<TxSeismicElements>,
