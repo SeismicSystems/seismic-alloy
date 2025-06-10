@@ -9,10 +9,9 @@ use alloy_provider::{
 };
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::TxSeismicElements;
+use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
 use seismic_alloy_network::Seismic;
 use std::ops::Deref;
-use seismic_alloy_consensus::InputDecryptionElements;
 
 /// Seismic middleware for encrypting transactions and decrypting responses
 /// Impliments [`SeismicProviderExt`] trait
@@ -242,7 +241,7 @@ mod tests {
     use alloy_primitives::{address, Address, Bytes, TxKind};
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
     use alloy_signer_local::PrivateKeySigner;
-    use seismic_alloy_consensus::{SeismicTxType, SEISMIC_TX_TYPE_ID};
+    use seismic_alloy_consensus::SEISMIC_TX_TYPE_ID;
     use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
     /// Path to local sanvil binary

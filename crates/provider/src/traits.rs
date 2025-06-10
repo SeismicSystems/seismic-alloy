@@ -8,7 +8,7 @@ use alloy_provider::{
 };
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::{InputDecryptionElements, SeismicTxType, TxSeismicElements};
+use seismic_alloy_consensus::SeismicTxType;
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
@@ -17,7 +17,6 @@ use std::str::FromStr;
 #[async_trait::async_trait]
 pub trait SeismicProviderExt: Provider<Seismic> {
     /// Makes a call request while handling seismic specific aspects
-    /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
     async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
         self.call_conditionally_signed(tx).await
