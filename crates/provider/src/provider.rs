@@ -12,6 +12,7 @@ use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::Seismic;
 use std::ops::Deref;
+use seismic_alloy_consensus::InputDecryptionElements;
 
 /// Seismic middleware for encrypting transactions and decrypting responses
 /// Impliments [`SeismicProviderExt`] trait
@@ -68,7 +69,7 @@ where
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
 
-                builder.set_input(Bytes::from(encrypted_input));
+                InputDecryptionElements::set_input(builder, Bytes::from(encrypted_input)).unwrap();
                 builder.set_seismic_elements(seismic_elements);
             }
         }
@@ -83,21 +84,57 @@ where
     P: SeismicProviderExt,
 {
     async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        // set up elements unrelated to the input tx
+        let network_pk = self.get_tee_pubkey().await.map_err(|e| {
+            TransportErrorKind::custom_str(&format!(
+                "Error getting tee pubkey from server: {:?}",
+                e
+            ))
+        })?;
+        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        let seismic_elements = TxSeismicElements::default()
+            .with_encryption_pubkey(encryption_keypair.public_key())
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+
+        // Encrypt using recipient's public key and generated private key
         let tx = match tx {
             SendableTx::Builder(mut builder) => {
-                if builder.seismic_elements.is_none() {
-                    builder.seismic_elements = Some(TxSeismicElements::default());
-                }
+                let plaintext_input = builder.inner.input.input().unwrap();
+                let encrypted_input = seismic_elements
+                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
+                    .map_err(|e| {
+                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+                    })?;
+
+                TransactionBuilder::set_input(&mut builder, Bytes::from(encrypted_input));
+                builder.set_seismic_elements(seismic_elements);
                 SendableTx::Builder(builder)
             }
-            SendableTx::Envelope(_envelope) => {
-                unimplemented!("SeismicProvider::seismic_call only accepts builders, not envelopes.")
+            SendableTx::Envelope(mut envelope) => {
+                let plaintext_input = envelope.get_input();
+                let encrypted_input = seismic_elements
+                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
+                    .map_err(|e| {
+                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+                    })?;
+                envelope.set_input(Bytes::from(encrypted_input)).unwrap();
+                SendableTx::Envelope(envelope)
             }
         };
 
-        // delegate to inner provider, e.g., FillProvider, RootProvider, etc.
-        println!("here 1");
-        self.inner.seismic_call(tx).await
+        // delegate to inner provider (e.g., FillProvider, RootProvider, etc.) and make rpc call
+        let encrypted_output = self.inner.seismic_call(tx).await?;
+
+        // decrypt the output
+        let decrypted_output = seismic_elements
+            .client_decrypt(&encrypted_output, &network_pk, &encryption_keypair.secret_key())
+            .map_err(|_| {
+                TransportErrorKind::custom_str(&format!(
+                    "Error decrypting output during SeismicProviderExt::call_with_encryption"
+                ))
+            })?;
+
+        return Ok(Bytes::from(decrypted_output));
     }
 }
 
