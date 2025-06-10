@@ -6,7 +6,7 @@ use alloy_primitives::{Address, Bytes};
 use alloy_provider::fillers::RecommendedFillers;
 use alloy_rpc_types_eth::TransactionInput;
 use seismic_alloy_consensus::{
-    InputDecryptionElements, InputDecryptionElementsError, TxSeismicElements,
+    InputDecryptionElements, InputDecryptionElementsError, TxSeismicElements, SEISMIC_TX_TYPE_ID,
 };
 
 /// A trait for networks that support seismic elements.
@@ -40,6 +40,7 @@ where
         sender: Address,
         tx: Self::UnsignedTx,
     ) -> Result<Self::TxEnvelope, alloy_signer::Error>;
+    fn is_seismic_tx_type(ty: Self::TxType) -> bool;
 }
 
 #[async_trait::async_trait]
@@ -101,6 +102,13 @@ impl SeismicNetwork for SeismicReth {
             }
         }
     }
+
+    fn is_seismic_tx_type(ty: Self::TxType) -> bool {
+        match ty {
+            Self::TxType::Seismic => true,
+            _ => false,
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -149,6 +157,13 @@ impl SeismicNetwork for SeismicFoundry {
                 let sig = wallet.sign_transaction_inner(sender, &mut t).await?;
                 Ok(t.into_signed(sig).into())
             }
+        }
+    }
+
+    fn is_seismic_tx_type(ty: Self::TxType) -> bool {
+        match ty.0 {
+            SEISMIC_TX_TYPE_ID => true,
+            _ => false,
         }
     }
 }

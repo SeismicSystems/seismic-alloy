@@ -38,8 +38,12 @@ where
     }
 
     /// Whether the input data should be encrypted
-    /// None or Empty input data should not be encrypted
+    /// If it's not a seismic tx, don't encrypt.
+    /// If it is, only encrypt if it's non-empty
     fn should_encrypt_input<B: TransactionBuilder<N>>(&self, tx: &B) -> bool {
+        if !N::is_seismic_tx_type(tx.output_tx_type()) {
+            return false;
+        }
         tx.input().map_or(false, |input| !input.is_empty())
     }
 
