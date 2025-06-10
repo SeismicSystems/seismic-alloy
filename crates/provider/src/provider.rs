@@ -358,10 +358,7 @@ mod tests {
 
         println!("tx: {:#?}", tx);
 
-        let pending_tx = provider
-        .send_transaction(tx.into())
-        .await
-        .unwrap();
+        let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
 
         println!("pending_tx: {:#?}", pending_tx);
 

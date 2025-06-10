@@ -24,16 +24,7 @@ where
     /// Makes a call request while handling seismic specific aspects
     /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
-    async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
-        // This check is probably wrong. need to encrypt no matter what?
-        // need to encrypt before signing?
-        if let Some(builder) = tx.as_mut_builder() {
-            if self.should_encrypt_input(builder) {
-                return self.call_with_encryption(tx).await;
-            }
-        }
-
-        // If we get here, we are not encrypting the input data
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         self.call_conditionally_signed(tx).await
     }
 
@@ -59,6 +50,21 @@ where
                 "Error getting tee pubkey from server: {:?}",
                 e
             ))),
+        }
+    }
+
+    /// Makes a call request, perhaps making the call signed depinding on the input type
+    async fn call_conditionally_signed(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
+        match tx {
+            SendableTx::Builder(builder) => {
+                let output = self.client().request("eth_call", (builder.clone(),)).await?;
+                Ok(output)
+            }
+            SendableTx::Envelope(envelope) => {
+                let encoded_tx = envelope.encoded_2718();
+                let output = self.client().request("eth_call", (encoded_tx,)).await?;
+                Ok(output)
+            }
         }
     }
 
@@ -121,25 +127,20 @@ where
 
         return Ok(Bytes::from(decrypted_output));
     }
-
-    /// Makes a call request, perhaps making the call signed depinding on the input type
-    async fn call_conditionally_signed(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        match tx {
-            SendableTx::Builder(builder) => {
-                let output = self.client().request("eth_call", (builder.clone(),)).await?;
-                Ok(output)
-            }
-            SendableTx::Envelope(envelope) => {
-                let encoded_tx = envelope.encoded_2718();
-                let output = self.client().request("eth_call", (encoded_tx,)).await?;
-                Ok(output)
-            }
-        }
-    }
 }
 
-impl SeismicProviderExt<SeismicReth> for RootProvider<SeismicReth> {}
-impl SeismicProviderExt<SeismicFoundry> for RootProvider<SeismicFoundry> {}
+#[async_trait::async_trait]
+impl SeismicProviderExt<SeismicReth> for RootProvider<SeismicReth> {
+    async fn seismic_call(&self, tx: SendableTx<SeismicReth>) -> TransportResult<Bytes> {
+        self.call_conditionally_signed(tx).await
+    }
+}
+#[async_trait::async_trait]
+impl SeismicProviderExt<SeismicFoundry> for RootProvider<SeismicFoundry> {
+    async fn seismic_call(&self, tx: SendableTx<SeismicFoundry>) -> TransportResult<Bytes> {
+        self.call_conditionally_signed(tx).await
+    }
+}
 
 #[async_trait::async_trait]
 impl<F: TxFiller<N>, P: Provider<N>, N: SeismicNetwork> SeismicProviderExt<N>
