@@ -83,7 +83,20 @@ where
     P: SeismicProviderExt,
 {
     async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
-        // delegate to inner provider, ex a FillProvider, RootProvider, etc
+        let tx = match tx {
+            SendableTx::Builder(mut builder) => {
+                if builder.seismic_elements.is_none() {
+                    builder.seismic_elements = Some(TxSeismicElements::default());
+                }
+                SendableTx::Builder(builder)
+            }
+            SendableTx::Envelope(_envelope) => {
+                unimplemented!("SeismicProvider::seismic_call only accepts builders, not envelopes.")
+            }
+        };
+
+        // delegate to inner provider, e.g., FillProvider, RootProvider, etc.
+        println!("here 1");
         self.inner.seismic_call(tx).await
     }
 }

@@ -136,9 +136,11 @@ where
     P: Provider<Seismic>,
 {
     async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        println!("FillProvider::seismic_call");
         // Fill the transaction
         let builder = tx.as_builder().unwrap().clone();
         let built_tx = self.fill(builder).await?;
+        println!("FillProvider::seismic_call built_tx: {:?}\n\n", built_tx);
 
         // self.inner is not public for FillProvider.
         // However, for our use cases, self.inner is the RootProvider,
