@@ -53,8 +53,8 @@ where
         mut tx: SendableTx<N>,
     ) -> TransportResult<PendingTransactionBuilder<N>> {
         if let Some(mut builder) = tx.as_mut_builder() {
-            if self.inner.should_encrypt_input(builder) {
-                let network_pk = self.inner.get_tee_pubkey().await.map_err(|e| {
+            if self.should_encrypt_input(builder) {
+                let network_pk = self.get_tee_pubkey().await.map_err(|e| {
                     TransportErrorKind::custom_str(&format!(
                         "Error getting tee pubkey from server: {:?}",
                         e
@@ -153,17 +153,6 @@ where
     }
 }
 
-impl<N: SeismicNetwork> Deref for SeismicSignedProvider<N>
-where
-    N::UnsignedTx: Send + Sync,
-{
-    type Target = SeismicSignedProviderInner<N>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 /// Seismic unsigned provider type alias
 pub type SeismicUnsignedProviderInner<N> =
     SeismicProvider<N, FillProvider<JoinFill<Identity, SeismicRecFillers<N>>, RootProvider<N>, N>>;
@@ -192,6 +181,30 @@ where
             .connect_client(RpcClient::new_http(url));
 
         Self(inner)
+    }
+}
+
+
+impl<N: SeismicNetwork, P> Deref for SeismicProvider<N, P>
+where
+    N::UnsignedTx: Send + Sync,
+    P: SeismicProviderExt<N>,
+{
+    type Target = P;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<N: SeismicNetwork> Deref for SeismicSignedProvider<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
+    type Target = SeismicSignedProviderInner<N>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
