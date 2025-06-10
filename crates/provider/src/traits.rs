@@ -11,7 +11,7 @@ use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::{InputDecryptionElements, SeismicTxType, TxSeismicElements};
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
-use std::{any::{Any, TypeId}, str::FromStr};
+use std::str::FromStr;
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
 #[async_trait::async_trait]
