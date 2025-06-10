@@ -7,7 +7,7 @@ pub mod typed_tx;
 
 use alloy_eip7702::constants::EIP7702_TX_TYPE_ID;
 use alloy_network::{
-    eip2718::{EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID, LEGACY_TX_TYPE_ID},
+    eip2718::{EIP1559_TX_TYPE_ID, EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID, LEGACY_TX_TYPE_ID},
     AnyHeader, AnyRpcHeader, AnyTxType, BuildResult, Ethereum, EthereumWallet, Network,
     NetworkWallet, TransactionBuilder, TransactionBuilderError,
 };
@@ -190,18 +190,20 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
     #[doc(alias = "output_transaction_type")]
     fn output_tx_type(&self) -> AnyTxType {
         match self.inner.preferred_type() {
-            TxType::Eip1559 | TxType::Eip4844 => AnyTxType(EIP4844_TX_TYPE_ID),
-            TxType::Eip2930 => AnyTxType(EIP2930_TX_TYPE_ID),
-            TxType::Eip7702 => AnyTxType(EIP7702_TX_TYPE_ID),
             TxType::Legacy => AnyTxType(LEGACY_TX_TYPE_ID),
+            TxType::Eip1559 => AnyTxType(EIP1559_TX_TYPE_ID),
+            TxType::Eip2930 => AnyTxType(EIP2930_TX_TYPE_ID),
+            TxType::Eip4844 => AnyTxType(EIP4844_TX_TYPE_ID),
+            TxType::Eip7702 => AnyTxType(EIP7702_TX_TYPE_ID),
         }
     }
 
     #[doc(alias = "output_transaction_type_checked")]
     fn output_tx_type_checked(&self) -> Option<AnyTxType> {
         self.inner.buildable_type().map(|tx_ty| match tx_ty {
-            TxType::Eip1559 | TxType::Eip4844 => AnyTxType(EIP4844_TX_TYPE_ID),
+            TxType::Eip1559 => AnyTxType(EIP1559_TX_TYPE_ID),
             TxType::Eip2930 => AnyTxType(EIP2930_TX_TYPE_ID),
+            TxType::Eip4844 => AnyTxType(EIP4844_TX_TYPE_ID),
             TxType::Eip7702 => AnyTxType(EIP7702_TX_TYPE_ID),
             TxType::Legacy => AnyTxType(LEGACY_TX_TYPE_ID),
         })

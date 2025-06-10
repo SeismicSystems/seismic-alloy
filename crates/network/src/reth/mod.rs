@@ -168,20 +168,22 @@ impl TransactionBuilder<SeismicReth> for SeismicTransactionRequest {
     #[doc(alias = "output_transaction_type")]
     fn output_tx_type(&self) -> SeismicTxType {
         match self.inner.preferred_type() {
-            TxType::Eip1559 | TxType::Eip4844 => SeismicTxType::Eip1559,
-            TxType::Eip2930 => SeismicTxType::Eip2930,
-            TxType::Eip7702 => SeismicTxType::Eip7702,
             TxType::Legacy => SeismicTxType::Legacy,
+            TxType::Eip1559 => SeismicTxType::Eip1559,
+            TxType::Eip2930 => SeismicTxType::Eip2930,
+            TxType::Eip4844 => SeismicTxType::Eip4844,
+            TxType::Eip7702 => SeismicTxType::Eip7702,
         }
     }
 
     #[doc(alias = "output_transaction_type_checked")]
     fn output_tx_type_checked(&self) -> Option<SeismicTxType> {
         self.inner.buildable_type().map(|tx_ty| match tx_ty {
-            TxType::Eip1559 | TxType::Eip4844 => SeismicTxType::Eip1559,
-            TxType::Eip2930 => SeismicTxType::Eip2930,
-            TxType::Eip7702 => SeismicTxType::Eip7702,
             TxType::Legacy => SeismicTxType::Legacy,
+            TxType::Eip1559 => SeismicTxType::Eip1559,
+            TxType::Eip2930 => SeismicTxType::Eip2930,
+            TxType::Eip4844 => SeismicTxType::Eip4844,
+            TxType::Eip7702 => SeismicTxType::Eip7702,
         })
     }
 

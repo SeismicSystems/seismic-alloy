@@ -338,11 +338,12 @@ impl From<SeismicTypedTransaction> for SeismicTransactionRequest {
 impl From<SeismicTxEnvelope> for SeismicTransactionRequest {
     fn from(value: SeismicTxEnvelope) -> Self {
         match value {
-            SeismicTxEnvelope::Eip2930(tx) => tx.into(),
+            SeismicTxEnvelope::Legacy(tx) => tx.into(),
             SeismicTxEnvelope::Eip1559(tx) => tx.into(),
+            SeismicTxEnvelope::Eip2930(tx) => tx.into(),
+            SeismicTxEnvelope::Eip4844(tx) => tx.into(),
             SeismicTxEnvelope::Eip7702(tx) => tx.into(),
             SeismicTxEnvelope::Seismic(tx) => tx.into(),
-            _ => Default::default(),
         }
     }
 }

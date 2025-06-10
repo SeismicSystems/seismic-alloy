@@ -124,6 +124,14 @@ impl SeismicTypedTransaction {
         }
     }
 
+    /// Return the inner EIP-1559 transaction if it exists.
+    pub const fn eip1559(&self) -> Option<&TxEip1559> {
+        match self {
+            Self::Eip1559(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
     /// Return the inner EIP-2930 transaction if it exists.
     pub const fn eip2930(&self) -> Option<&TxEip2930> {
         match self {
@@ -132,10 +140,18 @@ impl SeismicTypedTransaction {
         }
     }
 
-    /// Return the inner EIP-1559 transaction if it exists.
-    pub const fn eip1559(&self) -> Option<&TxEip1559> {
+    /// Return the inner EIP-4844 transaction if it exists.
+    pub const fn eip4844(&self) -> Option<&TxEip4844Variant> {
         match self {
-            Self::Eip1559(tx) => Some(tx),
+            Self::Eip4844(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
+    /// Return the inner EIP-7702 transaction if it exists.
+    pub const fn eip7702(&self) -> Option<&TxEip7702> {
+        match self {
+            Self::Eip7702(tx) => Some(tx),
             _ => None,
         }
     }
