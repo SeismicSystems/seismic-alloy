@@ -353,27 +353,3 @@ impl From<SeismicFoundryTxEnvelope> for SeismicTxEnvelope {
         }
     }
 }
-
-// Add this test to see which types are problematic
-fn _assert_send_sync() {
-    fn assert_send<T: Send>() {}
-    fn assert_sync<T: Sync>() {}
-
-    assert_send::<TxEnvelope>();
-    assert_sync::<TxEnvelope>();
-
-    assert_send::<UnknownTxEnvelope>();
-    assert_sync::<UnknownTxEnvelope>();
-
-    assert_send::<Signed<TxSeismic>>();
-    assert_sync::<Signed<TxSeismic>>();
-
-    assert_send::<SeismicFoundryTxEnvelope>();
-    assert_sync::<SeismicFoundryTxEnvelope>();
-
-    assert_send::<SeismicTypedTransaction>();
-    assert_sync::<SeismicTypedTransaction>();
-
-    assert_send::<SeismicFoundryTypedTransaction>();
-    assert_sync::<SeismicFoundryTypedTransaction>();
-}

@@ -341,10 +341,13 @@ mod tests {
     #[tokio::test]
     async fn test_send_transaction() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
+        println!("plaintext: {:#?}", plaintext);
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider =
             SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+
+        println!("provider: {:#?}", provider);
 
         // testing send transaction
         let tx = seismic_foundry_tx_builder()
@@ -353,15 +356,20 @@ mod tests {
             .with_nonce(1)
             .into();
 
-        let contract_address = provider
-            .send_transaction(tx.into())
-            .await
-            .unwrap()
-            .get_receipt()
-            .await
-            .unwrap()
-            .contract_address
-            .unwrap();
+        println!("tx: {:#?}", tx);
+
+        let pending_tx = provider
+        .send_transaction(tx.into())
+        .await
+        .unwrap();
+
+        println!("pending_tx: {:#?}", pending_tx);
+
+        let receipt = pending_tx.get_receipt().await.unwrap();
+        println!("receipt: {:#?}", receipt);
+
+        let contract_address = receipt.contract_address.unwrap();
+        println!("contract_address: {:#?}", contract_address);
 
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());
