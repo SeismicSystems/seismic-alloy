@@ -8,7 +8,7 @@ use alloy_provider::{
 };
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
+use seismic_alloy_consensus::{InputDecryptionElements, SeismicTxType, TxSeismicElements};
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
@@ -35,6 +35,9 @@ pub trait SeismicProviderExt: Provider<Seismic> {
     /// Whether the input data should be encrypted
     /// None or Empty input data should not be encrypted
     fn should_encrypt_input<B: TransactionBuilder<Seismic>>(&self, tx: &B) -> bool {
+        if tx.output_tx_type() == SeismicTxType::Seismic {
+            return false;
+        }
         tx.input().map_or(false, |input| !input.is_empty())
     }
 
