@@ -35,9 +35,9 @@ pub trait SeismicProviderExt: Provider<Seismic> {
     /// Whether the input data should be encrypted
     /// None or Empty input data should not be encrypted
     fn should_encrypt_input<B: TransactionBuilder<Seismic>>(&self, tx: &B) -> bool {
-        if tx.output_tx_type() == SeismicTxType::Seismic {
-            return false;
-        }
+        // if tx.output_tx_type() == SeismicTxType::Seismic {
+        //     return false;
+        // }
         tx.input().map_or(false, |input| !input.is_empty())
     }
 
