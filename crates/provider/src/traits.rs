@@ -25,6 +25,7 @@ pub trait SeismicProviderExt: Provider<Seismic> {
             if self.should_encrypt_input(builder) {
                 return self.call_with_encryption(tx).await;
             }
+            println!("its a builder");
         }
 
         // TODO: we should encrypt the input data here
@@ -58,6 +59,7 @@ pub trait SeismicProviderExt: Provider<Seismic> {
 
     /// Encrypts the input data, runs self.call_conditionally_signed, and decrypts the output data
     async fn call_with_encryption(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        println!("calls with encryption");
         // set up elements unrelated to the input tx
         let network_pk = self.get_tee_pubkey().await.map_err(|e| {
             TransportErrorKind::custom_str(&format!(
@@ -113,6 +115,7 @@ pub trait SeismicProviderExt: Provider<Seismic> {
 
     /// Makes a call request, perhaps making the call signed depinding on the input type
     async fn call_conditionally_signed(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
+        println!("calls with conditionally signed");
         match tx {
             SendableTx::Builder(builder) => {
                 let output = self.client().request("eth_call", (builder.clone(),)).await?;
@@ -137,13 +140,16 @@ where
 {
     async fn seismic_call(&self, tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
         // Fill the transaction
+        println!("seismic_call in fill provider");
         let builder = tx.as_builder().unwrap().clone();
+        println!("builder: {:#?}", builder);
         let built_tx = self.fill(builder).await?;
 
         // self.inner is not public for FillProvider.
         // However, for our use cases, self.inner is the RootProvider,
         // so we get it this hacky way
         let inner = self.root();
+        println!("built_tx: {:#?}", built_tx);
 
         SeismicProviderExt::seismic_call(inner, built_tx).await
     }

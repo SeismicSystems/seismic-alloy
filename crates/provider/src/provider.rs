@@ -271,6 +271,7 @@ mod tests {
             .with_kind(TxKind::Create)
             .transaction_type(SEISMIC_TX_TYPE_ID);
 
+        println!("tx: {:#?}", tx);
         let res =
             provider.seismic_call(SendableTx::Builder(tx)).await.map_err(|e| e.to_string())?;
 
