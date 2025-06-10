@@ -232,6 +232,19 @@ impl SeismicTransactionRequest {
     }
 }
 
+impl core::ops::Deref for SeismicTransactionRequest {
+    type Target = TransactionRequest;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl core::ops::DerefMut for SeismicTransactionRequest {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
 impl From<TransactionRequest> for SeismicTransactionRequest {
     fn from(tx: TransactionRequest) -> Self {
         Self { inner: tx, seismic_elements: None }

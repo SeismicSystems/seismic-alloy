@@ -184,7 +184,6 @@ where
     }
 }
 
-
 impl<N: SeismicNetwork, P> Deref for SeismicProvider<N, P>
 where
     N::UnsignedTx: Send + Sync,
