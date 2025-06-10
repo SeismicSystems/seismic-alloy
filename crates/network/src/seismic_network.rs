@@ -40,6 +40,7 @@ where
         sender: Address,
         tx: Self::UnsignedTx,
     ) -> Result<Self::TxEnvelope, alloy_signer::Error>;
+    /// True if the transaction type is a seismic transaction.
     fn is_seismic_tx_type(ty: Self::TxType) -> bool;
 }
 
