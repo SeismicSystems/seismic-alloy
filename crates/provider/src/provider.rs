@@ -211,7 +211,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_send_transaction_with_emtpy_input() {
+    async fn test_send_transaction_with_empty_input() {
         let plaintext = Bytes::new();
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
