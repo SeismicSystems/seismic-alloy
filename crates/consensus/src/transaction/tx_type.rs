@@ -77,6 +77,7 @@ impl TryFrom<u8> for SeismicTxType {
             0 => Self::Legacy,
             1 => Self::Eip2930,
             2 => Self::Eip1559,
+            3 => Self::Eip4844,
             4 => Self::Eip7702,
             74 => Self::Seismic,
             _ => return Err(Eip2718Error::UnexpectedType(value)),

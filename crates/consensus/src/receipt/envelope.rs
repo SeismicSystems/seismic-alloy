@@ -11,7 +11,7 @@ use alloy_eips::{
 use alloy_primitives::{logs_bloom, Bloom, Log};
 use alloy_rlp::{length_of_length, BufMut, Decodable, Encodable};
 
-use crate::SeismicTxType;
+use crate::{SeismicTxType, SEISMIC_TX_TYPE_ID};
 
 /// Receipt envelope, as defined in [EIP-2718], modified for OP Stack chains.
 ///
@@ -161,7 +161,7 @@ impl<T> SeismicReceiptEnvelope<T> {
             2 => Self::Eip1559(inner),
             3 => Self::Eip4844(inner),
             4 => Self::Eip7702(inner),
-            0x4A => Self::Seismic(inner),
+            SEISMIC_TX_TYPE_ID => Self::Seismic(inner),
             _ => panic!("Invalid transaction type: {}", tx_type),
         }
     }
@@ -322,6 +322,8 @@ where
             0 => Ok(Self::Legacy(ReceiptWithBloom::arbitrary(u)?)),
             1 => Ok(Self::Eip2930(ReceiptWithBloom::arbitrary(u)?)),
             2 => Ok(Self::Eip1559(ReceiptWithBloom::arbitrary(u)?)),
+            3 => Ok(Self::Eip4844(ReceiptWithBloom::arbitrary(u)?)),
+            4 => Ok(Self::Eip7702(ReceiptWithBloom::arbitrary(u)?)),
             _ => Ok(Self::Seismic(ReceiptWithBloom::arbitrary(u)?)),
         }
     }
