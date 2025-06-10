@@ -11,7 +11,7 @@ use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::{InputDecryptionElements, SeismicTxType, TxSeismicElements};
 use seismic_alloy_network::Seismic;
 use seismic_enclave::PublicKey;
-use std::str::FromStr;
+use std::{any::{Any, TypeId}, str::FromStr};
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
 #[async_trait::async_trait]
@@ -20,14 +20,14 @@ pub trait SeismicProviderExt: Provider<Seismic> {
     /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
     async fn seismic_call(&self, mut tx: SendableTx<Seismic>) -> TransportResult<Bytes> {
-        // This check is probably wrong. need to encrypt no matter what?
-        // need to encrypt before signing?
+        // This check is wrong: should make sure it's a Seismic tx type first
         if let Some(builder) = tx.as_mut_builder() {
             if self.should_encrypt_input(builder) {
                 return self.call_with_encryption(tx).await;
             }
         }
 
+        // TODO: we should encrypt the input data here
         // If we get here, we are not encrypting the input data
         self.call_conditionally_signed(tx).await
     }
@@ -35,9 +35,9 @@ pub trait SeismicProviderExt: Provider<Seismic> {
     /// Whether the input data should be encrypted
     /// None or Empty input data should not be encrypted
     fn should_encrypt_input<B: TransactionBuilder<Seismic>>(&self, tx: &B) -> bool {
-        // if tx.output_tx_type() == SeismicTxType::Seismic {
-        //     return false;
-        // }
+        if tx.output_tx_type() == SeismicTxType::Seismic {
+            return false;
+        }
         tx.input().map_or(false, |input| !input.is_empty())
     }
 

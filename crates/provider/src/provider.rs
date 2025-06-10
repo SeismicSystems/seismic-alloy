@@ -192,6 +192,7 @@ mod tests {
     use alloy_primitives::{address, Address, Bytes, TxKind};
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
     use alloy_signer_local::PrivateKeySigner;
+    use seismic_alloy_consensus::{SeismicTxType, SEISMIC_TX_TYPE_ID};
     use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
     /// Path to local sanvil binary
@@ -266,7 +267,7 @@ mod tests {
         let provider = SeismicSignedProvider::new(wallet.clone(), anvil.endpoint_url());
 
         let tx =
-            SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create);
+            SeismicTransactionRequest::default().with_input(plaintext).with_kind(TxKind::Create).transaction_type(SEISMIC_TX_TYPE_ID);
 
         let res =
             provider.seismic_call(SendableTx::Builder(tx)).await.map_err(|e| e.to_string())?;
