@@ -3,6 +3,7 @@ pub mod builder;
 
 pub use alloy_network::*;
 
+use crate::fillers::SeismicGasFiller;
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
@@ -44,7 +45,7 @@ impl Network for SeismicReth {
 // TODO: unclear if this is correct
 impl RecommendedFillers for SeismicReth {
     type RecommendedFillers =
-        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
 
     fn recommended_fillers() -> Self::RecommendedFillers {
         Default::default()
