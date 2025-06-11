@@ -33,7 +33,7 @@ pub use seismic_alloy_provider::{
 };
 pub use seismic_alloy_rpc_types::{
     SeismicCallRequest, SeismicTransactionReceipt as TransactionReceipt,
-    SeismicTransactionRequest as TransactionRequest,
+    SeismicTransactionRequest as TransactionRequest, SeismicTransactionRequest,
 };
 
 /// A transaction receipt with the SeismicReceiptEnvelope wrapped in a WithOtherFields
@@ -48,10 +48,13 @@ use revm::context::{CfgEnv as RevmCfgEnv, TxEnv as RevmTxEnv};
 
 pub use alloy_seismic_evm::SeismicEvm;
 pub use seismic_revm::{
-    instructions::instruction_provider::SeismicInstructions as EthInstructions,
-    precompiles::SeismicPrecompiles, SeismicChain, SeismicContext as EthEvmContext, SeismicContext,
-    SeismicEvm as RevmEvm, SeismicHaltReason as OpHaltReason, SeismicSpecId as SpecId,
-    SeismicSpecId, SeismicTransaction, SeismicTransaction as OpTransaction,
+    instructions::instruction_provider::{
+        SeismicInstructions, SeismicInstructions as EthInstructions,
+    },
+    precompiles::SeismicPrecompiles,
+    SeismicChain, SeismicContext as EthEvmContext, SeismicContext, SeismicEvm as RevmEvm,
+    SeismicHaltReason as OpHaltReason, SeismicSpecId as SpecId, SeismicSpecId, SeismicTransaction,
+    SeismicTransaction as OpTransaction,
 };
 
 /// Seismic transaction environment, which wraps revm's TxEnv
