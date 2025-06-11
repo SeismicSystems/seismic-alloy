@@ -33,7 +33,7 @@ pub use seismic_alloy_provider::{
 };
 pub use seismic_alloy_rpc_types::{
     SeismicCallRequest, SeismicTransactionReceipt as TransactionReceipt,
-    SeismicTransactionRequest as TransactionRequest,
+    SeismicTransactionRequest as TransactionRequest, SeismicTransactionRequest
 };
 
 /// A transaction receipt with the SeismicReceiptEnvelope wrapped in a WithOtherFields
