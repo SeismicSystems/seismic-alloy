@@ -47,9 +47,9 @@ use alloy_evm::EvmEnv as AlloyEvmEnv;
 use revm::context::{CfgEnv as RevmCfgEnv, TxEnv as RevmTxEnv};
 pub use seismic_revm::{
     instructions::instruction_provider::SeismicInstructions as EthInstructions,
-    precompiles::SeismicPrecompiles, SeismicChain, SeismicContext as EthEvmContext,
+    precompiles::SeismicPrecompiles, SeismicChain, SeismicContext as EthEvmContext, SeismicContext,
     SeismicEvm as RevmEvm, SeismicHaltReason as OpHaltReason, SeismicSpecId as SpecId,
-    SeismicSpecId, SeismicTransaction, SeismicTransaction as OpTransaction, SeismicContext
+    SeismicSpecId, SeismicTransaction, SeismicTransaction as OpTransaction,
 };
 
 /// Seismic transaction environment, which wraps revm's TxEnv
