@@ -57,11 +57,14 @@ where
     async fn call_conditionally_signed(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(builder) => {
-                let output = self.client().request("eth_call", (builder.clone(),)).await?;
+                let call_input = builder.clone();
+                println!("call_input: {:?}", call_input);
+                let output = self.client().request("eth_call", (call_input,)).await?;
                 Ok(output)
             }
             SendableTx::Envelope(envelope) => {
                 let encoded_tx = envelope.encoded_2718();
+                println!("encoded_tx: {:?}", encoded_tx);
                 let output = self.client().request("eth_call", (encoded_tx,)).await?;
                 Ok(output)
             }
