@@ -49,7 +49,7 @@ pub use seismic_revm::{
     instructions::instruction_provider::SeismicInstructions as EthInstructions,
     precompiles::SeismicPrecompiles, SeismicChain, SeismicContext as EthEvmContext,
     SeismicEvm as RevmEvm, SeismicHaltReason as OpHaltReason, SeismicSpecId as SpecId,
-    SeismicSpecId, SeismicTransaction,
+    SeismicSpecId, SeismicTransaction, SeismicTransaction as OpTransaction, SeismicContext
 };
 
 /// Seismic transaction environment, which wraps revm's TxEnv
