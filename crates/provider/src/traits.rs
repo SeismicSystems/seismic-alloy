@@ -57,9 +57,9 @@ where
     async fn call_conditionally_signed(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(builder) => {
-                let call_input = builder.clone();
-                println!("call_input: {:?}", call_input);
-                let output = self.client().request("eth_call", (call_input,)).await?;
+                let tx_req: N::TransactionRequest = builder.clone();
+                println!("call_input: {:?}", tx_req);
+                let output = self.client().request("eth_call", (tx_req,)).await?;
                 Ok(output)
             }
             SendableTx::Envelope(envelope) => {
@@ -132,6 +132,7 @@ where
     }
 }
 
+
 #[async_trait::async_trait]
 impl SeismicProviderExt<SeismicReth> for RootProvider<SeismicReth> {
     async fn seismic_call(&self, tx: SendableTx<SeismicReth>) -> TransportResult<Bytes> {
@@ -163,4 +164,13 @@ where
         let inner = self.root();
         SeismicProviderExt::seismic_call(inner, built_tx).await
     }
+}
+
+
+#[async_trait::async_trait]
+pub trait SeismicSignedProviderExt<N: SeismicNetwork>: Provider<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes>;
 }
