@@ -3,8 +3,8 @@ use alloy_serde::WithOtherFields;
 use seismic_alloy_network::wallet::SeismicWallet;
 
 pub use seismic_alloy_consensus::{
-    Decodable712, SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope,
-    TxSeismic, TypedDataRequest,
+    Decodable712, Eip712Result, SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope,
+    TxSeismic, TypedDataRequest, SEISMIC_TX_TYPE_ID, TxSeismicElements
 };
 pub use seismic_alloy_network::{
     fillers::SeismicGasFiller as GasFiller,
@@ -32,7 +32,7 @@ pub use seismic_alloy_provider::{
     test_utils, SeismicProviderExt,
 };
 pub use seismic_alloy_rpc_types::{
-    SeismicCallRequest, SeismicTransactionReceipt as TransactionReceipt,
+    SeismicCallRequest, SeismicRawTxRequest, SeismicTransactionReceipt as TransactionReceipt,
     SeismicTransactionRequest as TransactionRequest, SeismicTransactionRequest,
 };
 
