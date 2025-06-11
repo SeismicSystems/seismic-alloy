@@ -1,6 +1,4 @@
 //! Transaction envelope types and utilities
-use std::hash::{Hash, Hasher};
-
 use crate::{
     InputDecryptionElements, InputDecryptionElementsError, SeismicTxType, SeismicTypedTransaction,
     TxSeismic, TxSeismicElements,
@@ -22,7 +20,6 @@ use std::hash::{Hash, Hasher};
 use crate::transaction::{Decodable712, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use alloy_consensus::SignableTransaction;
-
 
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
 ///

@@ -11,7 +11,6 @@ use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
 };
-use seismic_alloy_consensus::SeismicTxType;
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
 

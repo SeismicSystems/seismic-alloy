@@ -32,11 +32,10 @@ use seismic_enclave::EnclaveClient;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SeismicTransactionRequest {
-    #[cfg_attr(feature = "serde", serde(flatten))]
     /// The inner [`TransactionRequest`]
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub inner: TransactionRequest,
-    #[cfg_attr(feature = "serde", serde(flatten))]
+
     /// Seismic-specific elements to be included in the transaction
     /// For now just encrypted call data
     #[cfg_attr(feature = "serde", serde(flatten))]
@@ -443,44 +442,6 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         data: alloy_primitives::Bytes,
     ) -> Result<(), seismic_alloy_consensus::InputDecryptionElementsError> {
         let new_self = core::mem::take(self).input(data.into());
-        *self = new_self;
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use alloy_primitives::Bytes;
-
-    use super::*;
-
-    #[test]
-    fn test_set_input_for_request() {
-        let mut req = SeismicTransactionRequest::from_transaction(TxEip1559::default());
-        let start_input = req.get_input();
-        let data = Bytes::from("test");
-        assert_ne!(data, start_input);
-
-        req.set_input(data.clone()).unwrap();
-        let end_input = req.get_input();
-        assert_eq!(data, end_input);
-    }
-}
-
-impl InputDecryptionElements for SeismicTransactionRequest {
-    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
-        self.seismic_elements.ok_or(InputDecryptionElementsError::NoElements)
-    }
-
-    fn get_input(&self) -> alloy_primitives::Bytes {
-        self.inner.input.clone().into_input().unwrap()
-    }
-
-    fn set_input(
-        &mut self,
-        data: alloy_primitives::Bytes,
-    ) -> Result<(), seismic_alloy_consensus::InputDecryptionElementsError> {
-        let new_self = std::mem::take(self).input(data.into());
         *self = new_self;
         Ok(())
     }

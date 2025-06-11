@@ -15,12 +15,10 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
-alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-primitives.workspace = true
 alloy-provider.workspace = true
 alloy-rpc-client = { workspace = true, features = ["reqwest"] }
-alloy-signer.workspace = true
 alloy-transport.workspace = true
 
 seismic-alloy-consensus.workspace = true

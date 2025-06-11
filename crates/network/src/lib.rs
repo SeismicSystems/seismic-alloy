@@ -1,5 +1,6 @@
 //! Seismic network types
 pub mod fillers;
+use crate::fillers::SeismicGasFiller;
 
 pub mod foundry;
 pub use foundry::{
@@ -10,15 +11,12 @@ pub use foundry::{
 };
 
 pub mod reth;
-pub use reth::{SeismicReth, SeismicReth as Seismic};
+pub use reth::SeismicReth;
 
 pub mod seismic_network;
 pub mod wallet;
 
 pub use alloy_network::*;
-
-pub mod fillers;
-use crate::fillers::SeismicGasFiller;
 
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
@@ -255,6 +253,7 @@ impl NetworkWallet<Seismic> for EthereumWallet {
                 SeismicTypedTransaction::Legacy(tx) => TypedTransaction::Legacy(tx),
                 SeismicTypedTransaction::Eip2930(tx) => TypedTransaction::Eip2930(tx),
                 SeismicTypedTransaction::Eip1559(tx) => TypedTransaction::Eip1559(tx),
+                SeismicTypedTransaction::Eip4844(tx) => TypedTransaction::Eip4844(tx),
                 SeismicTypedTransaction::Eip7702(tx) => TypedTransaction::Eip7702(tx),
                 SeismicTypedTransaction::Seismic(_tx) => unreachable!(),
             };
