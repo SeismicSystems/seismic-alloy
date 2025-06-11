@@ -7,7 +7,7 @@ use crate::fillers::SeismicGasFiller;
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
-    BlobGasFiller, ChainIdFiller, GasFiller, JoinFill, NonceFiller, RecommendedFillers,
+    BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller, RecommendedFillers,
 };
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};

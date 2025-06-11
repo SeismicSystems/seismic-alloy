@@ -91,7 +91,6 @@ where
     }
 }
 
-
 /// Contains Seismic-specific encryption and message fields
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -917,7 +916,6 @@ mod tests {
             },
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
-        println!("tx: {:?}", tx);
         let typed_data = tx.eip712_to_type_data();
         let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
         assert_eq!(decoded, tx);
@@ -932,7 +930,7 @@ mod tests {
         );
 
         let signed = tx.clone().into_signed(sig);
-        println!("signed tx : {:?}", signed.tx());
+
         assert_eq!(signed.tx(), &tx);
         assert_eq!(signed.signature(), &sig);
         assert_ne!(*signed.hash(), signature_hash);
@@ -963,12 +961,10 @@ mod tests {
             input: Bytes::default(),
         };
         let typed_data = tx.eip712_to_type_data();
-        println!("typed_data: {:?}", typed_data);
         let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
         assert_eq!(decoded, tx);
 
-        let signature_hash = decoded.eip712_signature_hash();
-        println!("signature_hash: {:?}", signature_hash);
+        let _signature_hash = decoded.eip712_signature_hash();
     }
 
     #[cfg(feature = "serde")]

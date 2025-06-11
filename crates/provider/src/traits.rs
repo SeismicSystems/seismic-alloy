@@ -25,7 +25,6 @@ where
     /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        println!("seismic_call in SeismicProviderExt trait");
         self.call_conditionally_signed(tx).await
     }
 
@@ -58,14 +57,11 @@ where
     async fn call_conditionally_signed(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(builder) => {
-                let tx_req: N::TransactionRequest = builder.clone();
-                println!("call_input: {:?}", tx_req);
-                let output = self.client().request("eth_call", (tx_req,)).await?;
+                let output = self.client().request("eth_call", (builder.clone(),)).await?;
                 Ok(output)
             }
             SendableTx::Envelope(envelope) => {
                 let encoded_tx = envelope.encoded_2718();
-                println!("encoded_tx: {:?}", encoded_tx);
                 let output = self.client().request("eth_call", (encoded_tx,)).await?;
                 Ok(output)
             }
@@ -78,8 +74,7 @@ impl SeismicProviderExt<SeismicFoundry> for RootProvider<SeismicFoundry> {}
 
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-impl<F, P, N> SeismicProviderExt<N>
-    for FillProvider<F, P, N>
+impl<F, P, N> SeismicProviderExt<N> for FillProvider<F, P, N>
 where
     N: SeismicNetwork,
     F: TxFiller<N>,
@@ -88,11 +83,9 @@ where
     RootProvider<N>: SeismicProviderExt<N>,
 {
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        println!("seismic_call in SeismicProviderExt trait for FillProvider");
         // Fill the transaction
         let builder = tx.as_builder().unwrap().clone();
 
-        println!("built_tx: {:?}", builder);
         let built_tx = self.fill(builder).await?;
 
         // self.inner is not public for FillProvider.

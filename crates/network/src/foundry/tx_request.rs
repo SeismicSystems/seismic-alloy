@@ -253,7 +253,6 @@ impl TransactionBuilder<SeismicFoundry> for SeismicFoundryTransactionRequest {
 
     /// Get the legacy gas price for the transaction.
     fn gas_price(&self) -> Option<u128> {
-        println!("gas_price in SeismicFoundryTransactionRequest: {:#?}", self);
         <SeismicTransactionRequest as TransactionBuilder<SeismicFoundry>>::gas_price(&self.inner)
     }
 

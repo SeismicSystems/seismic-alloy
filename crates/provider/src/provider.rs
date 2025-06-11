@@ -96,14 +96,14 @@ where
 
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-impl <N: SeismicNetwork, P> SeismicProviderExt<N> for SeismicProvider<N, P> where
+impl<N: SeismicNetwork, P> SeismicProviderExt<N> for SeismicProvider<N, P>
+where
     N::UnsignedTx: Send + Sync,
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
     /// Encrypts the input data, runs self.call_conditionally_signed, and decrypts the output data
     async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
-        println!("seismic_call in SeismicProviderExt for SeismicProvider");
         // set up elements unrelated to the input tx
         let network_pk = self.get_tee_pubkey().await.map_err(|e| {
             TransportErrorKind::custom_str(&format!(
@@ -137,14 +137,12 @@ impl <N: SeismicNetwork, P> SeismicProviderExt<N> for SeismicProvider<N, P> wher
                     .map_err(|e| {
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
-                N::set_envelope_input(&mut envelope, encrypted_input).map_err(
-                    |e| {
-                        TransportErrorKind::custom_str(&format!(
-                            "Error setting encrypted input: {:?}",
-                            e
-                        ))
-                    },
-                )?;
+                N::set_envelope_input(&mut envelope, encrypted_input).map_err(|e| {
+                    TransportErrorKind::custom_str(&format!(
+                        "Error setting encrypted input: {:?}",
+                        e
+                    ))
+                })?;
                 SendableTx::Envelope(envelope)
             }
         };
@@ -344,7 +342,6 @@ mod tests {
     }
 
     // TODO: make this work with empty bytes
-    #[ignore]
     #[tokio::test]
     async fn test_send_transaction_with_empty_input() {
         let plaintext = Bytes::new();
@@ -412,32 +409,18 @@ mod tests {
     #[tokio::test]
     async fn test_send_transaction() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        println!("plaintext: {:#?}", plaintext);
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider =
             SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
-        println!("provider: {:#?}", provider);
-
         // testing send transaction
-        let tx = seismic_foundry_tx_builder()
-            .with_input(plaintext)
-            .with_kind(TxKind::Create)
-            .with_nonce(1)
-            .into();
-
-        println!("tx: {:#?}", tx);
+        let tx =
+            seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
 
         let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
-
-        println!("pending_tx: {:#?}", pending_tx);
-
         let receipt = pending_tx.get_receipt().await.unwrap();
-        println!("receipt: {:#?}", receipt);
-
         let contract_address = receipt.contract_address.unwrap();
-        println!("contract_address: {:#?}", contract_address);
 
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());

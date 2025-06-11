@@ -11,7 +11,8 @@ use alloy_primitives::{Address, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
-    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic, TxSeismicElements, TypedDataRequest
+    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
+    SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic, TxSeismicElements, TypedDataRequest,
 };
 use seismic_enclave::EnclaveClient;
 

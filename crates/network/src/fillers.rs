@@ -45,6 +45,18 @@ impl SeismicGasFiller {
 
         Ok(GasFillable::Legacy { gas_limit, gas_price })
     }
+
+    fn is_seismic_tx<N>(&self, tx: &N::TransactionRequest) -> bool
+    where
+        N: Network,
+        N::TransactionRequest: InputDecryptionElements,
+    {
+        // TODO: it is probably more correct to check the tx type instead,
+        // but we probably will get an error anyway if we have either combo of:
+        // - a seismic tx with no decryption elements
+        // - a non-seismic tx with decryption elements
+        tx.get_decryption_elements().is_ok()
+    }
 }
 
 impl<N: Network> TxFiller<N> for SeismicGasFiller
@@ -54,7 +66,7 @@ where
     type Fillable = GasFillable;
 
     fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
-        if tx.get_decryption_elements().is_ok() {
+        if self.is_seismic_tx::<N>(tx) {
             // tx is a seismic transaction, repeat logic for legacy tx
             if tx.gas_price().is_some() && tx.gas_limit().is_some() {
                 return FillerControlFlow::Finished;
@@ -76,7 +88,7 @@ where
     where
         P: Provider<N>,
     {
-        if tx.get_decryption_elements().is_ok() {
+        if self.is_seismic_tx::<N>(tx) {
             // tx is a seismic transaction, repeat logic for legacy tx
             SeismicGasFiller::seismic_prepare_legacy(self, provider, tx).await
         } else {
