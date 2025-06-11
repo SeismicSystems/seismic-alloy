@@ -132,7 +132,6 @@ rstest = "0.24.0"
 c-kzg = { version = "2.1.1", default-features = false }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 
-
 [patch.crates-io]
 # alloy-core
 alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "ab2208a" }
@@ -143,7 +142,7 @@ alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy
 alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "ab2208a" }
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "ab2208a" }
 
-seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "06df897" }
+seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "7e79591" }
 
 revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5e305bd7" }
 seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5e305bd7" }

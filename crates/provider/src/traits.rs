@@ -22,7 +22,6 @@ where
     N::UnsignedTx: Send + Sync,
 {
     /// Makes a call request while handling seismic specific aspects
-    /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         self.call_conditionally_signed(tx).await

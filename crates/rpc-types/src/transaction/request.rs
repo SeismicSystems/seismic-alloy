@@ -32,12 +32,13 @@ use seismic_enclave::EnclaveClient;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SeismicTransactionRequest {
-    #[cfg_attr(feature = "serde", serde(flatten))]
     /// The inner [`TransactionRequest`]
-    pub inner: TransactionRequest,
     #[cfg_attr(feature = "serde", serde(flatten))]
+    pub inner: TransactionRequest,
+
     /// Seismic-specific elements to be included in the transaction
     /// For now just encrypted call data
+    #[cfg_attr(feature = "serde", serde(flatten))]
     pub seismic_elements: Option<TxSeismicElements>,
 }
 
@@ -420,7 +421,10 @@ impl TransactionBuilder7702 for SeismicTransactionRequest {
 impl Decodable712 for SeismicTransactionRequest {
     fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
         let tx = TxSeismic::eip712_decode(&typed_data.data)?;
-        Ok(tx.into())
+        let signed_tx = tx.into_signed(typed_data.signature);
+
+        // Note: into will not recover the signer address unless the k256 feature is enabled
+        Ok(signed_tx.into())
     }
 }
 
@@ -437,7 +441,7 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         &mut self,
         data: alloy_primitives::Bytes,
     ) -> Result<(), seismic_alloy_consensus::InputDecryptionElementsError> {
-        let new_self = std::mem::take(self).input(data.into());
+        let new_self = core::mem::take(self).input(data.into());
         *self = new_self;
         Ok(())
     }
