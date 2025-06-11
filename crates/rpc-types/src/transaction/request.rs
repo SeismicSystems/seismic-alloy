@@ -11,8 +11,8 @@ use alloy_primitives::{Address, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
-    Decodable712, Eip712Result, SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic,
-    TxSeismicElements, TypedDataRequest,
+    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
+    SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic, TxSeismicElements, TypedDataRequest,
 };
 use seismic_enclave::EnclaveClient;
 
@@ -421,5 +421,43 @@ impl Decodable712 for SeismicTransactionRequest {
     fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
         let tx = TxSeismic::eip712_decode(&typed_data.data)?;
         Ok(tx.into())
+    }
+}
+
+impl InputDecryptionElements for SeismicTransactionRequest {
+    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
+        self.seismic_elements.ok_or(InputDecryptionElementsError::NoElements)
+    }
+
+    fn get_input(&self) -> alloy_primitives::Bytes {
+        self.inner.input.clone().into_input().unwrap()
+    }
+
+    fn set_input(
+        &mut self,
+        data: alloy_primitives::Bytes,
+    ) -> Result<(), seismic_alloy_consensus::InputDecryptionElementsError> {
+        let new_self = std::mem::take(self).input(data.into());
+        *self = new_self;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::Bytes;
+
+    use super::*;
+
+    #[test]
+    fn test_set_input_for_request() {
+        let mut req = SeismicTransactionRequest::from_transaction(TxEip1559::default());
+        let start_input = req.get_input();
+        let data = Bytes::from("test");
+        assert_ne!(data, start_input);
+
+        req.set_input(data.clone()).unwrap();
+        let end_input = req.get_input();
+        assert_eq!(data, end_input);
     }
 }

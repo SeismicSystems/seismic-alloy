@@ -130,15 +130,13 @@ impl SeismicNetwork for SeismicFoundry {
         req: &mut Self::TransactionRequest,
         input: Bytes,
     ) -> Result<(), InputDecryptionElementsError> {
-        req.set_input(input);
-        Ok(())
+        InputDecryptionElements::set_input(req, input)
     }
     fn set_envelope_input(
         req: &mut Self::TxEnvelope,
         input: Bytes,
     ) -> Result<(), InputDecryptionElementsError> {
-        req.set_input(input);
-        Ok(())
+        InputDecryptionElements::set_input(req, input)
     }
     async fn sign_transaction_from(
         wallet: &SeismicWallet<Self>,

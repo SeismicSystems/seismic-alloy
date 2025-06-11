@@ -17,7 +17,7 @@ use alloy_consensus::{
 };
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
-    BlobGasFiller, ChainIdFiller, GasFiller, JoinFill, NonceFiller, RecommendedFillers,
+    BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller, RecommendedFillers,
 };
 use alloy_rpc_types_eth::AccessList;
 use alloy_serde::WithOtherFields;
@@ -28,7 +28,10 @@ use seismic_alloy_consensus::{
 use seismic_alloy_rpc_types::{SeismicTransactionReceipt, SeismicTransactionRequest};
 use typed_tx::SeismicFoundryTypedTransaction;
 
-use crate::{foundry::tx_request::SeismicFoundryRpcTransaction, SeismicFoundryRpcBlock};
+use crate::{
+    fillers::SeismicGasFiller, foundry::tx_request::SeismicFoundryRpcTransaction,
+    SeismicFoundryRpcBlock,
+};
 
 /// Seismic foundry receipt response
 pub type SeismicFoundryReceiptResponse = WithOtherFields<SeismicTransactionReceipt>;
@@ -64,7 +67,7 @@ impl Network for SeismicFoundry {
 // TODO: unclear if this is correct
 impl RecommendedFillers for SeismicFoundry {
     type RecommendedFillers =
-        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
 
     fn recommended_fillers() -> Self::RecommendedFillers {
         Default::default()

@@ -9,6 +9,7 @@ use alloy_primitives::{
     aliases::U96, hex, keccak256, Address, Bytes, ChainId, Signature, TxKind, B256, U256,
 };
 use alloy_rlp::{BufMut, Decodable, Encodable};
+use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
@@ -68,6 +69,26 @@ pub enum InputDecryptionElementsError {
     /// No elements were found
     #[error("Expected Elemements but no elements found")]
     NoElements,
+}
+
+impl<T> InputDecryptionElements for WithOtherFields<T>
+where
+    T: InputDecryptionElements,
+{
+    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
+        self.inner.get_decryption_elements()
+    }
+
+    fn get_input(&self) -> alloy_primitives::Bytes {
+        self.inner.get_input()
+    }
+
+    fn set_input(
+        &mut self,
+        data: alloy_primitives::Bytes,
+    ) -> Result<(), InputDecryptionElementsError> {
+        self.inner.set_input(data)
+    }
 }
 
 /// Contains Seismic-specific encryption and message fields
@@ -895,7 +916,6 @@ mod tests {
             },
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
-        println!("tx: {:?}", tx);
         let typed_data = tx.eip712_to_type_data();
         let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
         assert_eq!(decoded, tx);
@@ -910,7 +930,7 @@ mod tests {
         );
 
         let signed = tx.clone().into_signed(sig);
-        println!("signed tx : {:?}", signed.tx());
+
         assert_eq!(signed.tx(), &tx);
         assert_eq!(signed.signature(), &sig);
         assert_ne!(*signed.hash(), signature_hash);
@@ -941,12 +961,10 @@ mod tests {
             input: Bytes::default(),
         };
         let typed_data = tx.eip712_to_type_data();
-        println!("typed_data: {:?}", typed_data);
         let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
         assert_eq!(decoded, tx);
 
-        let signature_hash = decoded.eip712_signature_hash();
-        println!("signature_hash: {:?}", signature_hash);
+        let _signature_hash = decoded.eip712_signature_hash();
     }
 
     #[cfg(feature = "serde")]
