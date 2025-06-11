@@ -11,6 +11,7 @@ use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
 };
+use seismic_alloy_consensus::SeismicTxType;
 use seismic_enclave::PublicKey;
 use std::str::FromStr;
 
@@ -22,7 +23,6 @@ where
     N::UnsignedTx: Send + Sync,
 {
     /// Makes a call request while handling seismic specific aspects
-    /// e.g. encrypting input data and decrypting output data
     /// e.g. sending signed call requests
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         self.call_conditionally_signed(tx).await

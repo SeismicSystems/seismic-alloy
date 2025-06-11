@@ -16,11 +16,14 @@ use alloy_eips::{
 };
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
 use alloy_rlp::{Decodable, Encodable};
+use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "serde")]
 use crate::transaction::{Decodable712, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use alloy_consensus::SignableTransaction;
+
+
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
 ///
 /// # Note:
