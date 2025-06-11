@@ -32,7 +32,7 @@ pub use seismic_alloy_provider::{
     test_utils, SeismicProviderExt,
 };
 pub use seismic_alloy_rpc_types::{
-    SeismicCallRequest, SeismicTransactionReceipt as TransactionReceipt,
+    SeismicCallRequest, SeismicRawTxRequest, SeismicTransactionReceipt as TransactionReceipt,
     SeismicTransactionRequest as TransactionRequest, SeismicTransactionRequest,
 };
 
