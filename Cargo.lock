@@ -513,6 +513,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-seismic-evm"
+version = "0.9.1"
+source = "git+https://github.com/SeismicSystems/seismic-evm.git?rev=8230891#82308916eb4d42cc7f8d532667a01c50adf67549"
+dependencies = [
+ "alloy-evm",
+ "alloy-primitives",
+ "revm",
+ "seismic-enclave",
+ "seismic-revm",
+]
+
+[[package]]
 name = "alloy-serde"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3202,8 +3214,7 @@ dependencies = [
 [[package]]
 name = "op-revm"
 version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2d9ddee86c9927dd88cd3037008f98c04016b013cd7c2822015b134e8d9b465"
+source = "git+https://github.com/SeismicSystems/seismic-revm.git?rev=5e305bd7#5e305bd7abf92168449ceea7efb09182b9b1d1f4"
 dependencies = [
  "auto_impl",
  "once_cell",
@@ -4381,6 +4392,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
  "alloy-rpc-types-eth",
+ "alloy-seismic-evm",
  "alloy-serde",
  "derive_more 1.0.0",
  "revm",

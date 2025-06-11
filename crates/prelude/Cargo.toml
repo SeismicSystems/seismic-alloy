@@ -30,6 +30,7 @@ serde.workspace = true
 revm.workspace = true
 seismic-revm.workspace = true
 alloy-evm.workspace = true
+alloy-seismic-evm.workspace = true
 
 [lints]
 workspace = true

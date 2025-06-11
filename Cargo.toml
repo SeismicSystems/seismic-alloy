@@ -44,8 +44,10 @@ seismic-alloy-provider = { version = "0.0.1", path = "crates/provider", default-
 seismic-enclave = "0.1.0"
 
 revm = { version = "23.1.0", default-features = false }
-alloy-evm = "0.9.1"
 seismic-revm = "1.0.0"
+
+alloy-evm = "0.9.1"
+alloy-seismic-evm = "0.9.1"
 
 # Alloy
 alloy-consensus = { version = "1.0.5", default-features = false }
@@ -143,6 +145,9 @@ alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy
 
 seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "06df897" }
 
-seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5e305bd7" }
-alloy-evm = { git = "https://github.com/SeismicSystems/seismic-evm.git", rev = "8230891" }
 revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5e305bd7" }
+seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5e305bd7" }
+op-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5e305bd7" }
+
+alloy-evm = { git = "https://github.com/SeismicSystems/seismic-evm.git", rev = "8230891" }
+alloy-seismic-evm = { git = "https://github.com/SeismicSystems/seismic-evm.git", rev = "8230891" }

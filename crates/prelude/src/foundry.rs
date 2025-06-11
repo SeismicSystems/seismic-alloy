@@ -45,6 +45,8 @@ pub type EthereumWallet = SeismicWallet<AnyNetwork>;
 // Revm
 use alloy_evm::EvmEnv as AlloyEvmEnv;
 use revm::context::{CfgEnv as RevmCfgEnv, TxEnv as RevmTxEnv};
+
+pub use alloy_seismic_evm::SeismicEvm;
 pub use seismic_revm::{
     instructions::instruction_provider::SeismicInstructions as EthInstructions,
     precompiles::SeismicPrecompiles, SeismicChain, SeismicContext as EthEvmContext, SeismicContext,
