@@ -84,16 +84,6 @@ where
     }
 }
 
-// impl<P> SeismicProviderExt<SeismicReth> for SeismicProvider<SeismicReth, P> where
-//     P: SeismicProviderExt<SeismicReth>
-// {
-// }
-
-// impl<P> SeismicProviderExt<SeismicFoundry> for SeismicProvider<SeismicFoundry, P> where
-//     P: SeismicProviderExt<SeismicFoundry>
-// {
-// }
-
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl<N: SeismicNetwork, P> SeismicProviderExt<N> for SeismicProvider<N, P>
