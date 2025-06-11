@@ -4,7 +4,7 @@ use seismic_alloy_network::wallet::SeismicWallet;
 
 pub use seismic_alloy_consensus::{
     Decodable712, SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope,
-    TxSeismic, TypedDataRequest, SEISMIC_TX_TYPE_ID
+    TxSeismic, TypedDataRequest, SEISMIC_TX_TYPE_ID, TxSeismicElements
 };
 pub use seismic_alloy_network::{
     fillers::SeismicGasFiller as GasFiller,
