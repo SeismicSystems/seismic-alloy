@@ -27,5 +27,9 @@ alloy-rpc-types.workspace = true
 derive_more.workspace = true
 serde.workspace = true
 
+revm.workspace = true
+seismic-revm.workspace = true
+alloy-evm.workspace = true
+
 [lints]
 workspace = true
