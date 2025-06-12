@@ -551,6 +551,49 @@ impl SeismicTxEnvelope {
     }
 }
 
+#[cfg(feature = "k256")]
+impl alloy_consensus::transaction::SignerRecoverable for SeismicTxEnvelope {
+    fn recover_signer(&self) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
+        let signature_hash = match self {
+            Self::Legacy(tx) => tx.signature_hash(),
+            Self::Eip2930(tx) => tx.signature_hash(),
+            Self::Eip1559(tx) => tx.signature_hash(),
+            Self::Eip4844(tx) => tx.signature_hash(),
+            Self::Eip7702(tx) => tx.signature_hash(),
+            Self::Seismic(tx) => tx.signature_hash(),
+        };
+        let signature = match self {
+            Self::Legacy(tx) => tx.signature(),
+            Self::Eip2930(tx) => tx.signature(),
+            Self::Eip1559(tx) => tx.signature(),
+            Self::Eip4844(tx) => tx.signature(),
+            Self::Eip7702(tx) => tx.signature(),
+            Self::Seismic(tx) => tx.signature(),
+        };
+        alloy_consensus::crypto::secp256k1::recover_signer(signature, signature_hash)
+    }
+
+    fn recover_signer_unchecked(&self) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
+        let signature_hash = match self {
+            Self::Legacy(tx) => tx.signature_hash(),
+            Self::Eip2930(tx) => tx.signature_hash(),
+            Self::Eip1559(tx) => tx.signature_hash(),
+            Self::Eip4844(tx) => tx.signature_hash(),
+            Self::Eip7702(tx) => tx.signature_hash(),
+            Self::Seismic(tx) => tx.signature_hash(),
+        };
+        let signature = match self {
+            Self::Legacy(tx) => tx.signature(),
+            Self::Eip2930(tx) => tx.signature(),
+            Self::Eip1559(tx) => tx.signature(),
+            Self::Eip4844(tx) => tx.signature(),
+            Self::Eip7702(tx) => tx.signature(),
+            Self::Seismic(tx) => tx.signature(),
+        };
+        alloy_consensus::crypto::secp256k1::recover_signer_unchecked(signature, signature_hash)
+    }
+}
+
 impl Encodable for SeismicTxEnvelope {
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
         self.network_encode(out)
