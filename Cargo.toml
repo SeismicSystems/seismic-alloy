@@ -43,12 +43,6 @@ seismic-alloy-provider = { version = "0.0.1", path = "crates/provider", default-
 
 seismic-enclave = "0.1.0"
 
-revm = { version = "23.1.0", default-features = false }
-seismic-revm = "1.0.0"
-
-alloy-evm = "0.9.1"
-alloy-seismic-evm = "0.9.1"
-
 # Alloy
 alloy-consensus = { version = "1.0.5", default-features = false }
 alloy-eips = { version = "1.0.5", default-features = false }
