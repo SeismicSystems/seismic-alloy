@@ -261,6 +261,30 @@ impl SeismicTransactionRequest {
         }?;
         Some(pref)
     }
+
+    /// Check if all necessary keys are present to build a transaction.
+    ///
+    /// # Returns
+    ///
+    /// - Ok(type) if all necessary keys are present to build the preferred type.
+    /// - Err((type, missing)) if some keys are missing to build the preferred type.
+    pub fn missing_keys(&self) -> Result<SeismicTxType, (SeismicTxType, Vec<&'static str>)> {
+        let pref = self.preferred_type();
+        if let Err(missing) = match pref {
+            SeismicTxType::Seismic => self.complete_seismic(),
+            _ =>  {
+                let res = self.inner.missing_keys();
+                match res {
+                    Ok(tx_type) => return Ok(tx_type.into()),
+                    Err((tx_type, missing)) => return Err((tx_type.into(), missing)),
+                }
+            },
+        } {
+            Err((pref, missing))
+        } else {
+            Ok(pref)
+        }
+    }
 }
 
 impl core::ops::Deref for SeismicTransactionRequest {

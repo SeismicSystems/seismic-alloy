@@ -181,8 +181,7 @@ impl TransactionBuilder<SeismicReth> for SeismicTransactionRequest {
     }
 
     fn build_unsigned(self) -> BuildResult<SeismicTypedTransaction, SeismicReth> {
-        if let Err((tx_type, missing)) = self.inner.missing_keys() {
-            let tx_type = SeismicTxType::try_from(tx_type as u8).unwrap();
+        if let Err((tx_type, missing)) = self.missing_keys() {
             return Err(TransactionBuilderError::InvalidTransactionRequest(tx_type, missing)
                 .into_unbuilt(self));
         }
