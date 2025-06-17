@@ -345,7 +345,6 @@ impl TransactionBuilder<SeismicFoundry> for SeismicFoundryTransactionRequest {
     /// This does not imply that the builder is ready to build.
     #[doc(alias = "output_transaction_type")]
     fn output_tx_type(&self) -> <SeismicFoundry as alloy_network::Network>::TxType {
-        self.inner.transaction_type;
         <SeismicTransactionRequest as TransactionBuilder<SeismicFoundry>>::output_tx_type(
             &self.inner,
         )
