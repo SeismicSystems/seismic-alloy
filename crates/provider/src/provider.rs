@@ -307,7 +307,7 @@ pub fn sfoundry_unsigned_provider(url: reqwest::Url) -> SeismicUnsignedProvider<
 mod tests {
     use super::*;
     use crate::test_utils::ContractTestContext;
-    use alloy_network::TransactionBuilder;
+    use alloy_network::{ReceiptResponse, TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::{address, Address, Bytes, TxKind};
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
@@ -434,7 +434,6 @@ mod tests {
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());
 
-
         let network_pk = provider.get_tee_pubkey().await.unwrap();
         let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
         let elements = TxSeismicElements::default()
@@ -446,18 +445,19 @@ mod tests {
             .client_encrypt(&tx_input, &network_pk, &encryption_keypair.secret_key())
             .unwrap();
 
-        let mut tx =
-            seismic_foundry_tx_builder().with_input(encrypted_input).with_kind(TxKind::Call(contract_address)).into();
+        let mut tx = seismic_foundry_tx_builder()
+            .with_input(encrypted_input)
+            .with_kind(TxKind::Call(contract_address))
+            .into();
         tx.inner.transaction_type = Some(TxSeismic::TX_TYPE);
         tx.seismic_elements = Some(elements);
 
         let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
         let receipt = pending_tx.get_receipt().await.unwrap();
 
+        assert!(receipt.status());
         match receipt.inner.inner {
-            SeismicReceiptEnvelope::Seismic(r) => {
-                println!("seismic receipt: {:?}", r);
-            }
+            SeismicReceiptEnvelope::Seismic(_r) => {}
             _ => {
                 panic!("expected seismic receipt");
             }
