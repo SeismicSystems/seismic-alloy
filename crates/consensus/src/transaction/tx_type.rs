@@ -1,11 +1,10 @@
 //! Contains the transaction type identifier for Seismic.
 
-use alloy_consensus::Typed2718;
+use alloy_consensus::{TxType, Typed2718};
 use alloy_eips::eip2718::Eip2718Error;
 use alloy_primitives::{U64, U8};
 use alloy_rlp::{BufMut, Decodable, Encodable};
 use derive_more::Display;
-use alloy_consensus::TxType;
 
 /// Identifier for an Seismic deposit transaction
 pub const SEISMIC_TX_TYPE_ID: u8 = 74; // 0x4A

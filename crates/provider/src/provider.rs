@@ -53,7 +53,6 @@ where
         &self,
         mut tx: SendableTx<N>,
     ) -> TransportResult<PendingTransactionBuilder<N>> {
-        tracing::debug!("SeismicProvider::send_transaction_internal. tx: {:?}", tx);
         if let Some(mut builder) = tx.as_mut_builder() {
             if self.should_encrypt_input(builder) {
                 let network_pk = self.get_tee_pubkey().await.map_err(|e| {
@@ -122,7 +121,12 @@ where
                 SendableTx::Builder(builder)
             }
             SendableTx::Envelope(_) => {
-                return TransportResult::Err(TransportErrorKind::custom_str("SeismicProvider::seismic_call does not support envelope transactions").into())
+                return TransportResult::Err(
+                    TransportErrorKind::custom_str(
+                        "SeismicProvider::seismic_call does not support envelope transactions",
+                    )
+                    .into(),
+                )
             }
         };
 

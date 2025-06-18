@@ -28,8 +28,6 @@ seismic-enclave.workspace = true
 async-trait.workspace = true
 reqwest.workspace = true
 
-tracing.workspace = true
-
 [dev-dependencies]
 tokio.workspace = true
 alloy-rpc-types-eth.workspace = true

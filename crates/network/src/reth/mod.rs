@@ -44,8 +44,10 @@ impl Network for SeismicReth {
 
 // TODO: unclear if this is correct
 impl RecommendedFillers for SeismicReth {
-    type RecommendedFillers =
-        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>>;
+    type RecommendedFillers = JoinFill<
+        SeismicGasFiller,
+        JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+    >;
 
     fn recommended_fillers() -> Self::RecommendedFillers {
         Default::default()

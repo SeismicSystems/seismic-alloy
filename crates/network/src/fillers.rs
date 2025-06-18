@@ -3,6 +3,7 @@
 //! Normally fillers go in alloy-provider, but we need to put them here because
 //! we need it to impl RecommendedFillers for the [`Seismic`] network.
 
+use crate::seismic_network::SeismicNetwork;
 use alloy_network::{Network, TransactionBuilder};
 use alloy_provider::{
     fillers::{FillerControlFlow, GasFillable, TxFiller},
@@ -12,7 +13,6 @@ use alloy_transport::TransportResult;
 use futures::FutureExt;
 use seismic_alloy_consensus::InputDecryptionElements;
 use std::future::IntoFuture;
-use crate::seismic_network::SeismicNetwork;
 
 pub use alloy_provider::fillers::GasFiller;
 
@@ -58,11 +58,12 @@ impl SeismicGasFiller {
         // but we probably will get an error anyway if we have either combo of:
         // - a seismic tx with no decryption elements
         // - a non-seismic tx with decryption elements
-        tracing::debug!("SeismicGasFiller::is_seismic_tx. res: {:?}", N::is_seismic_tx_type(tx.output_tx_type()) ||
-        tx.get_decryption_elements().is_ok());
+        tracing::debug!(
+            "SeismicGasFiller::is_seismic_tx. res: {:?}",
+            N::is_seismic_tx_type(tx.output_tx_type()) || tx.get_decryption_elements().is_ok()
+        );
 
-        N::is_seismic_tx_type(tx.output_tx_type()) ||
-        tx.get_decryption_elements().is_ok()
+        N::is_seismic_tx_type(tx.output_tx_type()) || tx.get_decryption_elements().is_ok()
     }
 }
 

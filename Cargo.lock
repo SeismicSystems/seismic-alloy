@@ -4298,7 +4298,6 @@ dependencies = [
  "seismic-alloy-rpc-types",
  "seismic-enclave",
  "tokio",
- "tracing",
 ]
 
 [[package]]

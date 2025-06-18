@@ -11,7 +11,9 @@ use alloy_primitives::{Address, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
-    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements, TypedDataRequest
+    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
+    SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
+    TypedDataRequest,
 };
 use seismic_enclave::EnclaveClient;
 
@@ -231,7 +233,6 @@ impl SeismicTransactionRequest {
         Ok(self.inner.clone())
     }
 
-
     /// Check this builder's preferred type, based on the fields that are set.
     pub fn preferred_type(&self) -> SeismicTxType {
         if let Some(ty) = self.inner.transaction_type {
@@ -251,13 +252,13 @@ impl SeismicTransactionRequest {
         let pref = self.preferred_type();
         match pref {
             SeismicTxType::Seismic => self.complete_seismic().ok(),
-            _ =>  {
+            _ => {
                 let buildable_type = self.inner.buildable_type();
                 match buildable_type {
                     Some(tx_type) => return Some(tx_type.into()),
                     None => return None,
                 }
-            },
+            }
         }?;
         Some(pref)
     }
@@ -272,13 +273,13 @@ impl SeismicTransactionRequest {
         let pref = self.preferred_type();
         if let Err(missing) = match pref {
             SeismicTxType::Seismic => self.complete_seismic(),
-            _ =>  {
+            _ => {
                 let res = self.inner.missing_keys();
                 match res {
                     Ok(tx_type) => return Ok(tx_type.into()),
                     Err((tx_type, missing)) => return Err((tx_type.into(), missing)),
                 }
-            },
+            }
         } {
             Err((pref, missing))
         } else {
