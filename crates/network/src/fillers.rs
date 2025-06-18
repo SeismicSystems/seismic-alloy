@@ -12,6 +12,7 @@ use alloy_transport::TransportResult;
 use futures::FutureExt;
 use seismic_alloy_consensus::InputDecryptionElements;
 use std::future::IntoFuture;
+use crate::seismic_network::SeismicNetwork;
 
 pub use alloy_provider::fillers::GasFiller;
 
@@ -29,7 +30,8 @@ impl SeismicGasFiller {
     ) -> TransportResult<GasFillable>
     where
         P: Provider<N>,
-        N: Network,
+        N: SeismicNetwork,
+        <N as Network>::UnsignedTx: Send + Sync,
     {
         let gas_price_fut = tx.gas_price().map_or_else(
             || provider.get_gas_price().right_future(),
@@ -48,20 +50,23 @@ impl SeismicGasFiller {
 
     fn is_seismic_tx<N>(&self, tx: &N::TransactionRequest) -> bool
     where
-        N: Network,
+        N: SeismicNetwork,
         N::TransactionRequest: InputDecryptionElements,
+        <N as Network>::UnsignedTx: Send + Sync,
     {
         // TODO: it is probably more correct to check the tx type instead,
         // but we probably will get an error anyway if we have either combo of:
         // - a seismic tx with no decryption elements
         // - a non-seismic tx with decryption elements
+        N::is_seismic_tx_type(tx.output_tx_type()) ||
         tx.get_decryption_elements().is_ok()
     }
 }
 
-impl<N: Network> TxFiller<N> for SeismicGasFiller
+impl<N: SeismicNetwork> TxFiller<N> for SeismicGasFiller
 where
     <N as Network>::TransactionRequest: InputDecryptionElements,
+    <N as Network>::UnsignedTx: Send + Sync,
 {
     type Fillable = GasFillable;
 
