@@ -36,8 +36,6 @@ derive_more.workspace = true
 futures.workspace = true
 serde.workspace = true
 
-tracing.workspace = true
-
 [features]
 std = [
 	"seismic-alloy-consensus/std",
