@@ -1,6 +1,6 @@
 //! Contains the transaction type identifier for Seismic.
 
-use alloy_consensus::Typed2718;
+use alloy_consensus::{TxType, Typed2718};
 use alloy_eips::eip2718::Eip2718Error;
 use alloy_primitives::{U64, U8};
 use alloy_rlp::{BufMut, Decodable, Encodable};
@@ -100,6 +100,18 @@ impl TryFrom<U64> for SeismicTxType {
 
     fn try_from(value: U64) -> Result<Self, Self::Error> {
         value.to::<u64>().try_into()
+    }
+}
+
+impl From<TxType> for SeismicTxType {
+    fn from(value: TxType) -> Self {
+        match value {
+            TxType::Legacy => Self::Legacy,
+            TxType::Eip1559 => Self::Eip1559,
+            TxType::Eip2930 => Self::Eip2930,
+            TxType::Eip4844 => Self::Eip4844,
+            TxType::Eip7702 => Self::Eip7702,
+        }
     }
 }
 

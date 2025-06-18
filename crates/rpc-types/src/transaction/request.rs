@@ -12,7 +12,8 @@ use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
     Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
-    SeismicTxEnvelope, SeismicTypedTransaction, TxSeismic, TxSeismicElements, TypedDataRequest,
+    SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
+    TypedDataRequest,
 };
 use seismic_enclave::EnclaveClient;
 
@@ -230,6 +231,60 @@ impl SeismicTransactionRequest {
             self.inner.clone().input(plaintext.into());
         }
         Ok(self.inner.clone())
+    }
+
+    /// Check this builder's preferred type, based on the fields that are set.
+    pub fn preferred_type(&self) -> SeismicTxType {
+        if let Some(ty) = self.inner.transaction_type {
+            if ty == TxSeismic::TX_TYPE {
+                return SeismicTxType::Seismic;
+            }
+        }
+        if self.seismic_elements.is_some() {
+            return SeismicTxType::Seismic;
+        }
+        self.inner.preferred_type().into()
+    }
+
+    /// Return the tx type this request can be built as. Computed by checking
+    /// the preferred type, and then checking for completeness.
+    pub fn buildable_type(&self) -> Option<SeismicTxType> {
+        let pref = self.preferred_type();
+        match pref {
+            SeismicTxType::Seismic => self.complete_seismic().ok(),
+            _ => {
+                let buildable_type = self.inner.buildable_type();
+                match buildable_type {
+                    Some(tx_type) => return Some(tx_type.into()),
+                    None => return None,
+                }
+            }
+        }?;
+        Some(pref)
+    }
+
+    /// Check if all necessary keys are present to build a transaction.
+    ///
+    /// # Returns
+    ///
+    /// - Ok(type) if all necessary keys are present to build the preferred type.
+    /// - Err((type, missing)) if some keys are missing to build the preferred type.
+    pub fn missing_keys(&self) -> Result<SeismicTxType, (SeismicTxType, Vec<&'static str>)> {
+        let pref = self.preferred_type();
+        if let Err(missing) = match pref {
+            SeismicTxType::Seismic => self.complete_seismic(),
+            _ => {
+                let res = self.inner.missing_keys();
+                match res {
+                    Ok(tx_type) => return Ok(tx_type.into()),
+                    Err((tx_type, missing)) => return Err((tx_type.into(), missing)),
+                }
+            }
+        } {
+            Err((pref, missing))
+        } else {
+            Ok(pref)
+        }
     }
 }
 

@@ -7,7 +7,7 @@ use crate::fillers::SeismicGasFiller;
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
-    BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller, RecommendedFillers,
+    BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller, RecommendedFillers, SimpleNonceManager,
 };
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
@@ -44,8 +44,10 @@ impl Network for SeismicReth {
 
 // TODO: unclear if this is correct
 impl RecommendedFillers for SeismicReth {
-    type RecommendedFillers =
-        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+    type RecommendedFillers = JoinFill<
+        SeismicGasFiller,
+        JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+    >;
 
     fn recommended_fillers() -> Self::RecommendedFillers {
         Default::default()
@@ -168,24 +170,12 @@ impl TransactionBuilder<SeismicReth> for SeismicTransactionRequest {
 
     #[doc(alias = "output_transaction_type")]
     fn output_tx_type(&self) -> SeismicTxType {
-        match self.inner.preferred_type() {
-            TxType::Legacy => SeismicTxType::Legacy,
-            TxType::Eip1559 => SeismicTxType::Eip1559,
-            TxType::Eip2930 => SeismicTxType::Eip2930,
-            TxType::Eip4844 => SeismicTxType::Eip4844,
-            TxType::Eip7702 => SeismicTxType::Eip7702,
-        }
+        self.preferred_type()
     }
 
     #[doc(alias = "output_transaction_type_checked")]
     fn output_tx_type_checked(&self) -> Option<SeismicTxType> {
-        self.inner.buildable_type().map(|tx_ty| match tx_ty {
-            TxType::Legacy => SeismicTxType::Legacy,
-            TxType::Eip1559 => SeismicTxType::Eip1559,
-            TxType::Eip2930 => SeismicTxType::Eip2930,
-            TxType::Eip4844 => SeismicTxType::Eip4844,
-            TxType::Eip7702 => SeismicTxType::Eip7702,
-        })
+        self.buildable_type()
     }
 
     fn prep_for_submission(&mut self) {
@@ -193,8 +183,7 @@ impl TransactionBuilder<SeismicReth> for SeismicTransactionRequest {
     }
 
     fn build_unsigned(self) -> BuildResult<SeismicTypedTransaction, SeismicReth> {
-        if let Err((tx_type, missing)) = self.inner.missing_keys() {
-            let tx_type = SeismicTxType::try_from(tx_type as u8).unwrap();
+        if let Err((tx_type, missing)) = self.missing_keys() {
             return Err(TransactionBuilderError::InvalidTransactionRequest(tx_type, missing)
                 .into_unbuilt(self));
         }
