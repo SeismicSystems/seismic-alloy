@@ -58,6 +58,9 @@ impl SeismicGasFiller {
         // but we probably will get an error anyway if we have either combo of:
         // - a seismic tx with no decryption elements
         // - a non-seismic tx with decryption elements
+        tracing::debug!("SeismicGasFiller::is_seismic_tx. res: {:?}", N::is_seismic_tx_type(tx.output_tx_type()) ||
+        tx.get_decryption_elements().is_ok());
+
         N::is_seismic_tx_type(tx.output_tx_type()) ||
         tx.get_decryption_elements().is_ok()
     }

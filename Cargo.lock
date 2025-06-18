@@ -4276,6 +4276,7 @@ dependencies = [
  "seismic-alloy-consensus",
  "seismic-alloy-rpc-types",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -4297,6 +4298,7 @@ dependencies = [
  "seismic-alloy-rpc-types",
  "seismic-enclave",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
