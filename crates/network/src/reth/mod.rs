@@ -7,7 +7,7 @@ use crate::fillers::SeismicGasFiller;
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxType, TypedTransaction};
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_provider::fillers::{
-    BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller, RecommendedFillers,
+    BlobGasFiller, ChainIdFiller, JoinFill, NonceFiller, RecommendedFillers, SimpleNonceManager,
 };
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
@@ -45,7 +45,7 @@ impl Network for SeismicReth {
 // TODO: unclear if this is correct
 impl RecommendedFillers for SeismicReth {
     type RecommendedFillers =
-        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>>;
 
     fn recommended_fillers() -> Self::RecommendedFillers {
         Default::default()
