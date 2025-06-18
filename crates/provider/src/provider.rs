@@ -121,20 +121,8 @@ where
                 N::set_seismic_elements(&mut builder, seismic_elements);
                 SendableTx::Builder(builder)
             }
-            SendableTx::Envelope(mut envelope) => {
-                let plaintext_input = N::get_envelope_input(&envelope);
-                let encrypted_input = seismic_elements
-                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
-                    .map_err(|e| {
-                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
-                    })?;
-                N::set_envelope_input(&mut envelope, encrypted_input).map_err(|e| {
-                    TransportErrorKind::custom_str(&format!(
-                        "Error setting encrypted input: {:?}",
-                        e
-                    ))
-                })?;
-                SendableTx::Envelope(envelope)
+            SendableTx::Envelope(_) => {
+                return TransportResult::Err(TransportErrorKind::custom_str("SeismicProvider::seismic_call does not support envelope transactions").into())
             }
         };
 
