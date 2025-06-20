@@ -2,7 +2,7 @@ name: Seismic CI
 
 on:
   push:
-    branches: [ seismic, workflow ]
+    branches: [ seismic ]
   pull_request:
     branches: [ seismic, alloy-1 ]
 
