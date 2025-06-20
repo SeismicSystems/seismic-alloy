@@ -1,0 +1,70 @@
+[package]
+name = "seismic-alloy-rpc-types"
+description = "Seismic RPC types"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+authors.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+seismic-alloy-consensus = { workspace = true, features = ["serde"] }
+seismic-enclave.workspace = true
+
+# Alloy
+alloy-serde.workspace = true
+alloy-consensus.workspace = true
+alloy-network-primitives.workspace = true
+alloy-eips = { workspace = true, features = ["serde"] }
+alloy-rpc-types-eth = { workspace = true, features = ["serde"] }
+alloy-primitives = { workspace = true, features = ["map", "rlp", "serde"] }
+
+# Serde
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+# arbitrary
+arbitrary = { workspace = true, features = ["derive"], optional = true }
+
+derive_more = { workspace = true, features = ["from", "as_ref"] }
+
+[dev-dependencies]
+rand.workspace = true
+arbitrary = { workspace = true, features = ["derive"] }
+alloy-consensus = { workspace = true, features = ["arbitrary"] }
+alloy-primitives = { workspace = true, features = ["arbitrary"] }
+alloy-rpc-types-eth = { workspace = true, features = ["arbitrary"] }
+similar-asserts.workspace = true
+seismic-alloy-consensus = { workspace = true, features = ["serde", "arbitrary"] }
+
+[features]
+default = ["std", "serde"]
+std = [
+	"alloy-network-primitives/std",
+	"alloy-eips/std",
+	"alloy-primitives/std",
+	"alloy-rpc-types-eth/std",
+	"seismic-alloy-consensus/std"
+]
+arbitrary = [
+  "std",
+  "dep:arbitrary",
+  "alloy-primitives/arbitrary",
+  "alloy-rpc-types-eth/arbitrary",
+  "seismic-alloy-consensus/arbitrary",
+]
+k256 = [
+  "alloy-rpc-types-eth/k256",
+  "seismic-alloy-consensus/k256",
+]
+serde = [
+	"seismic-alloy-consensus/serde"
+]

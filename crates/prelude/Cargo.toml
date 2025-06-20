@@ -1,0 +1,36 @@
+[package]
+name = "seismic-prelude"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[dependencies]
+seismic-alloy-consensus.workspace = true
+seismic-alloy-rpc-types.workspace = true
+seismic-alloy-network = { workspace = true, features = ["serde"] }
+seismic-alloy-provider.workspace = true
+
+alloy-consensus.workspace = true
+alloy-eip7702.workspace = true
+alloy-network.workspace = true
+alloy-network-primitives.workspace = true
+alloy-primitives.workspace = true
+alloy-serde.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-rpc-types.workspace = true
+
+derive_more.workspace = true
+serde.workspace = true
+
+revm = { version = "23.1.0", default-features = false }
+seismic-revm = "1.0.0"
+alloy-evm = "0.9.1"
+alloy-seismic-evm = "0.9.1"
+
+[lints]
+workspace = true
