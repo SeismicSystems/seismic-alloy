@@ -29,8 +29,6 @@ serde.workspace = true
 
 revm = { version = "23.1.0", default-features = false }
 seismic-revm = "1.0.0"
-alloy-evm = "0.9.1"
-alloy-seismic-evm = "0.9.1"
 
 [lints]
 workspace = true

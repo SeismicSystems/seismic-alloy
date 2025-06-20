@@ -44,10 +44,8 @@ pub type AnyTransactionReceipt = WithOtherFields<TransactionReceipt>;
 pub type EthereumWallet = SeismicWallet<AnyNetwork>;
 
 // Revm
-use alloy_evm::EvmEnv as AlloyEvmEnv;
 use revm::context::{CfgEnv as RevmCfgEnv, TxEnv as RevmTxEnv};
 
-pub use alloy_seismic_evm::SeismicEvm;
 pub use seismic_revm::{
     instructions::instruction_provider::{
         SeismicInstructions, SeismicInstructions as EthInstructions,
@@ -62,5 +60,3 @@ pub use seismic_revm::{
 pub type TxEnv = SeismicTransaction<RevmTxEnv>;
 /// Seismic configuration environment, which wraps revm's CfgEnv
 pub type CfgEnv = RevmCfgEnv<SeismicSpecId>;
-/// Seismic EVM environment, which wraps alloy-evm's EvmEnv
-pub type EvmEnv = AlloyEvmEnv<SeismicSpecId>;
