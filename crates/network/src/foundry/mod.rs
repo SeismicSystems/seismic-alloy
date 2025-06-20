@@ -11,7 +11,6 @@ use alloy_network::{
     AnyHeader, AnyRpcHeader, AnyTxType, BuildResult, Ethereum, EthereumWallet, Network,
     NetworkWallet, TransactionBuilder, TransactionBuilderError,
 };
-use seismic_alloy_consensus::SEISMIC_TX_TYPE_ID;
 
 use alloy_consensus::{
     EthereumTxEnvelope, SignableTransaction, Signed, TxEnvelope, TxType, TypedTransaction,
@@ -193,25 +192,23 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
 
     #[doc(alias = "output_transaction_type")]
     fn output_tx_type(&self) -> AnyTxType {
-        match self.preferred_type() {
-            SeismicTxType::Legacy => AnyTxType(LEGACY_TX_TYPE_ID),
-            SeismicTxType::Eip1559 => AnyTxType(EIP1559_TX_TYPE_ID),
-            SeismicTxType::Eip2930 => AnyTxType(EIP2930_TX_TYPE_ID),
-            SeismicTxType::Eip4844 => AnyTxType(EIP4844_TX_TYPE_ID),
-            SeismicTxType::Eip7702 => AnyTxType(EIP7702_TX_TYPE_ID),
-            SeismicTxType::Seismic => AnyTxType(SEISMIC_TX_TYPE_ID),
+        match self.inner.preferred_type() {
+            TxType::Legacy => AnyTxType(LEGACY_TX_TYPE_ID),
+            TxType::Eip1559 => AnyTxType(EIP1559_TX_TYPE_ID),
+            TxType::Eip2930 => AnyTxType(EIP2930_TX_TYPE_ID),
+            TxType::Eip4844 => AnyTxType(EIP4844_TX_TYPE_ID),
+            TxType::Eip7702 => AnyTxType(EIP7702_TX_TYPE_ID),
         }
     }
 
     #[doc(alias = "output_transaction_type_checked")]
     fn output_tx_type_checked(&self) -> Option<AnyTxType> {
-        self.buildable_type().map(|tx_ty| match tx_ty {
-            SeismicTxType::Eip1559 => AnyTxType(EIP1559_TX_TYPE_ID),
-            SeismicTxType::Eip2930 => AnyTxType(EIP2930_TX_TYPE_ID),
-            SeismicTxType::Eip4844 => AnyTxType(EIP4844_TX_TYPE_ID),
-            SeismicTxType::Eip7702 => AnyTxType(EIP7702_TX_TYPE_ID),
-            SeismicTxType::Legacy => AnyTxType(LEGACY_TX_TYPE_ID),
-            SeismicTxType::Seismic => AnyTxType(SEISMIC_TX_TYPE_ID),
+        self.inner.buildable_type().map(|tx_ty| match tx_ty {
+            TxType::Eip1559 => AnyTxType(EIP1559_TX_TYPE_ID),
+            TxType::Eip2930 => AnyTxType(EIP2930_TX_TYPE_ID),
+            TxType::Eip4844 => AnyTxType(EIP4844_TX_TYPE_ID),
+            TxType::Eip7702 => AnyTxType(EIP7702_TX_TYPE_ID),
+            TxType::Legacy => AnyTxType(LEGACY_TX_TYPE_ID),
         })
     }
 
