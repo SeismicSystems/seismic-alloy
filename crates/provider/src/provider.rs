@@ -309,7 +309,7 @@ mod tests {
     use seismic_alloy_network::foundry::builder::seismic_foundry_tx_builder;
 
     /// Path to local sanvil binary
-    const SANVIL_PATH: &str = "sanvil";
+    const SANVIL_PATH: &str = "~/.seismic/bin/sanvil";
 
     #[tokio::test]
     async fn test_get_tee_pubkey() {
