@@ -308,7 +308,7 @@ mod tests {
     use seismic_alloy_consensus::{SeismicReceiptEnvelope, TxSeismic};
     use seismic_alloy_network::foundry::builder::seismic_foundry_tx_builder;
 
-    /// Path to local sanvil binary
+    /// Path to local sanvil binary for local testing
     const SANVIL_PATH: &str = "sanvil";
 
     #[tokio::test]
