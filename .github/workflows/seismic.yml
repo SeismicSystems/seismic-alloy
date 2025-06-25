@@ -4,7 +4,7 @@ on:
   push:
     branches: [ seismic ]
   pull_request:
-    branches: [ seismic, dev ]
+    branches: [ seismic, dev, enclave-purpose-keys ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
