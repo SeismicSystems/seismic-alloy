@@ -148,24 +148,6 @@ impl TxSeismicElements {
         self.encryption_nonce.to_be_bytes().into()
     }
 
-    // /// construct an enclave decrypt request
-    // pub fn to_enclave_decrypt_request(&self, ciphertext: &Bytes) -> IoDecryptionRequest {
-    //     IoDecryptionRequest {
-    //         key: self.encryption_pubkey,
-    //         data: ciphertext.to_vec(),
-    //         nonce: self.get_enclave_nonce(),
-    //     }
-    // }
-
-    // /// construct an enclave encrypt request
-    // pub fn to_enclave_encrypt_request(&self, plaintext: &Bytes) -> IoEncryptionRequest {
-    //     IoEncryptionRequest {
-    //         key: self.encryption_pubkey,
-    //         data: plaintext.to_vec(),
-    //         nonce: self.get_enclave_nonce(),
-    //     }
-    // }
-
     /// decrypt a message using the enclave
     pub fn server_decrypt<C: SyncEnclaveApiClient>(
         &self,
