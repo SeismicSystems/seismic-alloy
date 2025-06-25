@@ -182,7 +182,8 @@ impl TxSeismicElements {
             &keys_resp.tx_io_sk,
             ciphertext,
             self.get_enclave_nonce(),
-        ).map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
+        )
+        .map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
         Ok(Bytes::from(plaintext))
     }
 
@@ -201,7 +202,8 @@ impl TxSeismicElements {
             &keys_resp.tx_io_sk,
             plaintext,
             self.get_enclave_nonce(),
-        ).map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
+        )
+        .map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
         Ok(Bytes::from(ciphertext))
     }
 
