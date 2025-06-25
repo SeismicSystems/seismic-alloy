@@ -128,7 +128,7 @@ k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 
 [patch.crates-io]
 # Seismic enclave
-seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "f2b5c1a" }
+seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "a347832" }
 
 # seismic-alloy-core
 alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "978056b" }
