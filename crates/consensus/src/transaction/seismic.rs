@@ -13,12 +13,8 @@ use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
-    constants, ecdh_decrypt, ecdh_encrypt,
-    nonce::Nonce,
-    rand,
-    rpc::SyncEnclaveApiClient,
-    tx_io::{IoDecryptionRequest, IoEncryptionRequest},
-    Keypair, PublicKey, Secp256k1, SecretKey,
+    constants, ecdh_decrypt, ecdh_encrypt, keys::GetPurposeKeysRequest, rand,
+    rpc::SyncEnclaveApiClient, Keypair, Nonce, PublicKey, Secp256k1, SecretKey,
 };
 use thiserror::Error;
 
@@ -152,24 +148,6 @@ impl TxSeismicElements {
         self.encryption_nonce.to_be_bytes().into()
     }
 
-    /// construct an enclave decrypt request
-    pub fn to_enclave_decrypt_request(&self, ciphertext: &Bytes) -> IoDecryptionRequest {
-        IoDecryptionRequest {
-            key: self.encryption_pubkey,
-            data: ciphertext.to_vec(),
-            nonce: self.get_enclave_nonce(),
-        }
-    }
-
-    /// construct an enclave encrypt request
-    pub fn to_enclave_encrypt_request(&self, plaintext: &Bytes) -> IoEncryptionRequest {
-        IoEncryptionRequest {
-            key: self.encryption_pubkey,
-            data: plaintext.to_vec(),
-            nonce: self.get_enclave_nonce(),
-        }
-    }
-
     /// decrypt a message using the enclave
     pub fn server_decrypt<C: SyncEnclaveApiClient>(
         &self,
@@ -179,9 +157,16 @@ impl TxSeismicElements {
         if ciphertext.is_empty() {
             return Ok(ciphertext.clone());
         }
-        let request = self.to_enclave_decrypt_request(ciphertext);
-        let response = enclave_client.decrypt(request)?;
-        Ok(Bytes::from(response.decrypted_data))
+
+        let keys_resp = enclave_client.get_purpose_keys(GetPurposeKeysRequest { epoch: 0 })?;
+        let plaintext = ecdh_decrypt(
+            &self.encryption_pubkey,
+            &keys_resp.tx_io_sk,
+            ciphertext,
+            self.get_enclave_nonce(),
+        )
+        .map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
+        Ok(Bytes::from(plaintext))
     }
 
     /// encrypt a message using the enclave
@@ -193,9 +178,15 @@ impl TxSeismicElements {
         if plaintext.is_empty() {
             return Ok(plaintext.clone());
         }
-        let request = self.to_enclave_encrypt_request(plaintext);
-        let response = enclave_client.encrypt(request)?;
-        Ok(Bytes::from(response.encrypted_data))
+        let keys_resp = enclave_client.get_purpose_keys(GetPurposeKeysRequest { epoch: 0 })?;
+        let ciphertext = ecdh_encrypt(
+            &self.encryption_pubkey,
+            &keys_resp.tx_io_sk,
+            plaintext,
+            self.get_enclave_nonce(),
+        )
+        .map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
+        Ok(Bytes::from(ciphertext))
     }
 
     /// client encrypt: network pubkey, client sk
