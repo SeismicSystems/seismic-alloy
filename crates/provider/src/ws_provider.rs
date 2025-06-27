@@ -1,8 +1,8 @@
 //! Seismic provider for websocket requests
 use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use seismic_alloy_network::seismic_network::SeismicNetwork;
+
 use crate::SeismicProviderExt;
-use std::time::Duration;
 
 /// Seismic unsigned websocket provider
 pub type SeismicUnsignedWsProviderInner<N> = RootProvider<N>;
@@ -42,20 +42,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{provider::SeismicUnsignedProvider, test_utils::ContractTestContext, SeismicSignedProvider};
+    use crate::{test_utils::ContractTestContext, SeismicSignedProvider};
     use alloy_network::{ReceiptResponse, TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
-    use alloy_primitives::{address, Address, Bytes, TxKind};
+    use alloy_primitives::TxKind;
     use alloy_signer_local::PrivateKeySigner;
     use alloy_sol_types::SolEvent;
     use seismic_alloy_network::{
         foundry::{builder::seismic_foundry_tx_builder, SeismicFoundry},
         wallet::SeismicWallet,
     };
-    use alloy_pubsub::Subscription;
     use futures_util::StreamExt;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
+    use std::time::Duration;
     use alloy_rpc_types_eth::Filter;
     use crate::{test_utils::{ISeismicCounter}};
     const SANVIL_PATH: &str = "sanvil";
@@ -67,9 +65,8 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).port(8545 as u16).block_time(2).spawn();
         let wallet = get_wallet(&anvil);
-        let from = get_wallet(&anvil).default_signer().address();
         let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet, anvil.endpoint_url());
-        let ws_provider = SeismicUnsignedWsProvider::<SeismicFoundry>::new("ws://localhost:8545").await.unwrap();
+        let ws_provider = SeismicUnsignedWsProvider::<SeismicFoundry>::new(anvil.ws_endpoint()).await.unwrap();
         let tx =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
 
