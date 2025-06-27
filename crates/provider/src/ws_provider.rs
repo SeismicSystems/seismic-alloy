@@ -106,12 +106,6 @@ mod tests {
 
         assert!(receipt.status());
 
-        let network_pk = provider.get_tee_pubkey().await.unwrap();
-        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
-        let elements = TxSeismicElements::default()
-            .with_encryption_pubkey(encryption_keypair.public_key())
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
         let tx_input = ContractTestContext::get_increment_input_plaintext();
         let encrypted_input = elements
             .client_encrypt(&tx_input, &network_pk, &encryption_keypair.secret_key())
