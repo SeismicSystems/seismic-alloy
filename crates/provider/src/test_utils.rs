@@ -11,7 +11,7 @@ sol! {
         function increment() public;
         function isOdd() public view returns (bool);
     }
-    
+
 }
 
 /// Test context for seismic provider

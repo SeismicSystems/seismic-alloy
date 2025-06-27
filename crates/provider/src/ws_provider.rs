@@ -25,11 +25,8 @@ where
 {
     /// creates a new websocket provider for a client
     pub async fn new(url: impl Into<String>) -> Result<Self, alloy_transport::TransportError> {
-        let provider = ProviderBuilder::new_with_network::<N>()
-            .connect(&url.into())
-            .await?
-            .root()
-            .clone();
+        let provider =
+            ProviderBuilder::new_with_network::<N>().connect(&url.into()).await?.root().clone();
         Ok(Self { provider })
     }
 
@@ -42,23 +39,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_utils::ContractTestContext, SeismicSignedProvider};
+    use crate::{
+        test_utils::{ContractTestContext, ISeismicCounter},
+        SeismicSignedProvider,
+    };
     use alloy_network::{ReceiptResponse, TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::TxKind;
+    use alloy_rpc_types_eth::Filter;
     use alloy_signer_local::PrivateKeySigner;
     use alloy_sol_types::SolEvent;
+    use futures_util::StreamExt;
     use seismic_alloy_network::{
         foundry::{builder::seismic_foundry_tx_builder, SeismicFoundry},
         wallet::SeismicWallet,
     };
-    use futures_util::StreamExt;
     use std::time::Duration;
-    use alloy_rpc_types_eth::Filter;
-    use crate::{test_utils::{ISeismicCounter}};
     const SANVIL_PATH: &str = "sanvil";
     use seismic_alloy_consensus::{TxSeismic, TxSeismicElements};
-    
 
     #[tokio::test]
     async fn test_subscribe_to_events() {
@@ -66,7 +64,8 @@ mod tests {
         let anvil = Anvil::at(SANVIL_PATH).port(8545 as u16).block_time(2).spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet, anvil.endpoint_url());
-        let ws_provider = SeismicUnsignedWsProvider::<SeismicFoundry>::new(anvil.ws_endpoint()).await.unwrap();
+        let ws_provider =
+            SeismicUnsignedWsProvider::<SeismicFoundry>::new(anvil.ws_endpoint()).await.unwrap();
         let tx =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
 
@@ -79,7 +78,6 @@ mod tests {
 
         let event_sub = ws_provider.inner().subscribe_logs(&filter).await.unwrap();
 
-    
         let network_pk = provider.get_tee_pubkey().await.unwrap();
         let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
         let elements = TxSeismicElements::default()
@@ -120,7 +118,6 @@ mod tests {
 
         assert!(receipt.status());
 
-
         // Check for events with timeout
         let mut event_stream = event_sub.into_stream();
         let mut num_set_events_received = 0;
@@ -155,8 +152,16 @@ mod tests {
             }
         }
 
-        assert!(num_set_events_received == 1, "Number of set events received: {}", num_set_events_received);
-        assert!(num_increment_events_received == 1, "Number of increment events received: {}", num_increment_events_received);
+        assert!(
+            num_set_events_received == 1,
+            "Number of set events received: {}",
+            num_set_events_received
+        );
+        assert!(
+            num_increment_events_received == 1,
+            "Number of increment events received: {}",
+            num_increment_events_received
+        );
         assert!(total_events_received == 2, "Total events received: {}", total_events_received);
 
         drop(anvil);
