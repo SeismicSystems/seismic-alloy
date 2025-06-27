@@ -35,3 +35,7 @@ alloy-signer-local.workspace = true
 alloy-node-bindings = { workspace = true }
 alloy-provider = { workspace = true, features = ["anvil-api"] }
 seismic-alloy-rpc-types.workspace = true
+alloy-pubsub.workspace = true
+futures-util.workspace = true
+futures.workspace = true
+alloy-sol-types.workspace = true

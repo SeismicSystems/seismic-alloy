@@ -48,7 +48,11 @@ alloy-consensus = { version = "1.0.5", default-features = false }
 alloy-eips = { version = "1.0.5", default-features = false }
 alloy-network = { version = "1.0.5", default-features = false }
 alloy-network-primitives = { version = "1.0.5", default-features = false }
-alloy-provider = { version = "1.0.5", default-features = false }
+alloy-provider = { version = "1.0.5", features = [
+    "reqwest",
+    "ws",
+    "trace-api",
+] }
 alloy-node-bindings = { version = "1.0.5", default-features = false }
 alloy-rpc-types-eth = { version = "1.0.5", default-features = false }
 alloy-rpc-types-engine = { version = "1.0.5", default-features = false }
@@ -58,6 +62,7 @@ alloy-serde = { version = "1.0.5", default-features = false }
 alloy-signer = { version = "1.0.5", default-features = false }
 alloy-signer-local = { version = "1.0.5", default-features = false }
 alloy-transport = { version = "1.0.5", default-features = false }
+alloy-pubsub = { version = "1.0.9", default-features = false }
 
 # Alloy RLP
 alloy-rlp = { version = "0.3.12", default-features = false }
@@ -126,6 +131,8 @@ rstest = "0.24.0"
 c-kzg = { version = "2.1.1", default-features = false }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 
+futures-util = "0.3"
+
 [patch.crates-io]
 # Seismic enclave
 seismic-enclave = { git = "https://github.com/SeismicSystems/seismic-enclave.git", rev = "a347832" }
@@ -139,6 +146,25 @@ alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy
 alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "978056b" }
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "978056b" }
 
+alloy-consensus = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-eips = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-serde = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-network = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-consensus-any = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-json-rpc = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-rpc-types-any = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-rpc-types-eth = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-signer = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-provider = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-transport = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-rpc-client = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-transport-http = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-rpc-types-engine = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+alloy-pubsub = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
+
 # revm
 revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "4ee533d4" }
 seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "4ee533d4" }
+
