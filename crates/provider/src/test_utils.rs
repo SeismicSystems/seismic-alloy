@@ -10,14 +10,17 @@ impl ContractTestContext {
     //     pragma solidity ^0.8.13;
     // contract SeismicCounter {
     //     suint256 number;
+    //     event NumberSet();
     //     constructor() payable {
     //         number = 0;
     //     }
     //     function setNumber(suint256 newNumber) public {
     //         number = newNumber;
+    //         emit NumberSet();
     //     }
     //     function increment() public {
     //         number++;
+    //         emit NumberSet();
     //     }
     //     function isOdd() public view returns (bool) {
     //         return number % 2 == 1;
