@@ -42,11 +42,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{provider::SeismicUnsignedProvider, test_utils::ContractTestContext};
+    use crate::{provider::SeismicUnsignedProvider, test_utils::ContractTestContext, SeismicSignedProvider};
     use alloy_network::{ReceiptResponse, TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
     use alloy_primitives::{address, Address, Bytes, TxKind};
     use alloy_signer_local::PrivateKeySigner;
+    use alloy_sol_types::SolEvent;
     use seismic_alloy_network::{
         foundry::{builder::seismic_foundry_tx_builder, SeismicFoundry},
         wallet::SeismicWallet,
@@ -56,15 +57,18 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use alloy_rpc_types_eth::Filter;
+    use crate::{test_utils::{ISeismicCounter}};
     const SANVIL_PATH: &str = "sanvil";
+    use seismic_alloy_consensus::{TxSeismic, TxSeismicElements};
     
 
     #[tokio::test]
     async fn test_subscribe_to_events() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).port(8545 as u16).block_time(2).spawn();
+        let wallet = get_wallet(&anvil);
         let from = get_wallet(&anvil).default_signer().address();
-        let provider = SeismicUnsignedProvider::<SeismicFoundry>::new(anvil.endpoint_url());
+        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet, anvil.endpoint_url());
         let ws_provider = SeismicUnsignedWsProvider::<SeismicFoundry>::new("ws://localhost:8545").await.unwrap();
         let tx =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
@@ -76,35 +80,76 @@ mod tests {
         assert_eq!(code, ContractTestContext::get_code());
         let filter = Filter::new().address(contract_address);
 
-        let mut event_sub = ws_provider.inner().subscribe_logs(&filter).await.unwrap();
+        let event_sub = ws_provider.inner().subscribe_logs(&filter).await.unwrap();
 
-        // Trigger some events by calling contract functions
-        let increment_tx = seismic_foundry_tx_builder()
-            .with_input(ContractTestContext::get_increment_input_plaintext())
+    
+        let network_pk = provider.get_tee_pubkey().await.unwrap();
+        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        let elements = TxSeismicElements::default()
+            .with_encryption_pubkey(encryption_keypair.public_key())
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+
+        let tx_input = ContractTestContext::get_set_number_input_plaintext();
+        let encrypted_input = elements
+            .client_encrypt(&tx_input, &network_pk, &encryption_keypair.secret_key())
+            .unwrap();
+
+        let mut tx = seismic_foundry_tx_builder()
+            .with_input(encrypted_input)
             .with_kind(TxKind::Call(contract_address))
             .into();
-        
-        provider.send_transaction(increment_tx.into()).await.unwrap().get_receipt().await.unwrap();
+        tx.inner.transaction_type = Some(TxSeismic::TX_TYPE);
+        tx.seismic_elements = Some(elements);
 
-        let set_number_tx = seismic_foundry_tx_builder()
-            .with_input(ContractTestContext::get_set_number_input_plaintext())
+        let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
+        let receipt = pending_tx.get_receipt().await.unwrap();
+
+        assert!(receipt.status());
+
+        let network_pk = provider.get_tee_pubkey().await.unwrap();
+        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        let elements = TxSeismicElements::default()
+            .with_encryption_pubkey(encryption_keypair.public_key())
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+
+        let tx_input = ContractTestContext::get_increment_input_plaintext();
+        let encrypted_input = elements
+            .client_encrypt(&tx_input, &network_pk, &encryption_keypair.secret_key())
+            .unwrap();
+
+        let mut tx = seismic_foundry_tx_builder()
+            .with_input(encrypted_input)
             .with_kind(TxKind::Call(contract_address))
             .into();
-        
-        provider.send_transaction(set_number_tx.into()).await.unwrap().get_receipt().await.unwrap();
+        tx.inner.transaction_type = Some(TxSeismic::TX_TYPE);
+        tx.seismic_elements = Some(elements);
+
+        let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
+        let receipt = pending_tx.get_receipt().await.unwrap();
+
+        assert!(receipt.status());
+
 
         // Check for events with timeout
         let mut event_stream = event_sub.into_stream();
-        let mut events_received = 0;
+        let mut num_set_events_received = 0;
+        let mut num_increment_events_received = 0;
+        let mut total_events_received = 0;
 
-        for _ in 0..2 {
+        for _ in 0..5 {
             tokio::select! {
                 event_opt = event_stream.next() => {
                     match event_opt {
                         Some(log) => {
-                            if (log.topic0() == Some(&Bytes::from_static(b"NumberSet(uint256)"))) {
+                            if log.topic0() == Some(&ISeismicCounter::setNumberEmit::SIGNATURE_HASH) {
                                 println!("NumberSet event received: {:?}", log);
-                                events_received += 1;
+                                num_set_events_received += 1;
+                                total_events_received += 1;
+                            }
+                            else if log.topic0() == Some(&ISeismicCounter::incrementEmit::SIGNATURE_HASH) {
+                                println!("Increment event received: {:?}", log);
+                                num_increment_events_received += 1;
+                                total_events_received += 1;
                             }
                         }
                         None => {
@@ -119,7 +164,11 @@ mod tests {
             }
         }
 
-        assert!(events_received > 0, "No events received");
+        assert!(num_set_events_received == 1, "Number of set events received: {}", num_set_events_received);
+        assert!(num_increment_events_received == 1, "Number of increment events received: {}", num_increment_events_received);
+        assert!(total_events_received == 2, "Total events received: {}", total_events_received);
+
+        drop(anvil);
     }
 
     fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {

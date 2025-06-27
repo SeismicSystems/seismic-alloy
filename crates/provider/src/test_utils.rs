@@ -4,20 +4,12 @@ use alloy_sol_types::sol;
 
 sol! {
 
-    contract SeismicCounter {
-        suint256 number;
-        event NumberSet();
-        constructor() payable {
-            number = 0;
-        }
-        function setNumber(suint256 newNumber) public {
-            number = newNumber;
-            emit NumberSet();
-        }
-        function increment() public {
-            number++;
-            emit NumberSet();
-        }
+    interface ISeismicCounter {
+        event setNumberEmit();
+        event incrementEmit();
+        function setNumber(suint256 newNumber) public;
+        function increment() public;
+        function isOdd() public view returns (bool);
     }
     
 }
@@ -28,23 +20,24 @@ pub struct ContractTestContext;
 impl ContractTestContext {
     // ==================== first block for encrypted transaction ====================
     // Contract deployed
-    //     pragma solidity ^0.8.13;
+    // pragma solidity ^0.8.13;
     // contract SeismicCounter {
     //     suint256 number;
-    //     event NumberSet();
+    //     event setNumberEmit();
+    //     event incrementEmit();
     //     constructor() payable {
-    //         number = 0;
+    //         number = suint256(0);
     //     }
     //     function setNumber(suint256 newNumber) public {
     //         number = newNumber;
-    //         emit NumberSet();
+    //         emit setNumberEmit();
     //     }
     //     function increment() public {
     //         number++;
-    //         emit NumberSet();
+    //         emit incrementEmit();
     //     }
     //     function isOdd() public view returns (bool) {
-    //         return number % 2 == 1;
+    //         return uint(number) % 2 == 1;
     //     }
     // }
     /// Get the is odd input plaintext
