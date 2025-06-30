@@ -220,7 +220,7 @@ where
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
-    /// Creates a new seismic unsigned provider
+    /// Creates a new Seismic unsigned provider with an HTTP connection
     pub fn new_http(url: reqwest::Url) -> Self {
         // Create layer with recommended fillers and Identity
         let tx_filler_layer =
@@ -235,19 +235,20 @@ where
         Self(inner)
     }
 
-    /// Creates a new seismic unsigned provider with a websocket connection
-    pub async fn new_ws(
-        url: reqwest::Url,
-    ) -> Result<impl Provider<N> + SeismicProviderExt<N>, alloy_transport::TransportError> {
+    /// Creates a new Seismic unsigned provider with a websocket connection
+    pub async fn new_ws(url: reqwest::Url) -> Self {
         let tx_filler_layer =
             JoinFill::new(Identity, <N as RecommendedFillers>::recommended_fillers());
 
-        Ok(ProviderBuilder::<_, _, N>::default()
+        let inner = ProviderBuilder::<_, _, N>::default()
             .network::<N>()
             .layer(SeismicLayer {})
             .layer(tx_filler_layer)
             .connect_ws(WsConnect::new(url))
-            .await?)
+            .await
+            .unwrap();
+
+        Self(inner)
     }
 }
 
@@ -482,9 +483,7 @@ mod tests {
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet, anvil.endpoint_url());
         let ws_provider =
-            SeismicUnsignedProvider::<SeismicFoundry>::new_ws(anvil.ws_endpoint_url())
-                .await
-                .unwrap();
+            SeismicUnsignedProvider::<SeismicFoundry>::new_ws(anvil.ws_endpoint_url()).await;
 
         // deploy contract
         let tx =
