@@ -133,8 +133,6 @@ k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 
 futures-util = "0.3"
 
-## logging
-log = "0.4.27"
 
 [patch.crates-io]
 # Seismic enclave
