@@ -48,12 +48,12 @@ alloy-consensus = { version = "1.0.5", default-features = false }
 alloy-eips = { version = "1.0.5", default-features = false }
 alloy-network = { version = "1.0.5", default-features = false }
 alloy-network-primitives = { version = "1.0.5", default-features = false }
+alloy-node-bindings = { version = "1.0.5", default-features = false }
 alloy-provider = { version = "1.0.5", features = [
     "reqwest",
     "ws",
     "trace-api",
 ] }
-alloy-node-bindings = { version = "1.0.5", default-features = false }
 alloy-pubsub = { version = "1.0.9", default-features = false }
 alloy-rpc-types-eth = { version = "1.0.5", default-features = false }
 alloy-rpc-types-engine = { version = "1.0.5", default-features = false }
