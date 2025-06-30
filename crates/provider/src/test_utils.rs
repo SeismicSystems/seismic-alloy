@@ -1,12 +1,13 @@
 //! Test utilities for seismic provider
-#[cfg(test)]
-use alloy_node_bindings::AnvilInstance;
 use alloy_primitives::{hex, Bytes};
-#[cfg(test)]
-use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::sol;
+
 #[cfg(test)]
-use seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet};
+use {
+    alloy_node_bindings::AnvilInstance,
+    alloy_signer_local::PrivateKeySigner,
+    seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet},
+};
 
 // Test contract interface
 sol! {
