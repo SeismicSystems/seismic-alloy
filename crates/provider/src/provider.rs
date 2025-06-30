@@ -299,12 +299,11 @@ pub fn sfoundry_unsigned_provider(url: reqwest::Url) -> SeismicUnsignedProvider<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::ContractTestContext;
+    use crate::test_utils::{get_wallet, ContractTestContext};
     use alloy_network::{ReceiptResponse, TransactionBuilder};
-    use alloy_node_bindings::{Anvil, AnvilInstance};
+    use alloy_node_bindings::Anvil;
     use alloy_primitives::{address, Address, Bytes, TxKind};
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
-    use alloy_signer_local::PrivateKeySigner;
     use seismic_alloy_consensus::{SeismicReceiptEnvelope, TxSeismic};
     use seismic_alloy_network::foundry::builder::seismic_foundry_tx_builder;
 
@@ -455,11 +454,5 @@ mod tests {
                 panic!("expected seismic receipt");
             }
         }
-    }
-
-    fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {
-        let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
-        let wallet = SeismicWallet::from(bob.clone());
-        wallet
     }
 }
