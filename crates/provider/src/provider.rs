@@ -220,6 +220,12 @@ where
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
+    /// Creates a new Seismic unsigned provider (defaults to HTTP connection via `new_http`)
+    #[deprecated(note = "Use `new_http` instead")]
+    pub fn new(url: reqwest::Url) -> Self {
+        Self::new_http(url)
+    }
+
     /// Creates a new Seismic unsigned provider with an HTTP connection
     pub fn new_http(url: reqwest::Url) -> Self {
         // Create layer with recommended fillers and Identity
