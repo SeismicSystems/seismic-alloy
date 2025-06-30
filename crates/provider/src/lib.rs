@@ -8,8 +8,4 @@ pub use traits::SeismicProviderExt;
 pub mod provider;
 pub use provider::SeismicSignedProvider;
 
-/// WebSocket provider implementation
-pub mod ws_provider;
-pub use ws_provider::SeismicUnsignedWsProvider;
-
 pub mod test_utils;
