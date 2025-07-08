@@ -72,7 +72,6 @@ fn parse_u8(message: &serde_json::Value, field: &'static str) -> Eip712Result<u8
 }
 
 /// represents what kind of transaction they are sending via typed data
-#[cfg(feature = "serde")]
 #[derive(PartialEq, Debug)]
 pub enum TypedDataTransactionType {
     /// always a seismic transaction
