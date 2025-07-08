@@ -44,7 +44,7 @@ impl<T> Decodable712 for alloy_consensus::EthereumTxEnvelope<T> {
 
 /// Parse the message out of typed data as a serde json value
 #[cfg(feature = "serde")]
-pub fn parse_typed_data_message(typed_data: &TypedData) -> Eip712Result<serde_json::Value> {
+pub (crate) fn parse_typed_data_message(typed_data: &TypedData) -> Eip712Result<serde_json::Value> {
     let message = serde_json::to_value(&typed_data.message)
         .map_err(|_| Eip712Error::DecodeError("Failed to serialize message".to_string()))?;
     Ok(message)
@@ -73,7 +73,7 @@ fn parse_u8(message: &serde_json::Value, field: &'static str) -> Eip712Result<u8
 
 /// represents what kind of transaction they are sending via typed data
 #[derive(PartialEq, Debug)]
-pub enum TypedDataTransactionType {
+pub (crate) enum TypedDataTransactionType {
     /// always a seismic transaction
     TxSeismic,
 }
