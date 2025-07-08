@@ -17,12 +17,12 @@ use alloy_rlp::{Decodable, Encodable};
 use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "serde")]
-use crate::eip712::TypedDataTransactionType;
-#[cfg(feature = "serde")]
 use crate::transaction::{Decodable712, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use alloy_consensus::SignableTransaction;
-
+#[cfg(feature = "serde")]
+use crate::eip712::{typed_data_decode_7702, TypedDataTransactionType};
+        
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
 ///
 /// # Note:
@@ -690,6 +690,20 @@ impl Decodable712 for SeismicTxEnvelope {
             TypedDataTransactionType::TxSeismic => {
                 let tx = TxSeismic::eip712_decode(&req.data)?;
                 Ok(Self::Seismic(tx.into_signed(req.signature)))
+            },
+            TypedDataTransactionType::AnyTransaction(tx_type) => {
+                let tx_envelope = match tx_type {
+                    SeismicTxType::Eip7702 => {
+                        let tx = typed_data_decode_7702(&req.data)?;
+                        Self::Eip7702(tx.into_signed(req.signature))
+                    },
+                    SeismicTxType::Seismic => {
+                        let tx = TxSeismic::eip712_decode(&req.data)?;
+                        Self::Seismic(tx.into_signed(req.signature))
+                    },
+                    _ => todo!("Typed Data transactions only support Eip7702 (4) and Seismic (74) variants")
+                };
+                Ok(tx_envelope)
             }
         }
     }

@@ -1,6 +1,10 @@
 //! EIP-712 typed data decoding
+use alloy_consensus::TxEip7702;
 use alloy_dyn_abi::TypedData;
 use alloy_primitives::Signature;
+
+#[cfg(feature = "serde")]
+use crate::SeismicTxType;
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 /// An EIP-712 typed data request with a signature
@@ -53,44 +57,55 @@ pub(crate) fn parse_typed_data_message(typed_data: &TypedData) -> Eip712Result<s
 #[cfg(feature = "serde")]
 fn parse_u8(message: &serde_json::Value, field: &'static str) -> Eip712Result<u8> {
     let v_u64 = match message.get(field) {
-        Some(v) => match v.as_u64() {
-            Some(v_u64) => Ok(v_u64),
-            None => Err(Eip712Error::DecodeError(format!(
-                "Failed to parse '{}' as integer. Received: {:?}",
-                field, v
-            ))),
+        Some(v) => {
+            match v.as_u64() {
+                Some(v_u64) => Ok(v_u64),
+                None => Err(Eip712Error::DecodeError(format!("Failed to parse '{}' as integer. Received: {:?}", field, v))),
+            }
         },
         None => Err(Eip712Error::DecodeError(format!("Missing field '{}' in typed data", field))),
     }?;
     let v_u8 = match v_u64 < u64::from(u8::MAX) {
         true => Ok(v_u64 as u8),
-        false => {
-            Err(Eip712Error::DecodeError(format!("'{}' {} is too large for u8", field, v_u64)))
-        }
+        false => Err(Eip712Error::DecodeError(format!("'{}' {} is too large for u8", field, v_u64)))
     }?;
     Ok(v_u8)
 }
 
 /// represents what kind of transaction they are sending via typed data
+#[cfg(feature = "serde")]
 #[derive(PartialEq, Debug)]
 pub(crate) enum TypedDataTransactionType {
-    /// Always a seismic transaction.
-    /// We may want to support other transactions later
+    /// always a seismic transaction
     TxSeismic,
+    /// can be any tx type that we support
+    AnyTransaction(SeismicTxType),
 }
 
 #[cfg(feature = "serde")]
 impl TypedDataTransactionType {
+
     /// Parse transaction type out of the typed data
     pub(crate) fn parse_type(typed_data: &TypedData) -> Eip712Result<TypedDataTransactionType> {
         let message = parse_typed_data_message(typed_data)?;
         let v_u8 = parse_u8(&message, "messageVersion")?;
         match v_u8 {
             2 => Ok(TypedDataTransactionType::TxSeismic),
-            _ => Err(Eip712Error::DecodeError(format!(
-                "Invalid 'messageVersion' for typed data transaction: {:?}. Allowed values: (2, 3)",
-                v_u8
-            ))),
+            3 => {
+                let tx_type_u8 = parse_u8(&message, "txType")?;
+                let seismic_type = tx_type_u8.try_into().map_err(|e| Eip712Error::DecodeError(format!("Invalid tx type ({}): {:?}", tx_type_u8, e)))?;
+                Ok(TypedDataTransactionType::AnyTransaction(seismic_type))
+            },
+            _ => Err(Eip712Error::DecodeError(format!("Invalid 'messageVersion' for typed data transaction: {:?}. Allowed values: (2, 3)", v_u8)))
         }
     }
+}
+
+/// Parse a typed data request into an eip7702 transaction.
+/// This should only be called if we already know it's a 7702 tx
+pub(crate) fn typed_data_decode_7702(typed_data: &TypedData) -> Eip712Result<TxEip7702> {
+    let message = parse_typed_data_message(typed_data)?;
+    let tx: TxEip7702 = serde_json::from_value(message)
+        .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
+    Ok(tx)
 }
