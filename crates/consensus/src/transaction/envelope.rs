@@ -17,12 +17,12 @@ use alloy_rlp::{Decodable, Encodable};
 use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "serde")]
+use crate::eip712::TypedDataTransactionType;
+#[cfg(feature = "serde")]
 use crate::transaction::{Decodable712, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use alloy_consensus::SignableTransaction;
-#[cfg(feature = "serde")]
-use crate::eip712::{TypedDataTransactionType};
-        
+
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
 ///
 /// # Note:
