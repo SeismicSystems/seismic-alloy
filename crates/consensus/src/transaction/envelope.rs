@@ -20,7 +20,9 @@ use std::hash::{Hash, Hasher};
 use crate::transaction::{Decodable712, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use alloy_consensus::SignableTransaction;
-
+#[cfg(feature = "serde")]
+use crate::eip712::{TypedDataTransactionType};
+        
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
 ///
 /// # Note:
@@ -682,9 +684,14 @@ impl Encodable2718 for SeismicTxEnvelope {
 
 #[cfg(feature = "serde")]
 impl Decodable712 for SeismicTxEnvelope {
-    fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
-        let tx = TxSeismic::eip712_decode(&typed_data.data)?;
-        Ok(Self::Seismic(tx.into_signed(typed_data.signature)))
+    fn decode_712(req: &TypedDataRequest) -> Eip712Result<Self> {
+        let tx_type = TypedDataTransactionType::parse_type(&req.data)?;
+        match tx_type {
+            TypedDataTransactionType::TxSeismic => {
+                let tx = TxSeismic::eip712_decode(&req.data)?;
+                Ok(Self::Seismic(tx.into_signed(req.signature)))
+            }
+        }
     }
 }
 
