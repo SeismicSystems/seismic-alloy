@@ -81,7 +81,7 @@ pub (crate) enum TypedDataTransactionType {
 #[cfg(feature = "serde")]
 impl TypedDataTransactionType {
     /// Parse transaction type out of the typed data
-    pub fn parse_type(typed_data: &TypedData) -> Eip712Result<TypedDataTransactionType> {
+    pub (crate) fn parse_type(typed_data: &TypedData) -> Eip712Result<TypedDataTransactionType> {
         let message = parse_typed_data_message(typed_data)?;
         let v_u8 = parse_u8(&message, "messageVersion")?;
         match v_u8 {
