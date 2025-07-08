@@ -57,17 +57,20 @@ pub(crate) fn parse_typed_data_message(typed_data: &TypedData) -> Eip712Result<s
 #[cfg(feature = "serde")]
 fn parse_u8(message: &serde_json::Value, field: &'static str) -> Eip712Result<u8> {
     let v_u64 = match message.get(field) {
-        Some(v) => {
-            match v.as_u64() {
-                Some(v_u64) => Ok(v_u64),
-                None => Err(Eip712Error::DecodeError(format!("Failed to parse '{}' as integer. Received: {:?}", field, v))),
-            }
+        Some(v) => match v.as_u64() {
+            Some(v_u64) => Ok(v_u64),
+            None => Err(Eip712Error::DecodeError(format!(
+                "Failed to parse '{}' as integer. Received: {:?}",
+                field, v
+            ))),
         },
         None => Err(Eip712Error::DecodeError(format!("Missing field '{}' in typed data", field))),
     }?;
     let v_u8 = match v_u64 < u64::from(u8::MAX) {
         true => Ok(v_u64 as u8),
-        false => Err(Eip712Error::DecodeError(format!("'{}' {} is too large for u8", field, v_u64)))
+        false => {
+            Err(Eip712Error::DecodeError(format!("'{}' {} is too large for u8", field, v_u64)))
+        }
     }?;
     Ok(v_u8)
 }
@@ -84,7 +87,6 @@ pub(crate) enum TypedDataTransactionType {
 
 #[cfg(feature = "serde")]
 impl TypedDataTransactionType {
-
     /// Parse transaction type out of the typed data
     pub(crate) fn parse_type(typed_data: &TypedData) -> Eip712Result<TypedDataTransactionType> {
         let message = parse_typed_data_message(typed_data)?;
@@ -93,10 +95,15 @@ impl TypedDataTransactionType {
             2 => Ok(TypedDataTransactionType::TxSeismic),
             3 => {
                 let tx_type_u8 = parse_u8(&message, "txType")?;
-                let seismic_type = tx_type_u8.try_into().map_err(|e| Eip712Error::DecodeError(format!("Invalid tx type ({}): {:?}", tx_type_u8, e)))?;
+                let seismic_type = tx_type_u8.try_into().map_err(|e| {
+                    Eip712Error::DecodeError(format!("Invalid tx type ({}): {:?}", tx_type_u8, e))
+                })?;
                 Ok(TypedDataTransactionType::AnyTransaction(seismic_type))
-            },
-            _ => Err(Eip712Error::DecodeError(format!("Invalid 'messageVersion' for typed data transaction: {:?}. Allowed values: (2, 3)", v_u8)))
+            }
+            _ => Err(Eip712Error::DecodeError(format!(
+                "Invalid 'messageVersion' for typed data transaction: {:?}. Allowed values: (2, 3)",
+                v_u8
+            ))),
         }
     }
 }
