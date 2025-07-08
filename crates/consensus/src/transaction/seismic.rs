@@ -471,7 +471,7 @@ impl RlpEcdsaEncodableTx for TxSeismic {
         self.input.encode(out);
     }
 
-    fn tx_hash(&self,signature: &Signature) -> alloy_primitives::TxHash {
+    fn tx_hash(&self, signature: &Signature) -> alloy_primitives::TxHash {
         /*
         // While this will work, it's unclear whether we want this
         if self.is_eip712() {
@@ -809,7 +809,11 @@ pub(super) mod serde_bincode_compat {
 mod tests {
     use std::str::FromStr;
 
-    use alloy_primitives::{b256, hex, Address, Signature};
+    use alloy_primitives::{
+        b256,
+        hex::{self, FromHex},
+        Address, FixedBytes, Signature,
+    };
     use seismic_enclave::MockEnclaveClient;
 
     use super::*;
@@ -981,9 +985,13 @@ mod tests {
                 message_version: 2,
             }
         };
-        let signature = {  
-            let r_bytes =  hex::decode("e93185920818650416b4b0cc953c48f59fd9a29af4b7e1c4b1ac4824392f9220").unwrap();
-            let s_bytes =  hex::decode("79b76b064a83d423997b7234c575588f60da5d3e1e0561eff9804eb04c23789a").unwrap();
+        let signature = {
+            let r_bytes =
+                hex::decode("e93185920818650416b4b0cc953c48f59fd9a29af4b7e1c4b1ac4824392f9220")
+                    .unwrap();
+            let s_bytes =
+                hex::decode("79b76b064a83d423997b7234c575588f60da5d3e1e0561eff9804eb04c23789a")
+                    .unwrap();
             let mut r_padded = [0u8; 32];
             let mut s_padded = [0u8; 32];
             let r_start = 32 - r_bytes.len();
@@ -991,17 +999,25 @@ mod tests {
 
             r_padded[r_start..].copy_from_slice(&r_bytes);
             s_padded[s_start..].copy_from_slice(&s_bytes);
-            
+
             let r = U256::from_be_bytes(r_padded);
             let s = U256::from_be_bytes(s_padded);
 
             Signature::new(r, s, false)
         };
         let signed = tx.clone().into_signed(signature);
-        println!("signed.hash: {:?}", signed.hash());
+        let signed_hash = signed.hash();
 
-        let hash = tx.tx_hash(&signature);
-        println!(".tx_hash(): {:?}", hash);
+        let expected_tx_hash = FixedBytes::<32>::from_hex(
+            "d578c4f5e787b2994749e68e44860692480ace52b219bbc0119919561cbc29ea",
+        )
+        .unwrap();
+
+        assert_eq!(signed_hash, &expected_tx_hash);
+
+        // NOTE: undecided whether we want to check this last assert
+        let raw_tx_hash = tx.tx_hash(&signature);
+        assert_eq!(&raw_tx_hash, &expected_tx_hash);
     }
 
     #[cfg(feature = "serde")]
