@@ -13,7 +13,7 @@ use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
-    constants, ecdh_decrypt, ecdh_encrypt, keys::GetPurposeKeysRequest, rand,
+    constants, ecdh_decrypt, ecdh_encrypt, GetPurposeKeysRequest, rand,
     rpc::SyncEnclaveApiClient, Keypair, Nonce, PublicKey, Secp256k1, SecretKey,
 };
 use thiserror::Error;
