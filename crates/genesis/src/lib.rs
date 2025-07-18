@@ -306,25 +306,30 @@ where
     }
 }
 
+/// Custom deserialization function for the flagged storage map.
 pub fn deserialize_flagged_storage_map<'de, D>(
     deserializer: D,
 ) -> Result<Option<BTreeMap<B256, FlaggedStorage>>, D::Error>
 where
     D: Deserializer<'de>,
 {
+    println!("entered deserialize_flagged_storage_map");
     let map = Option::<BTreeMap<Bytes, serde_json::Value>>::deserialize(deserializer)?;
     match map {
         Some(map) => {
             let mut res_map = BTreeMap::new();
             for (k, v) in map {
                 let k_deserialized = from_bytes_to_b256::<'de, D>(k)?;
+                println!("k_deserialized: {:?}", k_deserialized);
 
                 // Handle backwards compatibility: both string and object formats
                 let flagged_storage = if let serde_json::Value::String(s) = &v {
+                    println!("entered old format");
                     // Old format: simple hex string
                     let value = B256::from_str(s).map_err(D::Error::custom)?;
                     FlaggedStorage { value: U256::from_be_bytes(value.0), is_private: false }
                 } else if let serde_json::Value::Object(obj) = &v {
+                    println!("entered new format");
                     // New format: object with value and is_private
                     let value_str = obj.get("value").and_then(|v| v.as_str()).ok_or_else(|| {
                         D::Error::custom("missing 'value' field in FlaggedStorage object")
