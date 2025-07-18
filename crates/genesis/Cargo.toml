@@ -23,10 +23,10 @@ rustdoc-args = [
 workspace = true
 
 [dependencies]
-alloy-eips = { workspace = true, features = ["serde"] }
 alloy-primitives.workspace = true
 alloy-serde.workspace = true
 alloy-trie = { workspace = true, features = ["ethereum"] }
+alloy-genesis = { workspace = true }
 
 # serde
 serde.workspace = true
@@ -42,6 +42,5 @@ std = [
 	"alloy-serde/std",
 	"serde/std",
 	"alloy-trie/std",
-	"alloy-eips/std",
 	"serde_json/std"
 ]

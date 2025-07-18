@@ -4266,7 +4266,7 @@ dependencies = [
 name = "seismic-alloy-genesis"
 version = "0.0.1"
 dependencies = [
- "alloy-eips",
+ "alloy-genesis",
  "alloy-primitives",
  "alloy-serde",
  "alloy-trie",

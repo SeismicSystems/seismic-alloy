@@ -12,12 +12,34 @@
 extern crate alloc;
 
 use alloc::{collections::BTreeMap, string::String};
-use alloy_eips::{eip7840::BlobParams, BlobScheduleBlobParams};
 use alloy_primitives::{keccak256, Address, Bytes, FlaggedStorage, B256, U256};
-use alloy_serde::{storage::from_bytes_to_b256, ttd::deserialize_json_ttd_opt, OtherFields};
+use alloy_serde::{storage::from_bytes_to_b256};
 use alloy_trie::{TrieAccount, EMPTY_ROOT_HASH, KECCAK_EMPTY};
 use core::str::FromStr;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
+
+use alloy_genesis::{CliqueConfig, ChainConfig};
+
+
+impl From<alloy_genesis::Genesis> for Genesis {
+    fn from(genesis: alloy_genesis::Genesis) -> Self {
+        Self {
+            config: genesis.config,
+            nonce: genesis.nonce,
+            timestamp: genesis.timestamp,
+            extra_data: genesis.extra_data,
+            gas_limit: genesis.gas_limit,
+            difficulty: genesis.difficulty,
+            mix_hash: genesis.mix_hash,
+            coinbase: genesis.coinbase,
+            alloc: genesis.alloc.into_iter().map(|(addr, account)| (addr, account.into())).collect(),
+            base_fee_per_gas: genesis.base_fee_per_gas,
+            excess_blob_gas: genesis.excess_blob_gas,
+            blob_gas_used: genesis.blob_gas_used,
+            number: genesis.number,
+        }
+    }
+}
 
 /// The genesis block specification.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -261,6 +283,8 @@ impl GenesisAccount {
     }
 }
 
+
+
 impl From<GenesisAccount> for TrieAccount {
     fn from(account: GenesisAccount) -> Self {
         let storage_root = account
@@ -280,6 +304,21 @@ impl From<GenesisAccount> for TrieAccount {
             balance: account.balance,
             storage_root,
             code_hash: account.code.map_or(KECCAK_EMPTY, keccak256),
+        }
+    }
+}
+
+impl From<alloy_genesis::GenesisAccount> for GenesisAccount {
+    fn from(account: alloy_genesis::GenesisAccount) -> Self {
+        Self {
+            nonce: account.nonce,
+            balance: account.balance,
+            code: account.code,
+            storage: match account.storage {
+                Some(storage) => Some(convert_fixedbytes_map_to_flagged_storage(storage)),
+                None => None,
+            },
+            private_key: account.private_key,
         }
     }
 }
@@ -362,362 +401,6 @@ pub fn convert_fixedbytes_map_to_flagged_storage(
         .collect()
 }
 
-/// Defines core blockchain settings per block.
-///
-/// Tailors unique settings for each network based on its genesis block.
-///
-/// Governs crucial blockchain behavior and adaptability.
-///
-/// Encapsulates parameters shaping network evolution and behavior.
-///
-/// See [geth's `ChainConfig`
-/// struct](https://github.com/ethereum/go-ethereum/blob/v1.14.0/params/config.go#L326)
-/// for the source of each field.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct ChainConfig {
-    /// The network's chain ID.
-    pub chain_id: u64,
-
-    /// The homestead switch block (None = no fork, 0 = already homestead).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub homestead_block: Option<u64>,
-
-    /// The DAO fork switch block (None = no fork).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub dao_fork_block: Option<u64>,
-
-    /// Whether or not the node supports the DAO hard-fork.
-    pub dao_fork_support: bool,
-
-    /// The [EIP-150](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-150.md) hard fork block (None = no fork).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub eip150_block: Option<u64>,
-
-    /// The [EIP-155](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md) hard fork block.
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub eip155_block: Option<u64>,
-
-    /// The [EIP-158](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-158.md) hard fork block.
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub eip158_block: Option<u64>,
-
-    /// The Byzantium hard fork block (None = no fork, 0 = already on byzantium).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub byzantium_block: Option<u64>,
-
-    /// The Constantinople hard fork block (None = no fork, 0 = already on constantinople).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub constantinople_block: Option<u64>,
-
-    /// The Petersburg hard fork block (None = no fork, 0 = already on petersburg).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub petersburg_block: Option<u64>,
-
-    /// The Istanbul hard fork block (None = no fork, 0 = already on istanbul).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub istanbul_block: Option<u64>,
-
-    /// The Muir Glacier hard fork block (None = no fork, 0 = already on muir glacier).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub muir_glacier_block: Option<u64>,
-
-    /// The Berlin hard fork block (None = no fork, 0 = already on berlin).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub berlin_block: Option<u64>,
-
-    /// The London hard fork block (None = no fork, 0 = already on london).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub london_block: Option<u64>,
-
-    /// The Arrow Glacier hard fork block (None = no fork, 0 = already on arrow glacier).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub arrow_glacier_block: Option<u64>,
-
-    /// The Gray Glacier hard fork block (None = no fork, 0 = already on gray glacier).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub gray_glacier_block: Option<u64>,
-
-    /// Virtual fork after the merge to use as a network splitter.
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub merge_netsplit_block: Option<u64>,
-
-    /// Shanghai switch time (None = no fork, 0 = already on shanghai).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub shanghai_time: Option<u64>,
-
-    /// Cancun switch time (None = no fork, 0 = already on cancun).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub cancun_time: Option<u64>,
-
-    /// Prague switch time (None = no fork, 0 = already on prague).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub prague_time: Option<u64>,
-
-    /// Osaka switch time (None = no fork, 0 = already on osaka).
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "alloy_serde::quantity::opt::deserialize"
-    )]
-    pub osaka_time: Option<u64>,
-
-    /// Total difficulty reached that triggers the merge consensus upgrade.
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_json_ttd_opt"
-    )]
-    pub terminal_total_difficulty: Option<U256>,
-
-    /// A flag specifying that the network already passed the terminal total difficulty. Its
-    /// purpose is to disable legacy sync without having seen the TTD locally.
-    pub terminal_total_difficulty_passed: bool,
-
-    /// Ethash parameters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ethash: Option<EthashConfig>,
-
-    /// Clique parameters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub clique: Option<CliqueConfig>,
-
-    /// Parlia parameters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parlia: Option<ParliaConfig>,
-
-    /// Additional fields specific to each chain.
-    #[serde(flatten, default)]
-    pub extra_fields: OtherFields,
-
-    /// The deposit contract address
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deposit_contract_address: Option<Address>,
-
-    /// The blob schedule for the chain, indexed by hardfork name.
-    ///
-    /// See [EIP-7840](https://github.com/ethereum/EIPs/tree/master/EIPS/eip-7840.md).
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub blob_schedule: BTreeMap<String, BlobParams>,
-}
-
-impl ChainConfig {
-    /// Returns the [`BlobScheduleBlobParams`] from the configured blob schedule values.
-    pub fn blob_schedule_blob_params(&self) -> BlobScheduleBlobParams {
-        BlobScheduleBlobParams::from_schedule(&self.blob_schedule)
-    }
-
-    /// Checks if the blockchain is active at or after the Homestead fork block.
-    pub fn is_homestead_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.homestead_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the EIP150 fork block.
-    pub fn is_eip150_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.eip150_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the EIP155 fork block.
-    pub fn is_eip155_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.eip155_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the EIP158 fork block.
-    pub fn is_eip158_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.eip158_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Byzantium fork block.
-    pub fn is_byzantium_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.byzantium_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Constantinople fork block.
-    pub fn is_constantinople_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.constantinople_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Muir Glacier (EIP-2384) fork block.
-    pub fn is_muir_glacier_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.muir_glacier_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Petersburg fork block.
-    pub fn is_petersburg_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.petersburg_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Istanbul fork block.
-    pub fn is_istanbul_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.istanbul_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Berlin fork block.
-    pub fn is_berlin_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.berlin_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the London fork block.
-    pub fn is_london_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.london_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Arrow Glacier (EIP-4345) fork block.
-    pub fn is_arrow_glacier_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.arrow_glacier_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Gray Glacier (EIP-5133) fork block.
-    pub fn is_gray_glacier_active_at_block(&self, block: u64) -> bool {
-        self.is_active_at_block(self.gray_glacier_block, block)
-    }
-
-    /// Checks if the blockchain is active at or after the Shanghai fork block and the specified
-    /// timestamp.
-    pub fn is_shanghai_active_at_block_and_timestamp(&self, block: u64, timestamp: u64) -> bool {
-        self.is_london_active_at_block(block) &&
-            self.is_active_at_timestamp(self.shanghai_time, timestamp)
-    }
-
-    /// Checks if the blockchain is active at or after the Cancun fork block and the specified
-    /// timestamp.
-    pub fn is_cancun_active_at_block_and_timestamp(&self, block: u64, timestamp: u64) -> bool {
-        self.is_london_active_at_block(block) &&
-            self.is_active_at_timestamp(self.cancun_time, timestamp)
-    }
-
-    // Private function handling the comparison logic for block numbers
-    fn is_active_at_block(&self, config_block: Option<u64>, block: u64) -> bool {
-        config_block.is_some_and(|cb| cb <= block)
-    }
-
-    // Private function handling the comparison logic for timestamps
-    fn is_active_at_timestamp(&self, config_timestamp: Option<u64>, timestamp: u64) -> bool {
-        config_timestamp.is_some_and(|cb| cb <= timestamp)
-    }
-}
-
-impl Default for ChainConfig {
-    fn default() -> Self {
-        Self {
-            // mainnet
-            chain_id: 1,
-            homestead_block: None,
-            dao_fork_block: None,
-            dao_fork_support: false,
-            eip150_block: None,
-            eip155_block: None,
-            eip158_block: None,
-            byzantium_block: None,
-            constantinople_block: None,
-            petersburg_block: None,
-            istanbul_block: None,
-            muir_glacier_block: None,
-            berlin_block: None,
-            london_block: None,
-            arrow_glacier_block: None,
-            gray_glacier_block: None,
-            merge_netsplit_block: None,
-            shanghai_time: None,
-            cancun_time: None,
-            prague_time: None,
-            osaka_time: None,
-            terminal_total_difficulty: None,
-            terminal_total_difficulty_passed: false,
-            ethash: None,
-            clique: None,
-            parlia: None,
-            extra_fields: Default::default(),
-            deposit_contract_address: None,
-            blob_schedule: Default::default(),
-        }
-    }
-}
-
-/// Empty consensus configuration for proof-of-work networks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EthashConfig {}
-
-/// Consensus configuration for Clique.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CliqueConfig {
-    /// Number of seconds between blocks to enforce.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub period: Option<u64>,
-
-    /// Epoch length to reset votes and checkpoints.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub epoch: Option<u64>,
-}
-
-/// Consensus configuration for Parlia.
-///
-/// Parlia is the consensus engine for BNB Smart Chain.
-/// For the general introduction: <https://docs.bnbchain.org/docs/learn/consensus/>
-/// For the specification: <https://github.com/bnb-chain/bsc/blob/master/params/config.go#L558>
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ParliaConfig {
-    /// Number of seconds between blocks to enforce.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub period: Option<u64>,
-
-    /// Epoch length to update validator set.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub epoch: Option<u64>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -726,6 +409,7 @@ mod tests {
     use alloy_trie::{root::storage_root_unhashed, TrieAccount};
     use core::str::FromStr;
     use serde_json::json;
+    use alloy_genesis::{EthashConfig};
 
     #[test]
     fn genesis_defaults_config() {
