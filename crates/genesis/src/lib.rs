@@ -326,8 +326,9 @@ where
                 let flagged_storage = if let serde_json::Value::String(s) = &v {
                     println!("entered old format");
                     // Old format: simple hex string
-                    let value = B256::from_str(s).map_err(D::Error::custom)?;
-                    FlaggedStorage { value: U256::from_be_bytes(value.0), is_private: false }
+                    let v_bytes = Bytes::from_str(s).map_err(D::Error::custom)?;
+                    let v_deserialized = from_bytes_to_b256::<'de, D>(v_bytes)?;
+                    FlaggedStorage { value: v_deserialized.into(), is_private: false }
                 } else if let serde_json::Value::Object(obj) = &v {
                     println!("entered new format");
                     // New format: object with value and is_private
