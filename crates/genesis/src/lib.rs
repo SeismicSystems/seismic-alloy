@@ -13,8 +13,8 @@ extern crate alloc;
 
 use alloc::{collections::BTreeMap, string::String};
 use alloy_eips::{eip7840::BlobParams, BlobScheduleBlobParams};
-use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
-use alloy_serde::{storage::deserialize_storage_map, ttd::deserialize_json_ttd_opt, OtherFields};
+use alloy_primitives::{keccak256, Address, Bytes, FlaggedStorage, B256, U256};
+use alloy_serde::{storage::from_bytes_to_b256, ttd::deserialize_json_ttd_opt, OtherFields};
 use alloy_trie::{TrieAccount, EMPTY_ROOT_HASH, KECCAK_EMPTY};
 use core::str::FromStr;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
@@ -208,9 +208,9 @@ pub struct GenesisAccount {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_storage_map"
+        deserialize_with = "deserialize_flagged_storage_map"
     )]
-    pub storage: Option<BTreeMap<B256, B256>>,
+    pub storage: Option<BTreeMap<B256, FlaggedStorage>>,
     /// The account's private key. Should only be used for testing.
     #[serde(
         rename = "secretKey",
@@ -241,17 +241,18 @@ impl GenesisAccount {
     }
 
     /// Set the storage.
-    pub fn with_storage(mut self, storage: Option<BTreeMap<B256, B256>>) -> Self {
+    pub fn with_storage(mut self, storage: Option<BTreeMap<B256, FlaggedStorage>>) -> Self {
         self.storage = storage;
         self
     }
 
     /// Returns an iterator over the storage slots in (`B256`, `U256`) format.
-    pub fn storage_slots(&self) -> impl Iterator<Item = (B256, U256)> + '_ {
-        self.storage.as_ref().into_iter().flat_map(|storage| storage.iter()).map(|(key, value)| {
-            let value = U256::from_be_bytes(value.0);
-            (*key, value)
-        })
+    pub fn storage_slots(&self) -> impl Iterator<Item = (B256, FlaggedStorage)> + '_ {
+        self.storage
+            .as_ref()
+            .into_iter()
+            .flat_map(|storage| storage.iter())
+            .map(|(key, flagged_value)| (*key, *flagged_value))
     }
 
     /// Convert the genesis account into the [`TrieAccount`] format.
@@ -269,7 +270,7 @@ impl From<GenesisAccount> for TrieAccount {
                     storage
                         .into_iter()
                         .filter(|(_, value)| !value.is_zero())
-                        .map(|(slot, value)| (slot, U256::from_be_bytes(*value))),
+                        .map(|(slot, value)| (slot, (value.value, value.is_private))),
                 )
             })
             .unwrap_or(EMPTY_ROOT_HASH);
@@ -303,6 +304,59 @@ where
     } else {
         Ok(None)
     }
+}
+
+pub fn deserialize_flagged_storage_map<'de, D>(
+    deserializer: D,
+) -> Result<Option<BTreeMap<B256, FlaggedStorage>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let map = Option::<BTreeMap<Bytes, serde_json::Value>>::deserialize(deserializer)?;
+    match map {
+        Some(map) => {
+            let mut res_map = BTreeMap::new();
+            for (k, v) in map {
+                let k_deserialized = from_bytes_to_b256::<'de, D>(k)?;
+
+                // Handle backwards compatibility: both string and object formats
+                let flagged_storage = if let serde_json::Value::String(s) = &v {
+                    // Old format: simple hex string
+                    let value = B256::from_str(s).map_err(D::Error::custom)?;
+                    FlaggedStorage { value: U256::from_be_bytes(value.0), is_private: false }
+                } else if let serde_json::Value::Object(obj) = &v {
+                    // New format: object with value and is_private
+                    let value_str = obj.get("value").and_then(|v| v.as_str()).ok_or_else(|| {
+                        D::Error::custom("missing 'value' field in FlaggedStorage object")
+                    })?;
+                    let value = B256::from_str(value_str).map_err(D::Error::custom)?;
+                    let is_private =
+                        obj.get("is_private").and_then(|v| v.as_bool()).unwrap_or(false);
+                    FlaggedStorage { value: U256::from_be_bytes(value.0), is_private }
+                } else {
+                    return Err(D::Error::custom("FlaggedStorage must be either a hex string or an object with 'value' and 'is_private' fields"));
+                };
+
+                res_map.insert(k_deserialized, flagged_storage);
+            }
+            Ok(Some(res_map))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Convert a BTreeMap<B256, B256> to BTreeMap<B256, FlaggedStorage> with is_private = false
+pub fn convert_fixedbytes_map_to_flagged_storage(
+    storage: BTreeMap<B256, B256>,
+) -> BTreeMap<B256, FlaggedStorage> {
+    storage
+        .into_iter()
+        .map(|(key, value)| {
+            let flagged_storage =
+                FlaggedStorage { value: U256::from_be_bytes(value.0), is_private: false };
+            (key, flagged_storage)
+        })
+        .collect()
 }
 
 /// Defines core blockchain settings per block.
@@ -570,15 +624,15 @@ impl ChainConfig {
     /// Checks if the blockchain is active at or after the Shanghai fork block and the specified
     /// timestamp.
     pub fn is_shanghai_active_at_block_and_timestamp(&self, block: u64, timestamp: u64) -> bool {
-        self.is_london_active_at_block(block)
-            && self.is_active_at_timestamp(self.shanghai_time, timestamp)
+        self.is_london_active_at_block(block) &&
+            self.is_active_at_timestamp(self.shanghai_time, timestamp)
     }
 
     /// Checks if the blockchain is active at or after the Cancun fork block and the specified
     /// timestamp.
     pub fn is_cancun_active_at_block_and_timestamp(&self, block: u64, timestamp: u64) -> bool {
-        self.is_london_active_at_block(block)
-            && self.is_active_at_timestamp(self.cancun_time, timestamp)
+        self.is_london_active_at_block(block) &&
+            self.is_active_at_timestamp(self.cancun_time, timestamp)
     }
 
     // Private function handling the comparison logic for block numbers
@@ -665,7 +719,7 @@ pub struct ParliaConfig {
 mod tests {
     use super::*;
     use alloc::{collections::BTreeMap, vec};
-    use alloy_primitives::{hex, Bytes};
+    use alloy_primitives::{hex, Bytes, FixedBytes};
     use alloy_trie::{root::storage_root_unhashed, TrieAccount};
     use core::str::FromStr;
     use serde_json::json;
@@ -754,7 +808,9 @@ mod tests {
         let balance = U256::from(33);
         let code = Some(b"code".into());
         let root = hex!("9474ddfcea39c5a690d2744103e39d1ff1b03d18db10fc147d970ad24699395a").into();
-        let value = hex!("58eb8294d9bb16832a9dabfcb270fff99ab8ee1d8764e4f3d9fdf59ec1dee469").into();
+        let value: FixedBytes<32> =
+            hex!("58eb8294d9bb16832a9dabfcb270fff99ab8ee1d8764e4f3d9fdf59ec1dee469").into();
+        let value: FlaggedStorage = FlaggedStorage { value: value.into(), is_private: false };
         let mut map = BTreeMap::default();
         map.insert(root, value);
         let storage = Some(map);
@@ -1360,6 +1416,7 @@ mod tests {
                 .unwrap(),
             ),
         ]);
+        let expected_storage = convert_fixedbytes_map_to_flagged_storage(expected_storage);
         assert_eq!(storage, &expected_storage);
 
         let expected_code =
@@ -1430,29 +1487,30 @@ mod tests {
     }
     "#;
 
-        let expected_genesis =
-            Genesis {
-                nonce: 0x0000000000000042,
-                difficulty: U256::from(0x2123456),
-                mix_hash: B256::from_str(
-                    "0x123456789abcdef123456789abcdef123456789abcdef123456789abcdef1234",
-                )
-                .unwrap(),
-                coinbase: Address::from_str("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
-                timestamp: 0x123456,
-                extra_data: Bytes::from_str("0xfafbfcfd").unwrap(),
-                gas_limit: 0x2fefd8,
-                base_fee_per_gas: None,
-                excess_blob_gas: None,
-                blob_gas_used: None,
-                number: None,
-                alloc: BTreeMap::from_iter(vec![
+        let expected_genesis = Genesis {
+            nonce: 0x0000000000000042,
+            difficulty: U256::from(0x2123456),
+            mix_hash: B256::from_str(
+                "0x123456789abcdef123456789abcdef123456789abcdef123456789abcdef1234",
+            )
+            .unwrap(),
+            coinbase: Address::from_str("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
+            timestamp: 0x123456,
+            extra_data: Bytes::from_str("0xfafbfcfd").unwrap(),
+            gas_limit: 0x2fefd8,
+            base_fee_per_gas: None,
+            excess_blob_gas: None,
+            blob_gas_used: None,
+            number: None,
+            alloc: BTreeMap::from_iter(vec![
                 (
                     Address::from_str("0xdbdbdb2cbd23b783741e8d7fcf51e459b497e4a6").unwrap(),
                     GenesisAccount {
-                        balance:
-    U256::from_str("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").
-    unwrap(),                     nonce: None,
+                        balance: U256::from_str(
+                            "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+                        )
+                        .unwrap(),
+                        nonce: None,
                         code: None,
                         storage: None,
                         private_key: None,
@@ -1474,14 +1532,16 @@ mod tests {
                         balance: U256::from_str("0x21").unwrap(),
                         nonce: None,
                         code: None,
-                        storage: Some(BTreeMap::from_iter(vec![
+                        storage: Some(convert_fixedbytes_map_to_flagged_storage(
+                            BTreeMap::from_iter(vec![
                             (
 
     B256::from_str("0x0000000000000000000000000000000000000000000000000000000000000001").
     unwrap(),
     B256::from_str("0x0000000000000000000000000000000000000000000000000000000000000022").
     unwrap(),                         ),
-                        ])),
+                        ]),
+                        )),
                         private_key: None,
                     },
                 ),
@@ -1536,21 +1596,21 @@ mod tests {
                     },
                 ),
             ]),
-                config: ChainConfig {
-                    ethash: Some(EthashConfig {}),
-                    chain_id: 10,
-                    homestead_block: Some(0),
-                    eip150_block: Some(0),
-                    eip155_block: Some(0),
-                    eip158_block: Some(0),
-                    byzantium_block: Some(0),
-                    constantinople_block: Some(0),
-                    petersburg_block: Some(0),
-                    istanbul_block: Some(0),
-                    deposit_contract_address: None,
-                    ..Default::default()
-                },
-            };
+            config: ChainConfig {
+                ethash: Some(EthashConfig {}),
+                chain_id: 10,
+                homestead_block: Some(0),
+                eip150_block: Some(0),
+                eip155_block: Some(0),
+                eip158_block: Some(0),
+                byzantium_block: Some(0),
+                constantinople_block: Some(0),
+                petersburg_block: Some(0),
+                istanbul_block: Some(0),
+                deposit_contract_address: None,
+                ..Default::default()
+            },
+        };
 
         let deserialized_genesis: Genesis = serde_json::from_str(hive_genesis).unwrap();
         assert_eq!(
@@ -1698,6 +1758,7 @@ mod tests {
         // Create a GenesisAccount with specific values
         let mut storage = BTreeMap::new();
         storage.insert(B256::from([0x01; 32]), B256::from([0x02; 32]));
+        let storage = convert_fixedbytes_map_to_flagged_storage(storage);
 
         let genesis_account = GenesisAccount {
             nonce: Some(10),
@@ -1726,6 +1787,7 @@ mod tests {
     fn test_from_genesis_account_with_zeroed_storage_values() {
         // Create a GenesisAccount with storage containing zero values
         let storage = BTreeMap::from([(B256::from([0x01; 32]), B256::from([0x00; 32]))]);
+        let storage = convert_fixedbytes_map_to_flagged_storage(storage);
 
         let genesis_account = GenesisAccount {
             nonce: Some(3),
