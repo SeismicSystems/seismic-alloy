@@ -13,13 +13,12 @@ extern crate alloc;
 
 use alloc::{collections::BTreeMap, string::String};
 use alloy_primitives::{keccak256, Address, Bytes, FlaggedStorage, B256, U256};
-use alloy_serde::{storage::from_bytes_to_b256};
+use alloy_serde::storage::from_bytes_to_b256;
 use alloy_trie::{TrieAccount, EMPTY_ROOT_HASH, KECCAK_EMPTY};
 use core::str::FromStr;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
 
-use alloy_genesis::{CliqueConfig, ChainConfig};
-
+use alloy_genesis::{ChainConfig, CliqueConfig};
 
 impl From<alloy_genesis::Genesis> for Genesis {
     fn from(genesis: alloy_genesis::Genesis) -> Self {
@@ -32,7 +31,11 @@ impl From<alloy_genesis::Genesis> for Genesis {
             difficulty: genesis.difficulty,
             mix_hash: genesis.mix_hash,
             coinbase: genesis.coinbase,
-            alloc: genesis.alloc.into_iter().map(|(addr, account)| (addr, account.into())).collect(),
+            alloc: genesis
+                .alloc
+                .into_iter()
+                .map(|(addr, account)| (addr, account.into()))
+                .collect(),
             base_fee_per_gas: genesis.base_fee_per_gas,
             excess_blob_gas: genesis.excess_blob_gas,
             blob_gas_used: genesis.blob_gas_used,
@@ -283,8 +286,6 @@ impl GenesisAccount {
     }
 }
 
-
-
 impl From<GenesisAccount> for TrieAccount {
     fn from(account: GenesisAccount) -> Self {
         let storage_root = account
@@ -405,11 +406,11 @@ pub fn convert_fixedbytes_map_to_flagged_storage(
 mod tests {
     use super::*;
     use alloc::{collections::BTreeMap, vec};
+    use alloy_genesis::EthashConfig;
     use alloy_primitives::{hex, Bytes, FixedBytes};
     use alloy_trie::{root::storage_root_unhashed, TrieAccount};
     use core::str::FromStr;
     use serde_json::json;
-    use alloy_genesis::{EthashConfig};
 
     #[test]
     fn genesis_defaults_config() {
