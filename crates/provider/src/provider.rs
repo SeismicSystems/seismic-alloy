@@ -485,7 +485,7 @@ mod tests {
     #[tokio::test]
     async fn test_subscribe_to_events() {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
-        let anvil = Anvil::at(SANVIL_PATH).port(8545 as u16).block_time(2).spawn();
+        let anvil = Anvil::at(SANVIL_PATH).block_time(2).spawn();
         let wallet = get_wallet(&anvil);
         let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet, anvil.endpoint_url());
         let ws_provider =
