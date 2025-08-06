@@ -137,7 +137,10 @@ where
         let decrypted_output = seismic_elements
             .client_decrypt(&encrypted_output, &network_pk, &encryption_keypair.secret_key())
             .map_err(|e| {
-                TransportErrorKind::custom_str(&format!("Error decrypting output: {:?}", e))
+                TransportErrorKind::custom_str(&format!(
+                    "Provider decryption error during seismic_call: {:?}. ciphertext: {:?}",
+                    e, encrypted_output
+                ))
             })?;
 
         return Ok(decrypted_output);
