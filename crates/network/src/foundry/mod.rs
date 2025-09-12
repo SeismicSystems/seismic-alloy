@@ -91,6 +91,10 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
         self.inner.set_nonce(nonce);
     }
 
+    fn take_nonce(&mut self) -> Option<u64> {
+        self.inner.take_nonce()
+    }
+
     fn input(&self) -> Option<&Bytes> {
         self.inner.input.input()
     }
