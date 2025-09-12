@@ -148,7 +148,7 @@ alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy
 alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", branch = "usm" }
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", branch = "usm" }
 
-alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "417644c" }
+alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", branch = "usm" }
 
 # # OG alloy patches to v1.0.9
 # alloy-consensus = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
