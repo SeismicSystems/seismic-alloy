@@ -292,9 +292,7 @@ impl From<GenesisAccount> for TrieAccount {
             .storage
             .map(|storage| {
                 alloy_trie::root::storage_root_unhashed(
-                    storage
-                        .into_iter()
-                        .filter(|(_, value)| !value.is_zero()),
+                    storage.into_iter().filter(|(_, value)| !value.is_zero()),
                 )
             })
             .unwrap_or(EMPTY_ROOT_HASH);

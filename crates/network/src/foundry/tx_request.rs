@@ -197,7 +197,9 @@ impl TransactionBuilder<SeismicFoundry> for SeismicFoundryTransactionRequest {
     }
 
     fn take_nonce(&mut self) -> Option<u64> {
-        <SeismicTransactionRequest as TransactionBuilder<SeismicFoundry>>::take_nonce(&mut self.inner)
+        <SeismicTransactionRequest as TransactionBuilder<SeismicFoundry>>::take_nonce(
+            &mut self.inner,
+        )
     }
 
     fn input(&self) -> Option<&Bytes> {
