@@ -1,7 +1,7 @@
 //! Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
 use alloy_consensus::{
-    transaction::RlpEcdsaDecodableTx, EthereumTxEnvelope, Signed, Transaction as TransactionTrait,
-    TxEip4844Variant, TxEnvelope, Typed2718,
+    error::ValueError, transaction::RlpEcdsaDecodableTx, EthereumTxEnvelope, Signed,
+    Transaction as TransactionTrait, TxEip4844Variant, TxEnvelope, Typed2718,
 };
 use alloy_eip7702::SignedAuthorization;
 use alloy_network::{
@@ -70,6 +70,20 @@ impl SeismicFoundryTxEnvelope {
             SeismicFoundryTxEnvelope::Unknown(_) => {
                 unimplemented!("Can't set input for unknown transaction");
             }
+        }
+    }
+
+    /// Returns true if this is the ethereum transaction variant
+    pub const fn is_ethereum(&self) -> bool {
+        matches!(self, Self::Ethereum(_))
+    }
+
+    /// Returns the inner Ethereum transaction envelope, if it is an Ethereum transaction.
+    /// If the transaction is not an Ethereum transaction, it is returned as an error.
+    pub fn try_into_envelope(self) -> Result<TxEnvelope, ValueError<Self>> {
+        match self {
+            Self::Ethereum(inner) => Ok(inner),
+            this => Err(ValueError::new_static(this, "unknown transaction envelope")),
         }
     }
 }

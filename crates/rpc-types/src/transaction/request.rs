@@ -2,6 +2,7 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
+    transaction::{Either, Recovered},
     EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844Variant,
     TxEip7702, TxLegacy, TypedTransaction,
 };
@@ -56,6 +57,13 @@ impl SeismicTransactionRequest {
     /// Note: This leaves the `from` field empty.
     pub fn from_transaction<T: alloy_consensus::Transaction>(tx: T) -> Self {
         let inner = TransactionRequest::from_transaction(tx);
+        Self { inner, seismic_elements: None }
+    }
+
+    /// Initialize a [`TransactionRequest`] from a recovered transaction
+    pub fn from_recovered_transaction<T: alloy_consensus::Transaction>(tx: Recovered<T>) -> Self {
+        let inner = TransactionRequest::from_recovered_transaction(tx);
+        // TODO:(usm) seismic_elements
         Self { inner, seismic_elements: None }
     }
 
