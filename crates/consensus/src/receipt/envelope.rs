@@ -5,7 +5,10 @@ extern crate alloc;
 use alloc::vec::Vec;
 use alloy_consensus::{Eip658Value, Receipt, ReceiptWithBloom, TxReceipt};
 use alloy_eips::{
-    eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
+    eip2718::{
+        Decodable2718, Eip2718Error, Eip2718Result, Encodable2718, EIP1559_TX_TYPE_ID,
+        EIP2930_TX_TYPE_ID, EIP4844_TX_TYPE_ID, EIP7702_TX_TYPE_ID, LEGACY_TX_TYPE_ID,
+    },
     Typed2718,
 };
 use alloy_primitives::{logs_bloom, Bloom, Log};
@@ -105,6 +108,11 @@ impl<T> SeismicReceiptEnvelope<T> {
             Self::Eip7702(_) => SeismicTxType::Eip7702,
             Self::Seismic(_) => SeismicTxType::Seismic,
         }
+    }
+
+    /// get the tx type id
+    pub fn type_id(&self) -> u8 {
+        self.tx_type().into()
     }
 
     /// Return true if the transaction was successful.
