@@ -1,5 +1,8 @@
 //! Seismic Foundry transaction request, meant to behave like WithOtherFields<TransactionRequest>
-use alloy_consensus::{transaction::Recovered, EthereumTypedTransaction, Transaction as TransactionTrait, Typed2718};
+use alloy_consensus::{
+    error::ValueError, transaction::Recovered, EthereumTypedTransaction,
+    Transaction as TransactionTrait, TxEnvelope, Typed2718,
+};
 use alloy_eip7702::SignedAuthorization;
 use alloy_network::{BuildResult, NetworkWallet, TransactionBuilder, TransactionBuilderError};
 use alloy_network_primitives::TransactionResponse;
@@ -37,23 +40,18 @@ impl SeismicFoundryRpcTransaction {
         self.0.into_inner()
     }
 
-    /// Returns the inner Ethereum transaction envelope, if it is an Ethereum transaction.
-    /// If the transaction is not an Ethereum transaction, it is returned as an error.
-    pub fn try_into_envelope(self) -> Result<SeismicTxEnvelope, ValueError<AnyTxEnvelope>> {
-        self.0.inner.inner.into_inner().try_into_envelope()
-    }
-
     /// Attempts to convert the [`AnyRpcTransaction`] into `Either::Right` if this is an unknown
     /// variant.
     ///
     /// Returns `Either::Left` with the ethereum `TxEnvelope` if this is the
     /// [`AnyTxEnvelope::Ethereum`] variant and [`Either::Right`] with the converted variant.
-    pub fn try_into_either<T>(self) -> Result<Either<SeismicTxEnvelope, T>, T::Error>
+    pub fn try_into_either<T>(self) -> Result<Either<TxEnvelope, T>, T::Error>
     where
         T: TryFrom<Self>,
     {
         if self.0.inner.inner.inner().is_ethereum() {
-            Ok(Either::Left(self.0.inner.inner.into_inner().try_into_envelope().unwrap()))
+            let inn = self.0.inner.inner.into_inner();
+            Ok(Either::Left(inn.try_into_envelope().unwrap()))
         } else {
             T::try_from(self).map(Either::Right)
         }
