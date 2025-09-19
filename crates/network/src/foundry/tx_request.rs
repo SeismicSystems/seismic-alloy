@@ -55,6 +55,18 @@ impl SeismicFoundryRpcTransaction {
             T::try_from(self).map(Either::Right)
         }
     }
+
+    /// Creates a [`SeismicTransactionRequest`] with the provided tx, sender & seismic_elements
+    pub fn to_tx_request(self) -> SeismicTransactionRequest {
+        let rec_tx = self.0.inner.inner;
+        let (tx, from) = rec_tx.into_parts();
+        let mut tx_req = SeismicTransactionRequest::from_transaction(tx.clone()).from(from);
+        if let SeismicFoundryTxEnvelope::Seismic(s) = tx {
+            let (p, _, _) = s.into_parts();
+            tx_req.set_seismic_elements(p.seismic_elements);
+        }
+        tx_req
+    }
 }
 
 impl Typed2718 for SeismicFoundryRpcTransaction {
