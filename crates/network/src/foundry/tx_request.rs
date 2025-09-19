@@ -1,13 +1,12 @@
 //! Seismic Foundry transaction request, meant to behave like WithOtherFields<TransactionRequest>
 use alloy_consensus::{
-    error::ValueError, transaction::Recovered, EthereumTypedTransaction,
-    Transaction as TransactionTrait, TxEnvelope, Typed2718,
+    EthereumTypedTransaction, Transaction as TransactionTrait, TxEnvelope, Typed2718,
 };
 use alloy_eip7702::SignedAuthorization;
 use alloy_network::{BuildResult, NetworkWallet, TransactionBuilder, TransactionBuilderError};
 use alloy_network_primitives::TransactionResponse;
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, B256, U256};
-use alloy_rpc_types_eth::{AccessList, Transaction, TransactionRequest};
+use alloy_rpc_types_eth::{AccessList, Transaction};
 use alloy_serde::WithOtherFields;
 use alloy_signer::Either;
 use derive_more::From;

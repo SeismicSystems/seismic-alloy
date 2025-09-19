@@ -2,9 +2,8 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
-    transaction::{Either, Recovered},
-    EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844Variant,
-    TxEip7702, TxLegacy, TypedTransaction,
+    transaction::Recovered, EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930,
+    TxEip4844Variant, TxEip7702, TxLegacy, TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
@@ -52,7 +51,7 @@ impl SeismicTransactionRequest {
         self
     }
 
-    /// Initializes the [`TransactionRequest`] with the provided transaction.
+    /// Initializes the [`SeismicTransactionRequest`] with the provided transaction.
     ///
     /// Note: This leaves the `from` field empty.
     pub fn from_transaction<T: alloy_consensus::Transaction>(tx: T) -> Self {
@@ -60,11 +59,16 @@ impl SeismicTransactionRequest {
         Self { inner, seismic_elements: None }
     }
 
-    /// Initialize a [`TransactionRequest`] from a recovered transaction
-    pub fn from_recovered_transaction<T: alloy_consensus::Transaction>(tx: Recovered<T>) -> Self {
-        let inner = TransactionRequest::from_recovered_transaction(tx);
-        // TODO:(usm) seismic_elements
-        Self { inner, seismic_elements: None }
+    /// Initializes the [`SeismicTransactionRequest`] with the provided transaction, sender and
+    /// maybe seismic_elements
+    pub fn from_recovered_seismic_envelope(tx: Recovered<SeismicTxEnvelope>) -> Self {
+        let (tx, from) = tx.into_parts();
+        let mut tx_req = Self::from_transaction(tx.clone()).from(from);
+        if let SeismicTxEnvelope::Seismic(s) = tx {
+            let (p, _, _) = s.into_parts();
+            tx_req.set_seismic_elements(p.seismic_elements);
+        }
+        tx_req
     }
 
     /// Sets the transactions type for the transactions.
