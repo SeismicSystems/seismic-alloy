@@ -2,8 +2,8 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
-    BlobTransactionSidecar, EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930,
-    TxEip4844Variant, TxEip7702, TxLegacy, TypedTransaction,
+    EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844Variant,
+    TxEip7702, TxLegacy, TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
