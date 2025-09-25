@@ -17,9 +17,31 @@ use seismic_alloy_consensus::{
 };
 
 /// Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
+#[cfg(not(feature = "serde"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeismicFoundryTxEnvelope<
     T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
+> {
+    /// An Ethereum transaction.
+    Ethereum(EthereumTxEnvelope<TxEip4844Variant<T>>),
+    /// A transaction with unknown type.
+    Unknown(UnknownTxEnvelope),
+    /// A Seismic transaction.
+    Seismic(Signed<TxSeismic>),
+}
+
+#[cfg(feature = "serde")]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(
+    bound(
+        serialize = "T: serde::Serialize",
+        deserialize = "T: serde::de::DeserializeOwned"
+    )
+)]
+/// Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
+pub enum SeismicFoundryTxEnvelope<
+    T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static
+        + serde::Serialize + serde::de::DeserializeOwned = BlobTransactionSidecar,
 > {
     /// An Ethereum transaction.
     Ethereum(EthereumTxEnvelope<TxEip4844Variant<T>>),
@@ -413,47 +435,4 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
     }
 }
 
-// Manual serde implementations for concrete BlobTransactionSidecar type
-impl serde::Serialize for SeismicFoundryTxEnvelope<BlobTransactionSidecar> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        #[derive(serde::Serialize)]
-        #[serde(untagged)]
-        enum Helper {
-            Ethereum(EthereumTxEnvelope<TxEip4844Variant<BlobTransactionSidecar>>),
-            Unknown(UnknownTxEnvelope),
-            Seismic(Signed<TxSeismic>),
-        }
 
-        let helper = match self {
-            SeismicFoundryTxEnvelope::Ethereum(tx) => Helper::Ethereum(tx.clone()),
-            SeismicFoundryTxEnvelope::Unknown(tx) => Helper::Unknown(tx.clone()),
-            SeismicFoundryTxEnvelope::Seismic(tx) => Helper::Seismic(tx.clone()),
-        };
-        helper.serialize(serializer)
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for SeismicFoundryTxEnvelope<BlobTransactionSidecar> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(serde::Deserialize)]
-        #[serde(untagged)]
-        enum Helper {
-            Ethereum(EthereumTxEnvelope<TxEip4844Variant<BlobTransactionSidecar>>),
-            Unknown(UnknownTxEnvelope),
-            Seismic(Signed<TxSeismic>),
-        }
-
-        let helper = Helper::deserialize(deserializer)?;
-        match helper {
-            Helper::Ethereum(tx) => Ok(SeismicFoundryTxEnvelope::Ethereum(tx)),
-            Helper::Unknown(tx) => Ok(SeismicFoundryTxEnvelope::Unknown(tx)),
-            Helper::Seismic(tx) => Ok(SeismicFoundryTxEnvelope::Seismic(tx)),
-        }
-    }
-}
