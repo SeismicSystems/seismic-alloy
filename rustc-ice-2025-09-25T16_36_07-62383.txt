@@ -1,0 +1,27 @@
+thread 'main' panicked at src/tools/rustfmt/src/items.rs:567:10:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0:        0x10e869b88 - std::backtrace::Backtrace::create::h97786fc9bc866ca4
+   1:        0x10c9dc46c - std[ee3a7e51e5ab4904]::panicking::update_hook::<alloc[35edb35b9ce04032]::boxed::Box<rustc_driver_impl[3bcf08bebdd26830]::install_ice_hook::{closure#1}>>::{closure#0}
+   2:        0x10e887458 - std::panicking::rust_panic_with_hook::h119fb27b667910bb
+   3:        0x10e887024 - std::panicking::begin_panic_handler::{{closure}}::hea685a07f84cb4d3
+   4:        0x10e882398 - std::sys::backtrace::__rust_end_short_backtrace::hfdef633675e4e08a
+   5:        0x10e886d14 - __rustc[7b2f7a1b71ff6e74]::rust_begin_unwind
+   6:        0x1114c26e0 - core::panicking::panic_fmt::ha42fc2bf4a22eaeb
+   7:        0x1114c2750 - core::panicking::panic::hef995c7f3caf33b1
+   8:        0x1114c2678 - core::option::unwrap_failed::haab1c5935dbb0ab9
+   9:        0x100651498 - <rustfmt_nightly[1486518852a393b4]::visitor::FmtVisitor>::visit_item
+  10:        0x1006310d8 - <rustfmt_nightly[1486518852a393b4]::visitor::FmtVisitor>::visit_items_with_reordering
+  11:        0x10065694c - <rustfmt_nightly[1486518852a393b4]::visitor::FmtVisitor>::format_separate_mod
+  12:        0x100552294 - <rustfmt_nightly[1486518852a393b4]::Session<std[ee3a7e51e5ab4904]::io::stdio::Stdout>>::format_input_inner::{closure#0}
+  13:        0x100561494 - rustfmt[bc2d53bf7e6313fd]::format_and_emit_report::<std[ee3a7e51e5ab4904]::io::stdio::Stdout>
+  14:        0x10055f06c - rustfmt[bc2d53bf7e6313fd]::execute
+  15:        0x10055b270 - rustfmt[bc2d53bf7e6313fd]::main
+  16:        0x10054fdb0 - std[ee3a7e51e5ab4904]::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  17:        0x100550184 - std[ee3a7e51e5ab4904]::rt::lang_start::<()>::{closure#0}
+  18:        0x10e8677a4 - std::rt::lang_start_internal::h46b0ab4f46b21132
+  19:        0x100562514 - _main
+
+
+rustc version: 1.89.0-nightly (bc8215286 2025-05-20)
+platform: aarch64-apple-darwin

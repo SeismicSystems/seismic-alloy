@@ -40,10 +40,7 @@ use alloy_consensus::SignableTransaction;
     serde(
         into = "serde_from::TaggedTxEnvelope<T>",
         from = "serde_from::MaybeTaggedTxEnvelope<T>",
-        bound(
-            serialize = "T: serde::Serialize",
-            deserialize = "T: serde::de::DeserializeOwned"
-        )
+        bound(serialize = "T: serde::Serialize", deserialize = "T: serde::de::DeserializeOwned")
     )
 )]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
@@ -738,7 +735,10 @@ mod serde_from {
     }
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
-    #[serde(tag = "type", bound(serialize = "T: serde::Serialize", deserialize = "T: serde::de::DeserializeOwned"))]
+    #[serde(
+        tag = "type",
+        bound(serialize = "T: serde::Serialize", deserialize = "T: serde::de::DeserializeOwned")
+    )]
     pub(crate) enum TaggedTxEnvelope<
         T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
     > {
@@ -800,7 +800,6 @@ mod serde_from {
             }
         }
     }
-
 }
 
 #[cfg(test)]

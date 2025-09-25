@@ -17,32 +17,26 @@ use seismic_alloy_consensus::{
 };
 
 /// Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
-#[cfg(not(feature = "serde"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SeismicFoundryTxEnvelope<
-    T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
-> {
-    /// An Ethereum transaction.
-    Ethereum(EthereumTxEnvelope<TxEip4844Variant<T>>),
-    /// A transaction with unknown type.
-    Unknown(UnknownTxEnvelope),
-    /// A Seismic transaction.
-    Seismic(Signed<TxSeismic>),
-}
-
-#[cfg(feature = "serde")]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(
-    bound(
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
         serialize = "T: serde::Serialize",
         deserialize = "T: serde::de::DeserializeOwned"
-    )
+    ))
 )]
-/// Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
-pub enum SeismicFoundryTxEnvelope<
-    T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static
-        + serde::Serialize + serde::de::DeserializeOwned = BlobTransactionSidecar,
-> {
+pub enum SeismicFoundryTxEnvelope<T = BlobTransactionSidecar>
+where
+    T: Clone
+        + Encodable7594
+        + std::fmt::Debug
+        + Send
+        + Sync
+        + 'static
+        + serde::Serialize
+        + serde::de::DeserializeOwned,
+{
     /// An Ethereum transaction.
     Ethereum(EthereumTxEnvelope<TxEip4844Variant<T>>),
     /// A transaction with unknown type.
@@ -434,5 +428,3 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
         }
     }
 }
-
-

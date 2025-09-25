@@ -1,0 +1,29 @@
+thread 'main' panicked at src/tools/rustfmt/src/items.rs:567:10:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0:        0x112f0dfbc - std::backtrace::Backtrace::create::h55c8d48ec67e1c30
+   1:        0x110f2abe0 - std[ceb1e8c0246de0f4]::panicking::update_hook::<alloc[7df814cdc7bd1f54]::boxed::Box<rustc_driver_impl[cacb2416f6d886b6]::install_ice_hook::{closure#1}>>::{closure#0}
+   2:        0x112f0eef0 - std::panicking::panic_with_hook::h16b4eb994d0f6fde
+   3:        0x112f0eb78 - std::panicking::panic_handler::{{closure}}::h2a59ec6776d4d3a8
+   4:        0x112f08494 - std::sys::backtrace::__rust_end_short_backtrace::hb31a0418b5b66080
+   5:        0x112eeca1c - __rustc[76f7e7187978e2f8]::rust_begin_unwind
+   6:        0x115c78da8 - core::panicking::panic_fmt::h0976b2cb45818595
+   7:        0x115c78d88 - core::panicking::panic::hfbc91eeb46711266
+   8:        0x115c784d0 - core::option::unwrap_failed::he76d2912165c9aad
+   9:        0x1047f939c - <rustfmt_nightly[2ee3aa69be9579ff]::visitor::FmtVisitor>::visit_enum
+  10:        0x1047efdc4 - <rustfmt_nightly[2ee3aa69be9579ff]::visitor::FmtVisitor>::visit_item
+  11:        0x10482a350 - <rustfmt_nightly[2ee3aa69be9579ff]::visitor::FmtVisitor>::visit_items_with_reordering
+  12:        0x1047f3bf4 - <rustfmt_nightly[2ee3aa69be9579ff]::visitor::FmtVisitor>::walk_mod_items
+  13:        0x1047f453c - <rustfmt_nightly[2ee3aa69be9579ff]::visitor::FmtVisitor>::format_separate_mod
+  14:        0x104788470 - <rustfmt_nightly[2ee3aa69be9579ff]::Session<std[ceb1e8c0246de0f4]::io::stdio::Stdout>>::format_input_inner::{closure#0}
+  15:        0x10477c05c - rustfmt[f147994892d51a37]::format_and_emit_report::<std[ceb1e8c0246de0f4]::io::stdio::Stdout>
+  16:        0x10478da08 - rustfmt[f147994892d51a37]::execute
+  17:        0x104789eb8 - rustfmt[f147994892d51a37]::main
+  18:        0x1047860a0 - std[ceb1e8c0246de0f4]::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  19:        0x1047864c4 - std[ceb1e8c0246de0f4]::rt::lang_start::<()>::{closure#0}
+  20:        0x112ef954c - std::rt::lang_start_internal::h20f4f5137097f7a1
+  21:        0x104796e1c - _main
+
+
+rustc version: 1.92.0-nightly (caccb4d03 2025-09-24)
+platform: aarch64-apple-darwin
