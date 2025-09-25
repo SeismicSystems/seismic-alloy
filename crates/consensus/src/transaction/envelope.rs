@@ -4,12 +4,13 @@ use crate::{
     TxSeismic, TxSeismicElements,
 };
 use alloy_consensus::{
-    transaction::RlpEcdsaDecodableTx, Signed, Transaction, TxEip1559, TxEip2930, TxEip4844Variant,
-    TxEip7702, TxLegacy, Typed2718,
+    transaction::RlpEcdsaDecodableTx, BlobTransactionSidecar, Signed, Transaction, TxEip1559,
+    TxEip2930, TxEip4844Variant, TxEip7702, TxLegacy, Typed2718,
 };
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
     eip2930::AccessList,
+    eip7594::Encodable7594,
     eip7702::SignedAuthorization,
 };
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
@@ -33,13 +34,10 @@ use alloy_consensus::SignableTransaction;
 ///
 /// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(
-    feature = "serde",
-    serde(into = "serde_from::TaggedTxEnvelope", from = "serde_from::MaybeTaggedTxEnvelope")
-)]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
-pub enum SeismicTxEnvelope {
+pub enum SeismicTxEnvelope<
+    T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
+> {
     /// An untagged [`TxLegacy`].
     Legacy(Signed<TxLegacy>),
     /// A [`TxEip2930`] tagged with type 1.
@@ -53,51 +51,65 @@ pub enum SeismicTxEnvelope {
     ///
     /// 2 - The transaction with a sidecar, which is the form used to
     /// send transactions to the network.
-    Eip4844(Signed<TxEip4844Variant>),
+    Eip4844(Signed<TxEip4844Variant<T>>),
     /// A [`TxEip7702`] tagged with type 4.
     Eip7702(Signed<TxEip7702>),
     /// A [`TxSeismic`] tagged with type 0x7E.
     Seismic(Signed<TxSeismic>),
 }
 
-impl From<Signed<TxLegacy>> for SeismicTxEnvelope {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static> From<Signed<TxLegacy>>
+    for SeismicTxEnvelope<T>
+{
     fn from(v: Signed<TxLegacy>) -> Self {
         Self::Legacy(v)
     }
 }
 
-impl From<Signed<TxEip2930>> for SeismicTxEnvelope {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static> From<Signed<TxEip2930>>
+    for SeismicTxEnvelope<T>
+{
     fn from(v: Signed<TxEip2930>) -> Self {
         Self::Eip2930(v)
     }
 }
 
-impl From<Signed<TxEip1559>> for SeismicTxEnvelope {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static> From<Signed<TxEip1559>>
+    for SeismicTxEnvelope<T>
+{
     fn from(v: Signed<TxEip1559>) -> Self {
         Self::Eip1559(v)
     }
 }
 
-impl From<Signed<TxEip4844Variant>> for SeismicTxEnvelope {
-    fn from(v: Signed<TxEip4844Variant>) -> Self {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static>
+    From<Signed<TxEip4844Variant<T>>> for SeismicTxEnvelope<T>
+{
+    fn from(v: Signed<TxEip4844Variant<T>>) -> Self {
         Self::Eip4844(v)
     }
 }
 
-impl From<Signed<TxEip7702>> for SeismicTxEnvelope {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static> From<Signed<TxEip7702>>
+    for SeismicTxEnvelope<T>
+{
     fn from(v: Signed<TxEip7702>) -> Self {
         Self::Eip7702(v)
     }
 }
 
-impl From<Signed<TxSeismic>> for SeismicTxEnvelope {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static> From<Signed<TxSeismic>>
+    for SeismicTxEnvelope<T>
+{
     fn from(v: Signed<TxSeismic>) -> Self {
         Self::Seismic(v)
     }
 }
 
-impl From<SeismicTxEnvelope> for Signed<SeismicTypedTransaction> {
-    fn from(value: SeismicTxEnvelope) -> Self {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static> From<SeismicTxEnvelope<T>>
+    for Signed<SeismicTypedTransaction<T>>
+{
+    fn from(value: SeismicTxEnvelope<T>) -> Self {
         match value {
             SeismicTxEnvelope::Legacy(tx) => {
                 let (tx, sig, hash) = tx.into_parts();
@@ -133,8 +145,10 @@ impl Hash for SeismicTxEnvelope {
     }
 }
 
-impl From<Signed<SeismicTypedTransaction>> for SeismicTxEnvelope {
-    fn from(value: Signed<SeismicTypedTransaction>) -> Self {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static>
+    From<Signed<SeismicTypedTransaction<T>>> for SeismicTxEnvelope<T>
+{
+    fn from(value: Signed<SeismicTypedTransaction<T>>) -> Self {
         let (tx, sig, hash) = value.into_parts();
         match tx {
             SeismicTypedTransaction::Legacy(tx_legacy) => {
@@ -701,37 +715,30 @@ mod serde_from {
     //! [`MaybeTaggedTxEnvelope`].
     use super::*;
 
-    #[derive(Debug, serde::Deserialize)]
-    #[serde(untagged)]
-    pub(crate) enum MaybeTaggedTxEnvelope {
-        Tagged(TaggedTxEnvelope),
-        #[serde(with = "alloy_consensus::transaction::signed_legacy_serde")]
+    #[derive(Debug)]
+    pub(crate) enum MaybeTaggedTxEnvelope<
+        T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
+    > {
+        Tagged(TaggedTxEnvelope<T>),
         Untagged(Signed<TxLegacy>),
     }
 
-    #[derive(Debug, serde::Serialize, serde::Deserialize)]
-    #[serde(tag = "type")]
-    pub(crate) enum TaggedTxEnvelope {
-        #[serde(
-            rename = "0x0",
-            alias = "0x00",
-            with = "alloy_consensus::transaction::signed_legacy_serde"
-        )]
+    #[derive(Debug)]
+    pub(crate) enum TaggedTxEnvelope<
+        T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
+    > {
         Legacy(Signed<TxLegacy>),
-        #[serde(rename = "0x1", alias = "0x01")]
         Eip2930(Signed<TxEip2930>),
-        #[serde(rename = "0x2", alias = "0x02")]
         Eip1559(Signed<TxEip1559>),
-        #[serde(rename = "0x3", alias = "0x03")]
-        Eip4844(Signed<TxEip4844Variant>),
-        #[serde(rename = "0x4", alias = "0x04")]
+        Eip4844(Signed<TxEip4844Variant<T>>),
         Eip7702(Signed<TxEip7702>),
-        #[serde(rename = "0x4A", alias = "0x4A")]
         Seismic(Signed<TxSeismic>),
     }
 
-    impl From<MaybeTaggedTxEnvelope> for SeismicTxEnvelope {
-        fn from(value: MaybeTaggedTxEnvelope) -> Self {
+    impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static>
+        From<MaybeTaggedTxEnvelope<T>> for SeismicTxEnvelope<T>
+    {
+        fn from(value: MaybeTaggedTxEnvelope<T>) -> Self {
             match value {
                 MaybeTaggedTxEnvelope::Tagged(tagged) => tagged.into(),
                 MaybeTaggedTxEnvelope::Untagged(tx) => Self::Legacy(tx),
@@ -739,8 +746,10 @@ mod serde_from {
         }
     }
 
-    impl From<TaggedTxEnvelope> for SeismicTxEnvelope {
-        fn from(value: TaggedTxEnvelope) -> Self {
+    impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static>
+        From<TaggedTxEnvelope<T>> for SeismicTxEnvelope<T>
+    {
+        fn from(value: TaggedTxEnvelope<T>) -> Self {
             match value {
                 TaggedTxEnvelope::Legacy(signed) => Self::Legacy(signed),
                 TaggedTxEnvelope::Eip2930(signed) => Self::Eip2930(signed),
@@ -752,8 +761,10 @@ mod serde_from {
         }
     }
 
-    impl From<SeismicTxEnvelope> for TaggedTxEnvelope {
-        fn from(value: SeismicTxEnvelope) -> Self {
+    impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static>
+        From<SeismicTxEnvelope<T>> for TaggedTxEnvelope<T>
+    {
+        fn from(value: SeismicTxEnvelope<T>) -> Self {
             match value {
                 SeismicTxEnvelope::Legacy(signed) => Self::Legacy(signed),
                 SeismicTxEnvelope::Eip2930(signed) => Self::Eip2930(signed),
@@ -763,6 +774,140 @@ mod serde_from {
                 SeismicTxEnvelope::Seismic(tx) => Self::Seismic(tx),
             }
         }
+    }
+
+    // Manual serde implementation for the concrete BlobTransactionSidecar type
+    impl serde::Serialize for TaggedTxEnvelope<BlobTransactionSidecar> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            use serde::ser::SerializeStruct;
+            let mut state = serializer.serialize_struct("TaggedTxEnvelope", 2)?;
+
+            match self {
+                Self::Legacy(tx) => {
+                    state.serialize_field("type", "0x0")?;
+                    state.serialize_field("data", tx)?;
+                }
+                Self::Eip2930(tx) => {
+                    state.serialize_field("type", "0x1")?;
+                    state.serialize_field("data", tx)?;
+                }
+                Self::Eip1559(tx) => {
+                    state.serialize_field("type", "0x2")?;
+                    state.serialize_field("data", tx)?;
+                }
+                Self::Eip4844(tx) => {
+                    state.serialize_field("type", "0x3")?;
+                    state.serialize_field("data", tx)?;
+                }
+                Self::Eip7702(tx) => {
+                    state.serialize_field("type", "0x4")?;
+                    state.serialize_field("data", tx)?;
+                }
+                Self::Seismic(tx) => {
+                    state.serialize_field("type", "0x4A")?;
+                    state.serialize_field("data", tx)?;
+                }
+            }
+            state.end()
+        }
+    }
+
+    impl<'de> serde::Deserialize<'de> for TaggedTxEnvelope<BlobTransactionSidecar> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            #[derive(serde::Deserialize)]
+            #[serde(tag = "type")]
+            enum Helper {
+                #[serde(rename = "0x0", alias = "0x00")]
+                Legacy {
+                    #[serde(flatten)]
+                    tx: Signed<TxLegacy>,
+                },
+                #[serde(rename = "0x1", alias = "0x01")]
+                Eip2930 {
+                    #[serde(flatten)]
+                    tx: Signed<TxEip2930>,
+                },
+                #[serde(rename = "0x2", alias = "0x02")]
+                Eip1559 {
+                    #[serde(flatten)]
+                    tx: Signed<TxEip1559>,
+                },
+                #[serde(rename = "0x3", alias = "0x03")]
+                Eip4844 {
+                    #[serde(flatten)]
+                    tx: Signed<TxEip4844Variant<BlobTransactionSidecar>>,
+                },
+                #[serde(rename = "0x4", alias = "0x04")]
+                Eip7702 {
+                    #[serde(flatten)]
+                    tx: Signed<TxEip7702>,
+                },
+                #[serde(rename = "0x4A")]
+                Seismic {
+                    #[serde(flatten)]
+                    tx: Signed<TxSeismic>,
+                },
+            }
+
+            let helper = Helper::deserialize(deserializer)?;
+            match helper {
+                Helper::Legacy { tx } => Ok(Self::Legacy(tx)),
+                Helper::Eip2930 { tx } => Ok(Self::Eip2930(tx)),
+                Helper::Eip1559 { tx } => Ok(Self::Eip1559(tx)),
+                Helper::Eip4844 { tx } => Ok(Self::Eip4844(tx)),
+                Helper::Eip7702 { tx } => Ok(Self::Eip7702(tx)),
+                Helper::Seismic { tx } => Ok(Self::Seismic(tx)),
+            }
+        }
+    }
+
+    impl<'de> serde::Deserialize<'de> for MaybeTaggedTxEnvelope<BlobTransactionSidecar> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            #[derive(serde::Deserialize)]
+            #[serde(untagged)]
+            enum Helper {
+                Tagged(TaggedTxEnvelope<BlobTransactionSidecar>),
+                Untagged(Signed<TxLegacy>),
+            }
+
+            let helper = Helper::deserialize(deserializer)?;
+            match helper {
+                Helper::Tagged(tagged) => Ok(Self::Tagged(tagged)),
+                Helper::Untagged(tx) => Ok(Self::Untagged(tx)),
+            }
+        }
+    }
+}
+
+// Specific serde implementation for the concrete type
+#[cfg(feature = "serde")]
+impl serde::Serialize for SeismicTxEnvelope<BlobTransactionSidecar> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde_from::TaggedTxEnvelope::from(self.clone()).serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for SeismicTxEnvelope<BlobTransactionSidecar> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let maybe_tagged =
+            serde_from::MaybeTaggedTxEnvelope::<BlobTransactionSidecar>::deserialize(deserializer)?;
+        Ok(maybe_tagged.into())
     }
 }
 
