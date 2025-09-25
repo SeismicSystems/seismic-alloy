@@ -4,8 +4,7 @@ use crate::{
     TxSeismic, TxSeismicElements,
 };
 use alloy_consensus::{
-    transaction::RlpEcdsaDecodableTx, Signed, Transaction, TxEip1559, TxEip2930, TxEip4844Variant,
-    TxEip7702, TxLegacy, Typed2718,
+    transaction::RlpEcdsaDecodableTx, Signed, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy, Typed2718
 };
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
@@ -14,7 +13,8 @@ use alloy_eips::{
 };
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
 use alloy_rlp::{Decodable, Encodable};
-use std::hash::{Hash, Hasher};
+use std::{fmt::Debug, hash::{Hash, Hasher}};
+use alloy_consensus::transaction::RlpEcdsaEncodableTx;
 
 #[cfg(feature = "serde")]
 use crate::transaction::{Decodable712, Eip712Result, TypedDataRequest};
@@ -36,10 +36,10 @@ use alloy_consensus::SignableTransaction;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "serde_from::TaggedTxEnvelope", from = "serde_from::MaybeTaggedTxEnvelope")
+    serde(into = "serde_from::TaggedTxEnvelope<Eip4844>", from = "serde_from::MaybeTaggedTxEnvelope<Eip4844>")
 )]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
-pub enum SeismicTxEnvelope {
+pub enum SeismicTxEnvelope<Eip4844: RlpEcdsaEncodableTx + Clone = TxEip4844> {
     /// An untagged [`TxLegacy`].
     Legacy(Signed<TxLegacy>),
     /// A [`TxEip2930`] tagged with type 1.
@@ -53,51 +53,51 @@ pub enum SeismicTxEnvelope {
     ///
     /// 2 - The transaction with a sidecar, which is the form used to
     /// send transactions to the network.
-    Eip4844(Signed<TxEip4844Variant>),
+    Eip4844(Signed<Eip4844>),
     /// A [`TxEip7702`] tagged with type 4.
     Eip7702(Signed<TxEip7702>),
     /// A [`TxSeismic`] tagged with type 0x7E.
     Seismic(Signed<TxSeismic>),
 }
 
-impl From<Signed<TxLegacy>> for SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<TxLegacy>> for SeismicTxEnvelope<Eip4844> {
     fn from(v: Signed<TxLegacy>) -> Self {
         Self::Legacy(v)
     }
 }
 
-impl From<Signed<TxEip2930>> for SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<TxEip2930>> for SeismicTxEnvelope<Eip4844> {
     fn from(v: Signed<TxEip2930>) -> Self {
         Self::Eip2930(v)
     }
 }
 
-impl From<Signed<TxEip1559>> for SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<TxEip1559>> for SeismicTxEnvelope<Eip4844> {
     fn from(v: Signed<TxEip1559>) -> Self {
         Self::Eip1559(v)
     }
 }
 
-impl From<Signed<TxEip4844Variant>> for SeismicTxEnvelope {
-    fn from(v: Signed<TxEip4844Variant>) -> Self {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<Eip4844>> for SeismicTxEnvelope<Eip4844> {
+    fn from(v: Signed<Eip4844>) -> Self {
         Self::Eip4844(v)
     }
 }
 
-impl From<Signed<TxEip7702>> for SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<TxEip7702>> for SeismicTxEnvelope<Eip4844> {
     fn from(v: Signed<TxEip7702>) -> Self {
         Self::Eip7702(v)
     }
 }
 
-impl From<Signed<TxSeismic>> for SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<TxSeismic>> for SeismicTxEnvelope<Eip4844> {
     fn from(v: Signed<TxSeismic>) -> Self {
         Self::Seismic(v)
     }
 }
 
-impl From<SeismicTxEnvelope> for Signed<SeismicTypedTransaction> {
-    fn from(value: SeismicTxEnvelope) -> Self {
+impl<Eip4844: Transaction + RlpEcdsaEncodableTx + Clone> From<SeismicTxEnvelope<Eip4844>> for Signed<SeismicTypedTransaction<Eip4844>> {
+    fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
         match value {
             SeismicTxEnvelope::Legacy(tx) => {
                 let (tx, sig, hash) = tx.into_parts();
@@ -133,8 +133,8 @@ impl Hash for SeismicTxEnvelope {
     }
 }
 
-impl From<Signed<SeismicTypedTransaction>> for SeismicTxEnvelope {
-    fn from(value: Signed<SeismicTypedTransaction>) -> Self {
+impl<Eip4844: Transaction + Clone + RlpEcdsaEncodableTx> From<Signed<SeismicTypedTransaction<Eip4844>>> for SeismicTxEnvelope<Eip4844> {
+    fn from(value: Signed<SeismicTypedTransaction<Eip4844>>) -> Self {
         let (tx, sig, hash) = value.into_parts();
         match tx {
             SeismicTypedTransaction::Legacy(tx_legacy) => {
@@ -165,7 +165,7 @@ impl From<Signed<SeismicTypedTransaction>> for SeismicTxEnvelope {
     }
 }
 
-impl Typed2718 for SeismicTxEnvelope {
+impl<Eip4844: Transaction + Clone + RlpEcdsaEncodableTx> Typed2718 for SeismicTxEnvelope<Eip4844> {
     fn ty(&self) -> u8 {
         match self {
             Self::Legacy(tx) => tx.tx().ty(),
@@ -178,7 +178,7 @@ impl Typed2718 for SeismicTxEnvelope {
     }
 }
 
-impl Transaction for SeismicTxEnvelope {
+impl<Eip4844: Transaction + Clone + RlpEcdsaEncodableTx> Transaction for SeismicTxEnvelope<Eip4844> {
     fn chain_id(&self) -> Option<u64> {
         match self {
             Self::Legacy(tx) => tx.tx().chain_id(),
@@ -378,7 +378,7 @@ impl Transaction for SeismicTxEnvelope {
     }
 }
 
-impl InputDecryptionElements for SeismicTxEnvelope {
+impl<Eip4844: Transaction + RlpEcdsaEncodableTx + Clone> InputDecryptionElements for SeismicTxEnvelope<Eip4844> {
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
         match self {
             Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
@@ -426,7 +426,7 @@ impl InputDecryptionElements for SeismicTxEnvelope {
     }
 }
 
-impl SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone + SignableTransaction<alloy_primitives::Signature>> SeismicTxEnvelope<Eip4844> {
     /// Returns true if the transaction is a legacy transaction.
     #[inline]
     pub const fn is_legacy(&self) -> bool {
@@ -476,7 +476,7 @@ impl SeismicTxEnvelope {
     }
 
     /// Returns the [`TxEip4844`] variant if the transaction is an EIP-4844 transaction.
-    pub const fn as_eip4844(&self) -> Option<&Signed<TxEip4844Variant>> {
+    pub const fn as_eip4844(&self) -> Option<&Signed<Eip4844>> {
         match self {
             Self::Eip4844(tx) => Some(tx),
             _ => None,
@@ -594,7 +594,7 @@ impl alloy_consensus::transaction::SignerRecoverable for SeismicTxEnvelope {
     }
 }
 
-impl Encodable for SeismicTxEnvelope {
+impl<Eip4844: Transaction + Clone + RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + SignableTransaction<alloy_primitives::Signature>> Encodable for SeismicTxEnvelope<Eip4844> {
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
         self.network_encode(out)
     }
@@ -604,18 +604,18 @@ impl Encodable for SeismicTxEnvelope {
     }
 }
 
-impl Decodable for SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone + RlpEcdsaDecodableTx> Decodable for SeismicTxEnvelope<Eip4844> {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         Ok(Self::network_decode(buf)?)
     }
 }
 
-impl Decodable2718 for SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone + RlpEcdsaDecodableTx> Decodable2718 for SeismicTxEnvelope<Eip4844> {
     fn typed_decode(ty: u8, buf: &mut &[u8]) -> Eip2718Result<Self> {
         match ty.try_into().map_err(|_| Eip2718Error::UnexpectedType(ty))? {
             SeismicTxType::Eip2930 => Ok(Self::Eip2930(TxEip2930::rlp_decode_signed(buf)?)),
             SeismicTxType::Eip1559 => Ok(Self::Eip1559(TxEip1559::rlp_decode_signed(buf)?)),
-            SeismicTxType::Eip4844 => Ok(Self::Eip4844(TxEip4844Variant::rlp_decode_signed(buf)?)),
+            SeismicTxType::Eip4844 => Ok(Self::Eip4844(Eip4844::rlp_decode_signed(buf)?)),
             SeismicTxType::Eip7702 => Ok(Self::Eip7702(TxEip7702::rlp_decode_signed(buf)?)),
             SeismicTxType::Seismic => Ok(Self::Seismic(TxSeismic::rlp_decode_signed(buf)?)),
             SeismicTxType::Legacy => {
@@ -630,7 +630,7 @@ impl Decodable2718 for SeismicTxEnvelope {
     }
 }
 
-impl Encodable2718 for SeismicTxEnvelope {
+impl<Eip4844: RlpEcdsaEncodableTx + Clone + RlpEcdsaDecodableTx + alloy_consensus::SignableTransaction<alloy_primitives::Signature>> Encodable2718 for SeismicTxEnvelope<Eip4844> {
     fn type_flag(&self) -> Option<u8> {
         match self {
             Self::Legacy(_) => None,
@@ -681,7 +681,7 @@ impl Encodable2718 for SeismicTxEnvelope {
 }
 
 #[cfg(feature = "serde")]
-impl Decodable712 for SeismicTxEnvelope {
+impl <Eip4844: RlpEcdsaEncodableTx + Clone> Decodable712 for SeismicTxEnvelope<Eip4844> {
     fn decode_712(typed_data: &TypedDataRequest) -> Eip712Result<Self> {
         let tx = TxSeismic::eip712_decode(&typed_data.data)?;
         Ok(Self::Seismic(tx.into_signed(typed_data.signature)))
@@ -703,15 +703,15 @@ mod serde_from {
 
     #[derive(Debug, serde::Deserialize)]
     #[serde(untagged)]
-    pub(crate) enum MaybeTaggedTxEnvelope {
-        Tagged(TaggedTxEnvelope),
+    pub(crate) enum MaybeTaggedTxEnvelope<Eip4844> {
+        Tagged(TaggedTxEnvelope<Eip4844>),
         #[serde(with = "alloy_consensus::transaction::signed_legacy_serde")]
         Untagged(Signed<TxLegacy>),
     }
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type")]
-    pub(crate) enum TaggedTxEnvelope {
+    pub(crate) enum TaggedTxEnvelope<Eip4844: Clone> {
         #[serde(
             rename = "0x0",
             alias = "0x00",
@@ -723,15 +723,15 @@ mod serde_from {
         #[serde(rename = "0x2", alias = "0x02")]
         Eip1559(Signed<TxEip1559>),
         #[serde(rename = "0x3", alias = "0x03")]
-        Eip4844(Signed<TxEip4844Variant>),
+        Eip4844(Signed<Eip4844>),
         #[serde(rename = "0x4", alias = "0x04")]
         Eip7702(Signed<TxEip7702>),
         #[serde(rename = "0x4A", alias = "0x4A")]
         Seismic(Signed<TxSeismic>),
     }
 
-    impl From<MaybeTaggedTxEnvelope> for SeismicTxEnvelope {
-        fn from(value: MaybeTaggedTxEnvelope) -> Self {
+    impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<MaybeTaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844> {
+        fn from(value: MaybeTaggedTxEnvelope<Eip4844>) -> Self {
             match value {
                 MaybeTaggedTxEnvelope::Tagged(tagged) => tagged.into(),
                 MaybeTaggedTxEnvelope::Untagged(tx) => Self::Legacy(tx),
@@ -739,8 +739,8 @@ mod serde_from {
         }
     }
 
-    impl From<TaggedTxEnvelope> for SeismicTxEnvelope {
-        fn from(value: TaggedTxEnvelope) -> Self {
+    impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<TaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844> {
+        fn from(value: TaggedTxEnvelope<Eip4844>) -> Self {
             match value {
                 TaggedTxEnvelope::Legacy(signed) => Self::Legacy(signed),
                 TaggedTxEnvelope::Eip2930(signed) => Self::Eip2930(signed),
@@ -752,8 +752,8 @@ mod serde_from {
         }
     }
 
-    impl From<SeismicTxEnvelope> for TaggedTxEnvelope {
-        fn from(value: SeismicTxEnvelope) -> Self {
+    impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<SeismicTxEnvelope<Eip4844>> for TaggedTxEnvelope<Eip4844> {
+        fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
             match value {
                 SeismicTxEnvelope::Legacy(signed) => Self::Legacy(signed),
                 SeismicTxEnvelope::Eip2930(signed) => Self::Eip2930(signed),
@@ -800,7 +800,7 @@ mod tests {
         );
         let tx_envelope = SeismicTxEnvelope::Seismic(tx.into_signed(sig));
         let serialized = serde_json::to_string(&tx_envelope).unwrap();
-        let deserialized: SeismicTxEnvelope = serde_json::from_str(&serialized).unwrap();
+        let deserialized: SeismicTxEnvelope<_> = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(tx_envelope, deserialized);
     }

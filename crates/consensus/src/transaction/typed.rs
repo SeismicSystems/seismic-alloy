@@ -1,4 +1,6 @@
 //! Typed transaction types and utilities
+use std::fmt::Debug;
+
 use crate::{
     InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, SeismicTxType,
     TxSeismic, TxSeismicElements,
@@ -24,11 +26,11 @@ use alloy_primitives::{bytes::BufMut, Address, Bytes, Signature, TxHash, TxKind,
 #[cfg_attr(
     feature = "serde",
     serde(
-        from = "serde_from::MaybeTaggedTypedTransaction",
-        into = "serde_from::TaggedTypedTransaction"
+        from = "serde_from::MaybeTaggedTypedTransaction<Eip4844>",
+        into = "serde_from::TaggedTypedTransaction<Eip4844>"
     )
 )]
-pub enum SeismicTypedTransaction {
+pub enum SeismicTypedTransaction<Eip4844: Transaction + Clone> {
     /// Legacy transaction
     Legacy(TxLegacy),
     /// EIP-2930 transaction
@@ -36,51 +38,51 @@ pub enum SeismicTypedTransaction {
     /// EIP-1559 transaction
     Eip1559(TxEip1559),
     /// EIP-4844 transaction
-    Eip4844(TxEip4844Variant),
+    Eip4844(Eip4844),
     /// EIP-7702 transaction
     Eip7702(TxEip7702),
     /// Seismic deposit transaction
     Seismic(TxSeismic),
 }
 
-impl From<TxLegacy> for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone> From<TxLegacy> for SeismicTypedTransaction<Eip4844> {
     fn from(tx: TxLegacy) -> Self {
         Self::Legacy(tx)
     }
 }
 
-impl From<TxEip2930> for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone> From<TxEip2930> for SeismicTypedTransaction<Eip4844> {
     fn from(tx: TxEip2930) -> Self {
         Self::Eip2930(tx)
     }
 }
 
-impl From<TxEip1559> for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone> From<TxEip1559> for SeismicTypedTransaction<Eip4844> {
     fn from(tx: TxEip1559) -> Self {
         Self::Eip1559(tx)
     }
 }
 
-impl From<TxEip4844Variant> for SeismicTypedTransaction {
-    fn from(tx: TxEip4844Variant) -> Self {
+impl<Eip4844: Transaction + Clone> From<TxEip4844Variant> for SeismicTypedTransaction<Eip4844> {
+    fn from(tx: Eip4844) -> Self {
         Self::Eip4844(tx)
     }
 }
 
-impl From<TxEip7702> for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone> From<TxEip7702> for SeismicTypedTransaction<Eip4844> {
     fn from(tx: TxEip7702) -> Self {
         Self::Eip7702(tx)
     }
 }
 
-impl From<TxSeismic> for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone> From<TxSeismic> for SeismicTypedTransaction<Eip4844> {
     fn from(tx: TxSeismic) -> Self {
         Self::Seismic(tx)
     }
 }
 
-impl From<SeismicTxEnvelope> for SeismicTypedTransaction {
-    fn from(envelope: SeismicTxEnvelope) -> Self {
+impl<Eip4844: Transaction + Clone + RlpEcdsaEncodableTx> From<SeismicTxEnvelope> for SeismicTypedTransaction<Eip4844> {
+    fn from(envelope: SeismicTxEnvelope<Eip4844>) -> Self {
         match envelope {
             SeismicTxEnvelope::Legacy(tx) => Self::Legacy(tx.strip_signature()),
             SeismicTxEnvelope::Eip2930(tx) => Self::Eip2930(tx.strip_signature()),
@@ -92,7 +94,7 @@ impl From<SeismicTxEnvelope> for SeismicTypedTransaction {
     }
 }
 
-impl SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone + SignableTransaction<Signature>> SeismicTypedTransaction<Eip4844> {
     /// Return the [`SeismicTxType`] of the inner txn.
     pub const fn tx_type(&self) -> SeismicTxType {
         match self {
@@ -144,7 +146,7 @@ impl SeismicTypedTransaction {
     }
 
     /// Return the inner EIP-4844 transaction if it exists.
-    pub const fn eip4844(&self) -> Option<&TxEip4844Variant> {
+    pub const fn eip4844(&self) -> Option<&Eip4844> {
         match self {
             Self::Eip4844(tx) => Some(tx),
             _ => None,
@@ -173,7 +175,7 @@ impl SeismicTypedTransaction {
     }
 }
 
-impl Typed2718 for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone> Typed2718 for SeismicTypedTransaction<Eip4844> {
     fn ty(&self) -> u8 {
         match self {
             Self::Legacy(_) => SeismicTxType::Legacy as u8,
@@ -186,7 +188,7 @@ impl Typed2718 for SeismicTypedTransaction {
     }
 }
 
-impl Transaction for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone> Transaction for SeismicTypedTransaction<Eip4844>{
     fn chain_id(&self) -> Option<alloy_primitives::ChainId> {
         match self {
             Self::Legacy(tx) => tx.chain_id(),
@@ -386,7 +388,7 @@ impl Transaction for SeismicTypedTransaction {
     }
 }
 
-impl InputDecryptionElements for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone> InputDecryptionElements for SeismicTypedTransaction<Eip4844> {
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
         match self {
             Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
@@ -434,7 +436,7 @@ impl InputDecryptionElements for SeismicTypedTransaction {
     }
 }
 
-impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
+impl<Eip4844: Transaction + Clone + RlpEcdsaEncodableTx> RlpEcdsaEncodableTx for SeismicTypedTransaction<Eip4844> {
     fn rlp_encoded_fields_length(&self) -> usize {
         match self {
             Self::Legacy(tx) => tx.rlp_encoded_fields_length(),
@@ -539,14 +541,14 @@ mod serde_from {
 
     #[derive(Debug, serde::Deserialize)]
     #[serde(untagged)]
-    pub(crate) enum MaybeTaggedTypedTransaction {
-        Tagged(TaggedTypedTransaction),
+    pub(crate) enum MaybeTaggedTypedTransaction<Eip4844> {
+        Tagged(TaggedTypedTransaction<Eip4844>),
         Untagged(TxLegacy),
     }
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type")]
-    pub(crate) enum TaggedTypedTransaction {
+    pub(crate) enum TaggedTypedTransaction<Eip4844> {
         /// Legacy transaction
         #[serde(rename = "0x00", alias = "0x0")]
         Legacy(TxLegacy),
@@ -558,7 +560,7 @@ mod serde_from {
         Eip1559(TxEip1559),
         /// EIP-4844 transaction
         #[serde(rename = "0x03", alias = "0x3")]
-        Eip4844(TxEip4844Variant),
+        Eip4844(Eip4844),
         /// EIP-7702 transaction
         #[serde(rename = "0x04", alias = "0x4")]
         Eip7702(TxEip7702),
@@ -567,8 +569,8 @@ mod serde_from {
         Seismic(TxSeismic),
     }
 
-    impl From<MaybeTaggedTypedTransaction> for SeismicTypedTransaction {
-        fn from(value: MaybeTaggedTypedTransaction) -> Self {
+    impl<Eip4844: Transaction + Clone> From<MaybeTaggedTypedTransaction<Eip4844>> for SeismicTypedTransaction<Eip4844> {
+        fn from(value: MaybeTaggedTypedTransaction<Eip4844>) -> Self {
             match value {
                 MaybeTaggedTypedTransaction::Tagged(tagged) => tagged.into(),
                 MaybeTaggedTypedTransaction::Untagged(tx) => Self::Legacy(tx),
@@ -576,8 +578,8 @@ mod serde_from {
         }
     }
 
-    impl From<TaggedTypedTransaction> for SeismicTypedTransaction {
-        fn from(value: TaggedTypedTransaction) -> Self {
+    impl<Eip4844: Transaction + Clone> From<TaggedTypedTransaction<Eip4844>> for SeismicTypedTransaction<Eip4844> {
+        fn from(value: TaggedTypedTransaction<Eip4844>) -> Self {
             match value {
                 TaggedTypedTransaction::Legacy(signed) => Self::Legacy(signed),
                 TaggedTypedTransaction::Eip2930(signed) => Self::Eip2930(signed),
@@ -589,8 +591,8 @@ mod serde_from {
         }
     }
 
-    impl From<SeismicTypedTransaction> for TaggedTypedTransaction {
-        fn from(value: SeismicTypedTransaction) -> Self {
+    impl<Eip4844: Transaction + Clone> From<SeismicTypedTransaction<Eip4844>> for TaggedTypedTransaction<Eip4844> {
+        fn from(value: SeismicTypedTransaction<Eip4844>) -> Self {
             match value {
                 SeismicTypedTransaction::Legacy(signed) => Self::Legacy(signed),
                 SeismicTypedTransaction::Eip2930(signed) => Self::Eip2930(signed),
