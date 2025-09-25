@@ -34,6 +34,18 @@ use alloy_consensus::SignableTransaction;
 ///
 /// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(
+        into = "serde_from::TaggedTxEnvelope<T>",
+        from = "serde_from::MaybeTaggedTxEnvelope<T>",
+        bound(
+            serialize = "T: serde::Serialize",
+            deserialize = "T: serde::de::DeserializeOwned"
+        )
+    )
+)]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
 pub enum SeismicTxEnvelope<
     T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
@@ -715,23 +727,36 @@ mod serde_from {
     //! [`MaybeTaggedTxEnvelope`].
     use super::*;
 
-    #[derive(Debug)]
+    #[derive(Debug, serde::Deserialize)]
+    #[serde(untagged, bound(deserialize = "T: serde::de::DeserializeOwned"))]
     pub(crate) enum MaybeTaggedTxEnvelope<
         T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
     > {
         Tagged(TaggedTxEnvelope<T>),
+        #[serde(with = "alloy_consensus::transaction::signed_legacy_serde")]
         Untagged(Signed<TxLegacy>),
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, serde::Serialize, serde::Deserialize)]
+    #[serde(tag = "type", bound(serialize = "T: serde::Serialize", deserialize = "T: serde::de::DeserializeOwned"))]
     pub(crate) enum TaggedTxEnvelope<
         T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static = BlobTransactionSidecar,
     > {
+        #[serde(
+            rename = "0x0",
+            alias = "0x00",
+            with = "alloy_consensus::transaction::signed_legacy_serde"
+        )]
         Legacy(Signed<TxLegacy>),
+        #[serde(rename = "0x1", alias = "0x01")]
         Eip2930(Signed<TxEip2930>),
+        #[serde(rename = "0x2", alias = "0x02")]
         Eip1559(Signed<TxEip1559>),
+        #[serde(rename = "0x3", alias = "0x03")]
         Eip4844(Signed<TxEip4844Variant<T>>),
+        #[serde(rename = "0x4", alias = "0x04")]
         Eip7702(Signed<TxEip7702>),
+        #[serde(rename = "0x4A", alias = "0x4A")]
         Seismic(Signed<TxSeismic>),
     }
 
@@ -776,139 +801,6 @@ mod serde_from {
         }
     }
 
-    // Manual serde implementation for the concrete BlobTransactionSidecar type
-    impl serde::Serialize for TaggedTxEnvelope<BlobTransactionSidecar> {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            use serde::ser::SerializeStruct;
-            let mut state = serializer.serialize_struct("TaggedTxEnvelope", 2)?;
-
-            match self {
-                Self::Legacy(tx) => {
-                    state.serialize_field("type", "0x0")?;
-                    state.serialize_field("data", tx)?;
-                }
-                Self::Eip2930(tx) => {
-                    state.serialize_field("type", "0x1")?;
-                    state.serialize_field("data", tx)?;
-                }
-                Self::Eip1559(tx) => {
-                    state.serialize_field("type", "0x2")?;
-                    state.serialize_field("data", tx)?;
-                }
-                Self::Eip4844(tx) => {
-                    state.serialize_field("type", "0x3")?;
-                    state.serialize_field("data", tx)?;
-                }
-                Self::Eip7702(tx) => {
-                    state.serialize_field("type", "0x4")?;
-                    state.serialize_field("data", tx)?;
-                }
-                Self::Seismic(tx) => {
-                    state.serialize_field("type", "0x4A")?;
-                    state.serialize_field("data", tx)?;
-                }
-            }
-            state.end()
-        }
-    }
-
-    impl<'de> serde::Deserialize<'de> for TaggedTxEnvelope<BlobTransactionSidecar> {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            #[derive(serde::Deserialize)]
-            #[serde(tag = "type")]
-            enum Helper {
-                #[serde(rename = "0x0", alias = "0x00")]
-                Legacy {
-                    #[serde(flatten)]
-                    tx: Signed<TxLegacy>,
-                },
-                #[serde(rename = "0x1", alias = "0x01")]
-                Eip2930 {
-                    #[serde(flatten)]
-                    tx: Signed<TxEip2930>,
-                },
-                #[serde(rename = "0x2", alias = "0x02")]
-                Eip1559 {
-                    #[serde(flatten)]
-                    tx: Signed<TxEip1559>,
-                },
-                #[serde(rename = "0x3", alias = "0x03")]
-                Eip4844 {
-                    #[serde(flatten)]
-                    tx: Signed<TxEip4844Variant<BlobTransactionSidecar>>,
-                },
-                #[serde(rename = "0x4", alias = "0x04")]
-                Eip7702 {
-                    #[serde(flatten)]
-                    tx: Signed<TxEip7702>,
-                },
-                #[serde(rename = "0x4A")]
-                Seismic {
-                    #[serde(flatten)]
-                    tx: Signed<TxSeismic>,
-                },
-            }
-
-            let helper = Helper::deserialize(deserializer)?;
-            match helper {
-                Helper::Legacy { tx } => Ok(Self::Legacy(tx)),
-                Helper::Eip2930 { tx } => Ok(Self::Eip2930(tx)),
-                Helper::Eip1559 { tx } => Ok(Self::Eip1559(tx)),
-                Helper::Eip4844 { tx } => Ok(Self::Eip4844(tx)),
-                Helper::Eip7702 { tx } => Ok(Self::Eip7702(tx)),
-                Helper::Seismic { tx } => Ok(Self::Seismic(tx)),
-            }
-        }
-    }
-
-    impl<'de> serde::Deserialize<'de> for MaybeTaggedTxEnvelope<BlobTransactionSidecar> {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            #[derive(serde::Deserialize)]
-            #[serde(untagged)]
-            enum Helper {
-                Tagged(TaggedTxEnvelope<BlobTransactionSidecar>),
-                Untagged(Signed<TxLegacy>),
-            }
-
-            let helper = Helper::deserialize(deserializer)?;
-            match helper {
-                Helper::Tagged(tagged) => Ok(Self::Tagged(tagged)),
-                Helper::Untagged(tx) => Ok(Self::Untagged(tx)),
-            }
-        }
-    }
-}
-
-// Specific serde implementation for the concrete type
-#[cfg(feature = "serde")]
-impl serde::Serialize for SeismicTxEnvelope<BlobTransactionSidecar> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serde_from::TaggedTxEnvelope::from(self.clone()).serialize(serializer)
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for SeismicTxEnvelope<BlobTransactionSidecar> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let maybe_tagged =
-            serde_from::MaybeTaggedTxEnvelope::<BlobTransactionSidecar>::deserialize(deserializer)?;
-        Ok(maybe_tagged.into())
-    }
 }
 
 #[cfg(test)]
