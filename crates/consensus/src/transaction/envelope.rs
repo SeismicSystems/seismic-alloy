@@ -449,7 +449,7 @@ impl InputDecryptionElements for SeismicTxEnvelope {
     }
 }
 
-impl SeismicTxEnvelope {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static> SeismicTxEnvelope<T> {
     /// Returns true if the transaction is a legacy transaction.
     #[inline]
     pub const fn is_legacy(&self) -> bool {
@@ -499,7 +499,7 @@ impl SeismicTxEnvelope {
     }
 
     /// Returns the [`TxEip4844`] variant if the transaction is an EIP-4844 transaction.
-    pub const fn as_eip4844(&self) -> Option<&Signed<TxEip4844Variant>> {
+    pub const fn as_eip4844(&self) -> Option<&Signed<TxEip4844Variant<T>>> {
         match self {
             Self::Eip4844(tx) => Some(tx),
             _ => None,

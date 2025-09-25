@@ -335,8 +335,8 @@ impl From<TxEip7702> for SeismicTransactionRequest {
     }
 }
 
-impl From<TxEip4844Variant<BlobTransactionSidecar>> for SeismicTransactionRequest {
-    fn from(tx: TxEip4844Variant<BlobTransactionSidecar>) -> Self {
+impl From<TxEip4844Variant> for SeismicTransactionRequest {
+    fn from(tx: TxEip4844Variant) -> Self {
         let inner = tx.into();
         Self { inner, seismic_elements: None }
     }

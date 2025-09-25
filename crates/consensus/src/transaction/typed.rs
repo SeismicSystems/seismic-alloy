@@ -108,7 +108,9 @@ impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static> From<Se
     }
 }
 
-impl SeismicTypedTransaction {
+impl<T: Clone + Encodable7594 + std::fmt::Debug + Send + Sync + 'static>
+    SeismicTypedTransaction<T>
+{
     /// Return the [`SeismicTxType`] of the inner txn.
     pub const fn tx_type(&self) -> SeismicTxType {
         match self {
@@ -160,7 +162,7 @@ impl SeismicTypedTransaction {
     }
 
     /// Return the inner EIP-4844 transaction if it exists.
-    pub const fn eip4844(&self) -> Option<&TxEip4844Variant> {
+    pub const fn eip4844(&self) -> Option<&TxEip4844Variant<T>> {
         match self {
             Self::Eip4844(tx) => Some(tx),
             _ => None,
