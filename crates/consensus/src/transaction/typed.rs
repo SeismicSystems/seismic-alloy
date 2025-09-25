@@ -29,7 +29,7 @@ use alloy_primitives::{bytes::BufMut, Address, Bytes, Signature, TxHash, TxKind,
         into = "serde_from::TaggedTypedTransaction<Eip4844>"
     )
 )]
-pub enum SeismicTypedTransaction<Eip4844: Transaction + Clone> {
+pub enum SeismicTypedTransaction<Eip4844: Transaction + Clone = TxEip4844> {
     /// Legacy transaction
     Legacy(TxLegacy),
     /// EIP-2930 transaction

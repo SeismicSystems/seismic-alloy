@@ -2,8 +2,7 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
-    EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844Variant,
-    TxEip7702, TxLegacy, TypedTransaction,
+    EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy, TypedTransaction
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
@@ -192,7 +191,7 @@ impl SeismicTransactionRequest {
     ///
     /// Note that EIP-4844 transactions are not supported by Seismic and will be converted into
     /// EIP-1559 transactions.
-    pub fn build_typed_tx(self) -> Result<SeismicTypedTransaction, Self> {
+    pub fn build_typed_tx(self) -> Result<SeismicTypedTransaction<alloy_consensus::TxEip4844>, Self> {
         if self.seismic_elements.is_some() {
             let tx = self.build_seismic().expect("Failed to build seismic transaction.");
             return Ok(SeismicTypedTransaction::Seismic(tx));
@@ -207,7 +206,7 @@ impl SeismicTransactionRequest {
             TypedTransaction::Legacy(tx) => Ok(SeismicTypedTransaction::Legacy(tx)),
             TypedTransaction::Eip1559(tx) => Ok(SeismicTypedTransaction::Eip1559(tx)),
             TypedTransaction::Eip2930(tx) => Ok(SeismicTypedTransaction::Eip2930(tx)),
-            TypedTransaction::Eip4844(tx) => Ok(SeismicTypedTransaction::Eip4844(tx)),
+            TypedTransaction::Eip4844(tx) => Ok(SeismicTypedTransaction::Eip4844(tx.into())),
             TypedTransaction::Eip7702(tx) => Ok(SeismicTypedTransaction::Eip7702(tx)),
         }
     }
@@ -335,6 +334,13 @@ impl From<TxEip7702> for SeismicTransactionRequest {
     }
 }
 
+impl From<TxEip4844> for SeismicTransactionRequest {
+    fn from(tx: TxEip4844) -> Self {
+        let inner = tx.into();
+        Self { inner, seismic_elements: None }
+    }
+}
+
 impl From<TxEip4844Variant> for SeismicTransactionRequest {
     fn from(tx: TxEip4844Variant) -> Self {
         let inner = tx.into();
@@ -381,8 +387,8 @@ where
     }
 }
 
-impl From<SeismicTypedTransaction> for SeismicTransactionRequest {
-    fn from(tx: SeismicTypedTransaction) -> Self {
+impl From<SeismicTypedTransaction<alloy_consensus::TxEip4844>> for SeismicTransactionRequest {
+    fn from(tx: SeismicTypedTransaction<alloy_consensus::TxEip4844>) -> Self {
         match tx {
             SeismicTypedTransaction::Legacy(tx) => {
                 Self { inner: tx.into(), seismic_elements: None }
@@ -404,8 +410,8 @@ impl From<SeismicTypedTransaction> for SeismicTransactionRequest {
     }
 }
 
-impl From<SeismicTxEnvelope> for SeismicTransactionRequest {
-    fn from(value: SeismicTxEnvelope) -> Self {
+impl From<SeismicTxEnvelope<alloy_consensus::TxEip4844>> for SeismicTransactionRequest {
+    fn from(value: SeismicTxEnvelope<alloy_consensus::TxEip4844>) -> Self {
         match value {
             SeismicTxEnvelope::Legacy(tx) => tx.into(),
             SeismicTxEnvelope::Eip1559(tx) => tx.into(),

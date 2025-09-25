@@ -235,7 +235,7 @@ impl NetworkWallet<SeismicReth> for EthereumWallet {
                 SeismicTypedTransaction::Legacy(tx) => TypedTransaction::Legacy(tx),
                 SeismicTypedTransaction::Eip2930(tx) => TypedTransaction::Eip2930(tx),
                 SeismicTypedTransaction::Eip1559(tx) => TypedTransaction::Eip1559(tx),
-                SeismicTypedTransaction::Eip4844(tx) => TypedTransaction::Eip4844(tx),
+                SeismicTypedTransaction::Eip4844(tx) => TypedTransaction::Eip4844(alloy_consensus::TxEip4844Variant::TxEip4844(tx)),
                 SeismicTypedTransaction::Eip7702(tx) => TypedTransaction::Eip7702(tx),
                 SeismicTypedTransaction::Seismic(_tx) => unreachable!(),
             };

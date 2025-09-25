@@ -33,7 +33,7 @@ use alloy_consensus::SignableTransaction;
 ///
 /// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(bound(serialize = "Eip4844: serde::Serialize + alloy_consensus::Transaction"), bound(deserialize = "Eip4844: serde::de::DeserializeOwned + alloy_consensus::Transaction")))]
 #[cfg_attr(
     feature = "serde",
     serde(into = "serde_from::TaggedTxEnvelope<Eip4844>", from = "serde_from::MaybeTaggedTxEnvelope<Eip4844>")
@@ -115,7 +115,7 @@ impl<Eip4844: Transaction + RlpEcdsaEncodableTx + Clone> From<SeismicTxEnvelope<
             }
             SeismicTxEnvelope::Eip4844(tx_eip4844) => {
                 let (tx, sig, hash) = tx_eip4844.into_parts();
-                Signed::new_unchecked(tx.into(), sig, hash)
+                Signed::new_unchecked(SeismicTypedTransaction::Eip4844(tx), sig, hash)
             }
             SeismicTxEnvelope::Eip7702(tx_eip7702) => {
                 let (tx, sig, hash) = tx_eip7702.into_parts();
@@ -704,6 +704,7 @@ mod serde_from {
     use super::*;
 
     #[derive(Debug, serde::Deserialize)]
+    #[serde(bound(deserialize = "Eip4844: serde::de::DeserializeOwned + alloy_consensus::Transaction"))]
     #[serde(untagged)]
     pub(crate) enum MaybeTaggedTxEnvelope<Eip4844: Clone + RlpEcdsaEncodableTx> {
         Tagged(TaggedTxEnvelope<Eip4844>),
@@ -712,6 +713,7 @@ mod serde_from {
     }
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
+    #[serde(bound(serialize = "Eip4844: serde::Serialize + alloy_consensus::Transaction", deserialize = "Eip4844: serde::de::DeserializeOwned + alloy_consensus::Transaction"))]
     #[serde(tag = "type")]
     pub(crate) enum TaggedTxEnvelope<Eip4844: Clone + RlpEcdsaEncodableTx> {
         #[serde(
