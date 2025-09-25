@@ -78,11 +78,13 @@ impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<TxEip1559>> for SeismicTx
     }
 }
 
+/*
 impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<Eip4844>> for SeismicTxEnvelope<Eip4844> {
     fn from(v: Signed<Eip4844>) -> Self {
         Self::Eip4844(v)
     }
 }
+*/
 
 impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<Signed<TxEip7702>> for SeismicTxEnvelope<Eip4844> {
     fn from(v: Signed<TxEip7702>) -> Self {
@@ -703,7 +705,7 @@ mod serde_from {
 
     #[derive(Debug, serde::Deserialize)]
     #[serde(untagged)]
-    pub(crate) enum MaybeTaggedTxEnvelope<Eip4844> {
+    pub(crate) enum MaybeTaggedTxEnvelope<Eip4844: Clone + RlpEcdsaEncodableTx> {
         Tagged(TaggedTxEnvelope<Eip4844>),
         #[serde(with = "alloy_consensus::transaction::signed_legacy_serde")]
         Untagged(Signed<TxLegacy>),
@@ -711,7 +713,7 @@ mod serde_from {
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type")]
-    pub(crate) enum TaggedTxEnvelope<Eip4844: Clone> {
+    pub(crate) enum TaggedTxEnvelope<Eip4844: Clone + RlpEcdsaEncodableTx> {
         #[serde(
             rename = "0x0",
             alias = "0x00",
@@ -730,7 +732,7 @@ mod serde_from {
         Seismic(Signed<TxSeismic>),
     }
 
-    impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<MaybeTaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844> {
+    impl<Eip4844: Transaction + RlpEcdsaEncodableTx + Clone> From<MaybeTaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844> {
         fn from(value: MaybeTaggedTxEnvelope<Eip4844>) -> Self {
             match value {
                 MaybeTaggedTxEnvelope::Tagged(tagged) => tagged.into(),
@@ -739,7 +741,7 @@ mod serde_from {
         }
     }
 
-    impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<TaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844> {
+    impl<Eip4844: Transaction + RlpEcdsaEncodableTx + Clone> From<TaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844> {
         fn from(value: TaggedTxEnvelope<Eip4844>) -> Self {
             match value {
                 TaggedTxEnvelope::Legacy(signed) => Self::Legacy(signed),
@@ -752,7 +754,7 @@ mod serde_from {
         }
     }
 
-    impl<Eip4844: RlpEcdsaEncodableTx + Clone> From<SeismicTxEnvelope<Eip4844>> for TaggedTxEnvelope<Eip4844> {
+    impl<Eip4844: Transaction + RlpEcdsaEncodableTx + Clone> From<SeismicTxEnvelope<Eip4844>> for TaggedTxEnvelope<Eip4844> {
         fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
             match value {
                 SeismicTxEnvelope::Legacy(signed) => Self::Legacy(signed),

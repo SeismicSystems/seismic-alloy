@@ -6,8 +6,7 @@ use crate::{
     TxSeismic, TxSeismicElements,
 };
 use alloy_consensus::{
-    transaction::RlpEcdsaEncodableTx, SignableTransaction, Transaction, TxEip1559, TxEip2930,
-    TxEip4844Variant, TxEip7702, TxLegacy, Typed2718,
+    transaction::RlpEcdsaEncodableTx, SignableTransaction, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy, Typed2718
 };
 use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{bytes::BufMut, Address, Bytes, Signature, TxHash, TxKind, B256};
@@ -63,11 +62,13 @@ impl<Eip4844: Transaction + Clone> From<TxEip1559> for SeismicTypedTransaction<E
     }
 }
 
-impl<Eip4844: Transaction + Clone> From<TxEip4844Variant> for SeismicTypedTransaction<Eip4844> {
-    fn from(tx: Eip4844) -> Self {
+/*
+impl<Eip4844: Transaction + Clone> From<TxEip4844> for SeismicTypedTransaction<Eip4844> {
+    fn from(tx: TxEip4844) -> Self {
         Self::Eip4844(tx)
     }
 }
+*/
 
 impl<Eip4844: Transaction + Clone> From<TxEip7702> for SeismicTypedTransaction<Eip4844> {
     fn from(tx: TxEip7702) -> Self {
@@ -81,7 +82,7 @@ impl<Eip4844: Transaction + Clone> From<TxSeismic> for SeismicTypedTransaction<E
     }
 }
 
-impl<Eip4844: Transaction + Clone + RlpEcdsaEncodableTx> From<SeismicTxEnvelope> for SeismicTypedTransaction<Eip4844> {
+impl<Eip4844: Transaction + Clone + RlpEcdsaEncodableTx> From<SeismicTxEnvelope<Eip4844>> for SeismicTypedTransaction<Eip4844> {
     fn from(envelope: SeismicTxEnvelope<Eip4844>) -> Self {
         match envelope {
             SeismicTxEnvelope::Legacy(tx) => Self::Legacy(tx.strip_signature()),
