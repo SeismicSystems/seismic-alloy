@@ -51,7 +51,7 @@ impl SeismicTransactionRequest {
         self
     }
 
-    /// Initializes the [`TransactionRequest`] with the provided transaction.
+    /// Initializes the [`SeismicTransactionRequest`] with the provided transaction.
     ///
     /// Note: This leaves the `from` field empty.
     pub fn from_transaction<T: alloy_consensus::Transaction>(tx: T) -> Self {

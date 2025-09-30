@@ -16,7 +16,7 @@ env:
 
 jobs:
   rustfmt:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
       - run: cargo fmt --all --check
 
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
         run: cargo build
 
   warnings:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
         with:
           shared-key: "warnings-cache"
       - name: cargo check warnings
-        run: RUSTFLAGS="-A elided_named_lifetimes -D warnings" cargo check
+        run: RUSTFLAGS="-D warnings" cargo check
 
   test:
     runs-on: self-hosted

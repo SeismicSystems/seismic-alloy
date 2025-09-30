@@ -107,6 +107,11 @@ impl<T> SeismicReceiptEnvelope<T> {
         }
     }
 
+    /// get the tx type id
+    pub fn type_id(&self) -> u8 {
+        self.tx_type().into()
+    }
+
     /// Return true if the transaction was successful.
     pub fn is_success(&self) -> bool {
         self.status()
