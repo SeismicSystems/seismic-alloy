@@ -175,5 +175,5 @@ alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev =
 # alloy-genesis = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
 
 # revm
-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", branch = "usm" }
-seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", branch = "usm" }
+revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5df78108a382e66420ad9b815d3f41b5e35f3cc8" }
+seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5df78108a382e66420ad9b815d3f41b5e35f3cc8" }
