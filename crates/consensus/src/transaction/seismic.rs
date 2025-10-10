@@ -13,8 +13,7 @@ use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
-    constants, ecdh_decrypt, ecdh_encrypt, rand, Keypair, Nonce, PublicKey, Secp256k1,
-    SecretKey,
+    constants, ecdh_decrypt, ecdh_encrypt, rand, Keypair, Nonce, PublicKey, Secp256k1, SecretKey,
 };
 use thiserror::Error;
 
@@ -171,12 +170,8 @@ impl TxSeismicElements {
             return Ok(plaintext.clone());
         }
 
-        let ciphertext = ecdh_encrypt(
-            &self.encryption_pubkey,
-            secret_key,
-            plaintext,
-            self.get_enclave_nonce(),
-        )?;
+        let ciphertext =
+            ecdh_encrypt(&self.encryption_pubkey, secret_key, plaintext, self.get_enclave_nonce())?;
         Ok(Bytes::from(ciphertext))
     }
 
