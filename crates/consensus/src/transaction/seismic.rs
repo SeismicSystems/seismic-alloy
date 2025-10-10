@@ -37,17 +37,15 @@ pub trait InputDecryptionElements: Clone {
 
     /// Creates a copy of the transaction with the input field set to the plaintext.
     /// Errors if the decryption fails, etc.
-    fn plaintext_copy<C>(&self, client: &C) -> Result<Self, InputDecryptionElementsError>
-    where
-        C: SyncEnclaveApiClient,
+    fn plaintext_copy(&self, decryption_key: &SecretKey) -> Result<Self, InputDecryptionElementsError>
     {
         let mut tx = self.clone();
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
             let ciphertext = tx.get_input();
             let decrypted_data = seismic_elements
-                .server_decrypt(client, &ciphertext)
+                .decrypt_with_key(decryption_key, &ciphertext)
                 .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
-            tx.set_input(decrypted_data)?;
+            tx.set_input(Bytes::from(decrypted_data))?;
         }
         Ok(tx)
     }
@@ -148,6 +146,24 @@ impl TxSeismicElements {
         self.encryption_nonce.to_be_bytes().into()
     }
 
+    /// decrypt a message using a provided secret key
+    pub fn decrypt_with_key(
+        &self,
+        secret_key: &SecretKey,
+        ciphertext: &Bytes,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        if ciphertext.is_empty() {
+            return Ok(ciphertext.to_vec());
+        }
+
+        ecdh_decrypt(
+            &self.encryption_pubkey,
+            secret_key,
+            ciphertext,
+            self.get_enclave_nonce(),
+        )
+    }
+
     /// decrypt a message using the enclave
     pub fn server_decrypt<C: SyncEnclaveApiClient>(
         &self,
@@ -159,13 +175,9 @@ impl TxSeismicElements {
         }
 
         let keys_resp = enclave_client.get_purpose_keys(GetPurposeKeysRequest { epoch: 0 })?;
-        let plaintext = ecdh_decrypt(
-            &self.encryption_pubkey,
-            &keys_resp.tx_io_sk,
-            ciphertext,
-            self.get_enclave_nonce(),
-        )
-        .map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
+        let plaintext = self
+            .decrypt_with_key(&keys_resp.tx_io_sk, ciphertext)
+            .map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
         Ok(Bytes::from(plaintext))
     }
 
