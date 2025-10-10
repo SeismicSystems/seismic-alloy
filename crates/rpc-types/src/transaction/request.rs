@@ -15,7 +15,6 @@ use seismic_alloy_consensus::{
     SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
     TypedDataRequest,
 };
-use seismic_enclave::EnclaveClient;
 
 /// Builder for [`SeismicTypedTransaction`].
 #[derive(
@@ -223,12 +222,12 @@ impl SeismicTransactionRequest {
     /// Decrypts the seismic elements and returns a [`TransactionRequest`].
     pub fn to_transaction_request(
         &self,
-        enclave_client: &EnclaveClient,
+        secret_key: &seismic_enclave::SecretKey,
     ) -> Result<TransactionRequest, Error> {
         if let Some(seismic_elements) = &self.seismic_elements {
             let ciphertext = self.inner.input.input().unwrap();
-            let plaintext = seismic_elements.server_decrypt(enclave_client, ciphertext).unwrap();
-            self.inner.clone().input(plaintext.into());
+            let plaintext = seismic_elements.decrypt(secret_key, ciphertext).map_err(|_| Error)?;
+            self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into());
         }
         Ok(self.inner.clone())
     }

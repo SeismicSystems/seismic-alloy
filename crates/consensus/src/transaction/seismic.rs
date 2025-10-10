@@ -13,8 +13,7 @@ use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
-    constants, ecdh_decrypt, ecdh_encrypt, keys::GetPurposeKeysRequest, rand,
-    rpc::SyncEnclaveApiClient, Keypair, Nonce, PublicKey, Secp256k1, SecretKey,
+    constants, ecdh_decrypt, ecdh_encrypt, rand, Keypair, Nonce, PublicKey, Secp256k1, SecretKey,
 };
 use thiserror::Error;
 
@@ -45,7 +44,7 @@ pub trait InputDecryptionElements: Clone {
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
             let ciphertext = tx.get_input();
             let decrypted_data = seismic_elements
-                .decrypt_with_key(decryption_key, &ciphertext)
+                .decrypt(decryption_key, &ciphertext)
                 .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
             tx.set_input(Bytes::from(decrypted_data))?;
         }
@@ -149,7 +148,7 @@ impl TxSeismicElements {
     }
 
     /// decrypt a message using a provided secret key
-    pub fn decrypt_with_key(
+    pub fn decrypt(
         &self,
         secret_key: &SecretKey,
         ciphertext: &Bytes,
@@ -161,40 +160,18 @@ impl TxSeismicElements {
         ecdh_decrypt(&self.encryption_pubkey, secret_key, ciphertext, self.get_enclave_nonce())
     }
 
-    /// decrypt a message using the enclave
-    pub fn server_decrypt<C: SyncEnclaveApiClient>(
+    /// encrypt a message using a provided secret key
+    pub fn encrypt(
         &self,
-        enclave_client: &C,
-        ciphertext: &Bytes,
-    ) -> Result<Bytes, jsonrpsee::core::ClientError> {
-        if ciphertext.is_empty() {
-            return Ok(ciphertext.clone());
-        }
-
-        let keys_resp = enclave_client.get_purpose_keys(GetPurposeKeysRequest { epoch: 0 })?;
-        let plaintext = self
-            .decrypt_with_key(&keys_resp.tx_io_sk, ciphertext)
-            .map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
-        Ok(Bytes::from(plaintext))
-    }
-
-    /// encrypt a message using the enclave
-    pub fn server_encrypt<C: SyncEnclaveApiClient>(
-        &self,
-        enclave_client: &C,
+        secret_key: &SecretKey,
         plaintext: &Bytes,
-    ) -> Result<Bytes, jsonrpsee::core::ClientError> {
+    ) -> Result<Bytes, anyhow::Error> {
         if plaintext.is_empty() {
             return Ok(plaintext.clone());
         }
-        let keys_resp = enclave_client.get_purpose_keys(GetPurposeKeysRequest { epoch: 0 })?;
-        let ciphertext = ecdh_encrypt(
-            &self.encryption_pubkey,
-            &keys_resp.tx_io_sk,
-            plaintext,
-            self.get_enclave_nonce(),
-        )
-        .map_err(|e| jsonrpsee::core::ClientError::Custom(e.to_string()))?;
+
+        let ciphertext =
+            ecdh_encrypt(&self.encryption_pubkey, secret_key, plaintext, self.get_enclave_nonce())?;
         Ok(Bytes::from(ciphertext))
     }
 
@@ -823,7 +800,7 @@ mod tests {
         hex::{self, FromHex},
         Address, FixedBytes, Signature,
     };
-    use seismic_enclave::MockEnclaveClient;
+    use seismic_enclave::{rpc::SyncEnclaveApiClient, MockEnclaveClient};
 
     use super::*;
 
@@ -1043,11 +1020,14 @@ mod tests {
     }
 
     #[test]
-    fn test_server_encrypt_empty_bytes() {
+    fn test_encrypt_empty_bytes() {
         let seismic_elements = TxSeismicElements::default();
         let empty_bytes = Bytes::new();
         let mock_enclave_client = MockEnclaveClient {};
-        let result = seismic_elements.server_encrypt(&mock_enclave_client, &empty_bytes);
+        let keys = mock_enclave_client
+            .get_purpose_keys(seismic_enclave::keys::GetPurposeKeysRequest { epoch: 0 })
+            .unwrap();
+        let result = seismic_elements.encrypt(&keys.tx_io_sk, &empty_bytes);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Bytes::new());
     }
