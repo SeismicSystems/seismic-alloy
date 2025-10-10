@@ -226,8 +226,7 @@ impl SeismicTransactionRequest {
     ) -> Result<TransactionRequest, Error> {
         if let Some(seismic_elements) = &self.seismic_elements {
             let ciphertext = self.inner.input.input().unwrap();
-            let plaintext =
-                seismic_elements.decrypt_with_key(secret_key, ciphertext).map_err(|_| Error)?;
+            let plaintext = seismic_elements.decrypt(secret_key, ciphertext).map_err(|_| Error)?;
             self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into());
         }
         Ok(self.inner.clone())

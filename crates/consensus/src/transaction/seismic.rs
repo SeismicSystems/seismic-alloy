@@ -44,7 +44,7 @@ pub trait InputDecryptionElements: Clone {
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
             let ciphertext = tx.get_input();
             let decrypted_data = seismic_elements
-                .decrypt_with_key(decryption_key, &ciphertext)
+                .decrypt(decryption_key, &ciphertext)
                 .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
             tx.set_input(Bytes::from(decrypted_data))?;
         }
@@ -148,7 +148,7 @@ impl TxSeismicElements {
     }
 
     /// decrypt a message using a provided secret key
-    pub fn decrypt_with_key(
+    pub fn decrypt(
         &self,
         secret_key: &SecretKey,
         ciphertext: &Bytes,
