@@ -37,8 +37,10 @@ pub trait InputDecryptionElements: Clone {
 
     /// Creates a copy of the transaction with the input field set to the plaintext.
     /// Errors if the decryption fails, etc.
-    fn plaintext_copy(&self, decryption_key: &SecretKey) -> Result<Self, InputDecryptionElementsError>
-    {
+    fn plaintext_copy(
+        &self,
+        decryption_key: &SecretKey,
+    ) -> Result<Self, InputDecryptionElementsError> {
         let mut tx = self.clone();
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
             let ciphertext = tx.get_input();
@@ -156,12 +158,7 @@ impl TxSeismicElements {
             return Ok(ciphertext.to_vec());
         }
 
-        ecdh_decrypt(
-            &self.encryption_pubkey,
-            secret_key,
-            ciphertext,
-            self.get_enclave_nonce(),
-        )
+        ecdh_decrypt(&self.encryption_pubkey, secret_key, ciphertext, self.get_enclave_nonce())
     }
 
     /// decrypt a message using the enclave
