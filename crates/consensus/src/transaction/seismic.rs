@@ -800,7 +800,7 @@ mod tests {
         hex::{self, FromHex},
         Address, FixedBytes, Signature,
     };
-    use seismic_enclave::MockEnclaveClient;
+    use seismic_enclave::{rpc::SyncEnclaveApiClient, MockEnclaveClient};
 
     use super::*;
 
