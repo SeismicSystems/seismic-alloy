@@ -47,7 +47,7 @@ revm = { version = "29.0.0", default-features = false }
 seismic-revm = "1.0.0"
 
 # Alloy
-alloy-consensus = { version = "1.0.30", default-features = false }
+alloy-consensus = { version = "1.0.41", default-features = false }
 alloy-eips = { version = "1.0.30", default-features = false }
 alloy-network = { version = "1.0.30", default-features = false }
 alloy-network-primitives = { version = "1.0.30", default-features = false }
