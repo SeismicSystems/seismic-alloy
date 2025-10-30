@@ -4,7 +4,7 @@ use crate::{
     TxSeismic, TxSeismicElements,
 };
 use alloy_consensus::{
-    Signed, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy, Typed2718, transaction::RlpEcdsaDecodableTx
+    Signed, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy, Typed2718, transaction::RlpEcdsaDecodableTx, transaction::RlpEcdsaEncodableTx
 };
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
@@ -38,7 +38,10 @@ use alloy_consensus::SignableTransaction;
     serde(into = "serde_from::TaggedTxEnvelope", from = "serde_from::MaybeTaggedTxEnvelope")
 )]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
-pub enum SeismicTxEnvelope<Eip4844 = TxEip4844>{
+pub enum SeismicTxEnvelope<Eip4844 = TxEip4844> 
+where
+    Eip4844: RlpEcdsaEncodableTx + Clone,
+    {
     /// An untagged [`TxLegacy`].
     Legacy(Signed<TxLegacy>),
     /// A [`TxEip2930`] tagged with type 1.
