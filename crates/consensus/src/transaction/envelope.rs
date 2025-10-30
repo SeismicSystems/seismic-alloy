@@ -13,7 +13,7 @@ use alloy_eips::{
 };
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
 use alloy_rlp::{Decodable, Encodable};
-use std::hash::{Hash, Hasher};
+use std::{hash::{Hash, Hasher}, os::unix::process};
 
 #[cfg(feature = "serde")]
 use crate::transaction::{Decodable712, Eip712Result, TypedDataRequest};
@@ -31,11 +31,7 @@ use alloy_consensus::SignableTransaction;
 /// flag.
 ///
 /// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
-#[derive(Debug, Clone, TransactionEnvelope)]
-#[envelope(
-    alloy_consensus = alloy_consensus,
-    tx_type_name = SeismicTxType,
-)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
@@ -52,7 +48,10 @@ use alloy_consensus::SignableTransaction;
     )
 )]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
-pub enum SeismicTxEnvelope<Eip4844: RlpEcdsaEncodableTx = TxEip4844> {
+pub enum SeismicTxEnvelope<Eip4844 = TxEip4844> 
+where
+    Eip4844: RlpEcdsaEncodableTx + Clone,
+    {
     /// An untagged [`TxLegacy`].
     #[envelope(ty = 0)]  // ← Added: tells macro this is type 0
     Legacy(Signed<TxLegacy>),
