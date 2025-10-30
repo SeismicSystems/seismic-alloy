@@ -35,7 +35,7 @@ pub enum SeismicTypedTransaction {
     Eip2930(TxEip2930),
     /// EIP-1559 transaction
     Eip1559(TxEip1559),
-    #[cfg_attr(feature = "arbitrary", arbitrary(skip))]
+    // #[cfg_attr(feature = "arbitrary", arbitrary(skip))]
     /// EIP-4844 transaction
     Eip4844(TxEip4844Variant),
     /// EIP-7702 transaction
