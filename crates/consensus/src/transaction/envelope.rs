@@ -59,6 +59,8 @@ pub enum SeismicTxEnvelope<Eip4844 = TxEip4844>{
     Seismic(Signed<TxSeismic>),
 }
 
+pub type TxEnvelope = SeismicTxEnvelope<TxEip4844Variant>;
+
 impl From<Signed<TxLegacy>> for SeismicTxEnvelope {
     fn from(v: Signed<TxLegacy>) -> Self {
         Self::Legacy(v)
