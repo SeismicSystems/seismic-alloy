@@ -4,7 +4,7 @@ use crate::{
     TxSeismic, TxSeismicElements,
 };
 use alloy_consensus::{
-    Signed, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy, Typed2718, transaction::RlpEcdsaDecodableTx, transaction::RlpEcdsaEncodableTx
+    Signed, Transaction, TxEip1559, TxEip2930, TxEip4844, TxEip4844Variant, TxEip7702, TxLegacy, Typed2718, transaction::RlpEcdsaDecodableTx, transaction::RlpEcdsaEncodableTx, TransactionEnvelope
 };
 use alloy_eips::{
     eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
@@ -31,23 +31,40 @@ use alloy_consensus::SignableTransaction;
 /// flag.
 ///
 /// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, TransactionEnvelope)]
+#[envelope(
+    alloy_consensus = alloy_consensus,
+    tx_type_name = SeismicTxType,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "serde_from::TaggedTxEnvelope", from = "serde_from::MaybeTaggedTxEnvelope")
+    serde(bound(
+        serialize = "Eip4844: serde::Serialize + Transaction + RlpEcdsaEncodableTx",
+        deserialize = "Eip4844: serde::de::DeserializeOwned + Transaction + RlpEcdsaEncodableTx"
+    ))
+)]
+#[cfg_attr(
+    feature = "serde",
+    serde(
+        into = "serde_from::TaggedTxEnvelope<Eip4844>",     
+        from = "serde_from::MaybeTaggedTxEnvelope<Eip4844>" 
+    )
 )]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
-pub enum SeismicTxEnvelope<Eip4844 = TxEip4844> 
-where
-    Eip4844: RlpEcdsaEncodableTx + Clone,
-    {
+pub enum SeismicTxEnvelope<Eip4844: RlpEcdsaEncodableTx = TxEip4844> {
     /// An untagged [`TxLegacy`].
+    #[envelope(ty = 0)]  // ← Added: tells macro this is type 0
     Legacy(Signed<TxLegacy>),
+    
     /// A [`TxEip2930`] tagged with type 1.
+    #[envelope(ty = 1)]  // ← Added: tells macro this is type 1
     Eip2930(Signed<TxEip2930>),
+    
     /// A [`TxEip1559`] tagged with type 2.
+    #[envelope(ty = 2)]  // ← Added: tells macro this is type 2
     Eip1559(Signed<TxEip1559>),
+    
     /// A TxEip4844 tagged with type 3.
     /// An EIP-4844 transaction has two network representations:
     /// 1 - The transaction itself, which is a regular RLP-encoded transaction and used to retrieve
@@ -55,10 +72,15 @@ where
     ///
     /// 2 - The transaction with a sidecar, which is the form used to
     /// send transactions to the network.
+    #[envelope(ty = 3)]  // ← Added: tells macro this is type 3
     Eip4844(Signed<Eip4844>),
+    
     /// A [`TxEip7702`] tagged with type 4.
+    #[envelope(ty = 4)]  // ← Added: tells macro this is type 4
     Eip7702(Signed<TxEip7702>),
+    
     /// A [`TxSeismic`] tagged with type 0x7E.
+    #[envelope(ty = 0x7E)]  // ← Added: tells macro this is type 0x7E (126)
     Seismic(Signed<TxSeismic>),
 }
 
