@@ -719,15 +719,21 @@ mod serde_from {
 
     #[derive(Debug, serde::Deserialize)]
     #[serde(untagged)]
-    pub(crate) enum MaybeTaggedTxEnvelope {
-        Tagged(TaggedTxEnvelope),
+    pub(crate) enum MaybeTaggedTxEnvelope<Eip4844 = TxEip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+    {
+        Tagged(TaggedTxEnvelope<Eip4844>),
         #[serde(with = "alloy_consensus::transaction::signed_legacy_serde")]
         Untagged(Signed<TxLegacy>),
     }
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type")]
-    pub(crate) enum TaggedTxEnvelope {
+    pub(crate) enum TaggedTxEnvelope<Eip4844 = TxEip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize
+    {
         #[serde(
             rename = "0x0",
             alias = "0x00",
@@ -739,15 +745,18 @@ mod serde_from {
         #[serde(rename = "0x2", alias = "0x02")]
         Eip1559(Signed<TxEip1559>),
         #[serde(rename = "0x3", alias = "0x03")]
-        Eip4844(Signed<TxEip4844Variant>),
+        Eip4844(Signed<Eip4844>),
         #[serde(rename = "0x4", alias = "0x04")]
         Eip7702(Signed<TxEip7702>),
         #[serde(rename = "0x4A", alias = "0x4A")]
         Seismic(Signed<TxSeismic>),
     }
 
-    impl From<MaybeTaggedTxEnvelope> for SeismicTxEnvelope {
-        fn from(value: MaybeTaggedTxEnvelope) -> Self {
+    impl<Eip4844> From<MaybeTaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + Clone,
+    {
+        fn from(value: MaybeTaggedTxEnvelope<Eip4844>) -> Self {
             match value {
                 MaybeTaggedTxEnvelope::Tagged(tagged) => tagged.into(),
                 MaybeTaggedTxEnvelope::Untagged(tx) => Self::Legacy(tx),
