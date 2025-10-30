@@ -732,7 +732,7 @@ mod serde_from {
     #[serde(tag = "type")]
     pub(crate) enum TaggedTxEnvelope<Eip4844 = TxEip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize
+        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
     {
         #[serde(
             rename = "0x0",
