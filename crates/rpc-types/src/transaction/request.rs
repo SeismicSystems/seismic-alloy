@@ -381,6 +381,7 @@ where
     }
 }
 
+
 impl<Eip4844> From<SeismicTypedTransaction<Eip4844>> for SeismicTransactionRequest
 where
     Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
@@ -407,9 +408,10 @@ where
     }
 }
 
+
 impl<Eip4844> From<SeismicTxEnvelope<Eip4844>> for SeismicTransactionRequest
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature> + Into<SeismicTransactionRequest>,
 {
     fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
         match value {
