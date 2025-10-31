@@ -1,7 +1,9 @@
 //! Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
 use alloy_consensus::{
-    error::ValueError, transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx}, EthereumTxEnvelope, Signed,
-    Transaction as TransactionTrait, TxEip4844Variant, TxEnvelope, Typed2718,
+    error::ValueError,
+    transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
+    EthereumTxEnvelope, Signed, Transaction as TransactionTrait, TxEip4844Variant, TxEnvelope,
+    Typed2718,
 };
 use alloy_eip7702::SignedAuthorization;
 use alloy_network::{
@@ -338,7 +340,11 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
 
 impl<Eip4844> From<SeismicFoundryTxEnvelope> for SeismicTxEnvelope<Eip4844>
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize,
     TxEip4844Variant: Into<Eip4844>,
 {
     fn from(foundry_tx: SeismicFoundryTxEnvelope) -> Self {
@@ -347,7 +353,9 @@ where
             SeismicFoundryTxEnvelope::Ethereum(tx_envelope) => match tx_envelope {
                 EthereumTxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
                 EthereumTxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
-                EthereumTxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx.map(|inner_tx| inner_tx.into())),
+                EthereumTxEnvelope::Eip4844(tx) => {
+                    SeismicTxEnvelope::Eip4844(tx.map(|inner_tx| inner_tx.into()))
+                }
                 EthereumTxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
                 EthereumTxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
             },

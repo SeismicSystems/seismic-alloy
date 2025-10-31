@@ -322,7 +322,9 @@ impl NetworkWallet<SeismicFoundry> for EthereumWallet {
                 match signed_tx {
                     TxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
                     TxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
-                    TxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx.map(|inner_tx| inner_tx.into())),
+                    TxEnvelope::Eip4844(tx) => {
+                        SeismicTxEnvelope::Eip4844(tx.map(|inner_tx| inner_tx.into()))
+                    }
                     TxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
                     TxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
                 }

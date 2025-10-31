@@ -2,11 +2,11 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
-    EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844Variant,
-    TxEip7702, TxLegacy, TypedTransaction, TxEip4844,
+    transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
+    EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844,
+    TxEip4844Variant, TxEip7702, TxLegacy, TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
-use alloy_consensus::transaction::{RlpEcdsaEncodableTx, RlpEcdsaDecodableTx};
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
 use alloy_primitives::{Address, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
@@ -388,10 +388,14 @@ where
     }
 }
 
-
 impl<Eip4844> From<SeismicTypedTransaction<Eip4844>> for SeismicTransactionRequest
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
 {
     fn from(tx: SeismicTypedTransaction<Eip4844>) -> Self {
         match tx {
@@ -415,10 +419,15 @@ where
     }
 }
 
-
 impl<Eip4844> From<SeismicTxEnvelope<Eip4844>> for SeismicTransactionRequest
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature> + Into<SeismicTransactionRequest>,
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>
+        + Into<SeismicTransactionRequest>,
 {
     fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
         match value {

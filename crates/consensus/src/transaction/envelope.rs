@@ -52,7 +52,11 @@ use alloy_consensus::SignableTransaction;
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
 pub enum SeismicTxEnvelope<Eip4844 = TxEip4844>
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize,
 {
     /// An untagged [`TxLegacy`].
     Legacy(Signed<TxLegacy>),
@@ -74,6 +78,7 @@ where
     Seismic(Signed<TxSeismic>),
 }
 
+/// The Seismic transaction envelope with concrete `TxEip4844Variant` type.
 pub type TxEnvelope = SeismicTxEnvelope<TxEip4844Variant>;
 
 impl From<Signed<TxLegacy>> for SeismicTxEnvelope {
@@ -88,9 +93,7 @@ impl From<Signed<TxEip2930>> for SeismicTxEnvelope {
     }
 }
 
-impl From<Signed<TxEip1559>> for SeismicTxEnvelope
-where
-{
+impl From<Signed<TxEip1559>> for SeismicTxEnvelope {
     fn from(v: Signed<TxEip1559>) -> Self {
         Self::Eip1559(v)
     }
@@ -98,7 +101,11 @@ where
 
 impl<Eip4844> From<Signed<Eip4844>> for SeismicTxEnvelope<Eip4844>
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize,
 {
     fn from(v: Signed<Eip4844>) -> Self {
         Self::Eip4844(v)
@@ -449,7 +456,12 @@ impl InputDecryptionElements for SeismicTxEnvelope {
 
 impl<Eip4844> SeismicTxEnvelope<Eip4844>
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
 {
     /// Returns true if the transaction is a legacy transaction.
     #[inline]
@@ -636,7 +648,11 @@ impl Decodable for SeismicTxEnvelope {
 
 impl<Eip4844> Decodable2718 for SeismicTxEnvelope<Eip4844>
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize,
 {
     fn typed_decode(ty: u8, buf: &mut &[u8]) -> Eip2718Result<Self> {
         match ty.try_into().map_err(|_| Eip2718Error::UnexpectedType(ty))? {
@@ -729,7 +745,9 @@ mod serde_from {
     use super::*;
 
     #[derive(Debug, serde::Deserialize)]
-    #[serde(bound(deserialize = "Eip4844: serde::de::DeserializeOwned + RlpEcdsaEncodableTx + Clone + serde::Serialize"))]
+    #[serde(bound(
+        deserialize = "Eip4844: serde::de::DeserializeOwned + RlpEcdsaEncodableTx + Clone + serde::Serialize"
+    ))]
     #[serde(untagged)]
     pub(crate) enum MaybeTaggedTxEnvelope<Eip4844 = TxEip4844>
     where
@@ -741,7 +759,9 @@ mod serde_from {
     }
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
-    #[serde(bound(deserialize = "Eip4844: serde::de::DeserializeOwned + RlpEcdsaEncodableTx + Clone + serde::Serialize"))]
+    #[serde(bound(
+        deserialize = "Eip4844: serde::de::DeserializeOwned + RlpEcdsaEncodableTx + Clone + serde::Serialize"
+    ))]
     #[serde(tag = "type")]
     pub(crate) enum TaggedTxEnvelope<Eip4844 = TxEip4844>
     where
@@ -767,7 +787,12 @@ mod serde_from {
 
     impl<Eip4844> From<MaybeTaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+        Eip4844: RlpEcdsaEncodableTx
+            + RlpEcdsaDecodableTx
+            + Clone
+            + serde::de::DeserializeOwned
+            + serde::Serialize
+            + SignableTransaction<Signature>,
     {
         fn from(value: MaybeTaggedTxEnvelope<Eip4844>) -> Self {
             match value {
@@ -779,7 +804,12 @@ mod serde_from {
 
     impl<Eip4844> From<TaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+        Eip4844: RlpEcdsaEncodableTx
+            + RlpEcdsaDecodableTx
+            + Clone
+            + serde::de::DeserializeOwned
+            + serde::Serialize
+            + SignableTransaction<Signature>,
     {
         fn from(value: TaggedTxEnvelope<Eip4844>) -> Self {
             match value {
@@ -795,7 +825,12 @@ mod serde_from {
 
     impl<Eip4844> From<SeismicTxEnvelope<Eip4844>> for TaggedTxEnvelope<Eip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+        Eip4844: RlpEcdsaEncodableTx
+            + RlpEcdsaDecodableTx
+            + Clone
+            + serde::de::DeserializeOwned
+            + serde::Serialize
+            + SignableTransaction<Signature>,
     {
         fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
             match value {
