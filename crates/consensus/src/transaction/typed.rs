@@ -104,7 +104,7 @@ where
 
 impl<Eip4844> SeismicTypedTransaction<Eip4844>
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
 {
     /// Return the [`SeismicTxType`] of the inner txn.
     pub const fn tx_type(&self) -> SeismicTxType {
@@ -551,15 +551,23 @@ mod serde_from {
     use super::*;
 
     #[derive(Debug, serde::Deserialize)]
+    #[serde(bound(deserialize = "Eip4844: serde::de::DeserializeOwned + RlpEcdsaEncodableTx + Clone + serde::Serialize + SignableTransaction<Signature>"))]
     #[serde(untagged)]
-    pub(crate) enum MaybeTaggedTypedTransaction {
-        Tagged(TaggedTypedTransaction),
+    pub(crate) enum MaybeTaggedTypedTransaction<Eip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+    {
+        Tagged(TaggedTypedTransaction<Eip4844>),
         Untagged(TxLegacy),
     }
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
+    #[serde(bound(deserialize = "Eip4844: serde::de::DeserializeOwned + RlpEcdsaEncodableTx + Clone + serde::Serialize + SignableTransaction<Signature>"))]
     #[serde(tag = "type")]
-    pub(crate) enum TaggedTypedTransaction {
+    pub(crate) enum TaggedTypedTransaction<Eip4844 = TxEip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+    {
         /// Legacy transaction
         #[serde(rename = "0x00", alias = "0x0")]
         Legacy(TxLegacy),
@@ -571,7 +579,7 @@ mod serde_from {
         Eip1559(TxEip1559),
         /// EIP-4844 transaction
         #[serde(rename = "0x03", alias = "0x3")]
-        Eip4844(TxEip4844Variant),
+        Eip4844(Eip4844),
         /// EIP-7702 transaction
         #[serde(rename = "0x04", alias = "0x4")]
         Eip7702(TxEip7702),
@@ -580,8 +588,11 @@ mod serde_from {
         Seismic(TxSeismic),
     }
 
-    impl From<MaybeTaggedTypedTransaction> for SeismicTypedTransaction {
-        fn from(value: MaybeTaggedTypedTransaction) -> Self {
+    impl<Eip4844> From<MaybeTaggedTypedTransaction<Eip4844>> for SeismicTypedTransaction<Eip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+    {
+        fn from(value: MaybeTaggedTypedTransaction<Eip4844>) -> Self {
             match value {
                 MaybeTaggedTypedTransaction::Tagged(tagged) => tagged.into(),
                 MaybeTaggedTypedTransaction::Untagged(tx) => Self::Legacy(tx),
@@ -589,8 +600,11 @@ mod serde_from {
         }
     }
 
-    impl From<TaggedTypedTransaction> for SeismicTypedTransaction {
-        fn from(value: TaggedTypedTransaction) -> Self {
+    impl<Eip4844> From<TaggedTypedTransaction<Eip4844>> for SeismicTypedTransaction<Eip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+    {
+        fn from(value: TaggedTypedTransaction<Eip4844>) -> Self {
             match value {
                 TaggedTypedTransaction::Legacy(signed) => Self::Legacy(signed),
                 TaggedTypedTransaction::Eip2930(signed) => Self::Eip2930(signed),
@@ -602,8 +616,11 @@ mod serde_from {
         }
     }
 
-    impl From<SeismicTypedTransaction> for TaggedTypedTransaction {
-        fn from(value: SeismicTypedTransaction) -> Self {
+    impl<Eip4844> From<SeismicTypedTransaction<Eip4844>> for TaggedTypedTransaction<Eip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
+    {
+        fn from(value: SeismicTypedTransaction<Eip4844>) -> Self {
             match value {
                 SeismicTypedTransaction::Legacy(signed) => Self::Legacy(signed),
                 SeismicTypedTransaction::Eip2930(signed) => Self::Eip2930(signed),

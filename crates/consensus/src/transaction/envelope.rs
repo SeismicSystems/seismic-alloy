@@ -38,8 +38,8 @@ use alloy_consensus::SignableTransaction;
 #[cfg_attr(
     feature = "serde",
     serde(bound(
-        serialize = "Eip4844: serde::Serialize + Transaction + alloy_consensus::transaction::RlpEcdsaEncodableTx + Clone",
-        deserialize = "Eip4844: serde::de::DeserializeOwned + Transaction + alloy_consensus::transaction::RlpEcdsaEncodableTx + Clone"
+        serialize = "Eip4844: serde::Serialize + Transaction + alloy_consensus::transaction::RlpEcdsaEncodableTx + Clone + SignableTransaction<Signature>",
+        deserialize = "Eip4844: serde::de::DeserializeOwned + Transaction + alloy_consensus::transaction::RlpEcdsaEncodableTx + Clone + SignableTransaction<Signature>"
     ))
 )]
 #[cfg_attr(
@@ -449,7 +449,7 @@ impl InputDecryptionElements for SeismicTxEnvelope {
 
 impl<Eip4844> SeismicTxEnvelope<Eip4844>
 where
-    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
 {
     /// Returns true if the transaction is a legacy transaction.
     #[inline]
@@ -520,7 +520,7 @@ where
             Self::Legacy(tx) => tx.signature_hash(),
             Self::Eip2930(tx) => tx.signature_hash(),
             Self::Eip1559(tx) => tx.signature_hash(),
-            Self::Eip4844(tx) => tx.tx().signature_hash(),
+            Self::Eip4844(tx) => tx.signature_hash(),
             Self::Eip7702(tx) => tx.signature_hash(),
             Self::Seismic(tx) => tx.signature_hash(),
         }
@@ -767,7 +767,7 @@ mod serde_from {
 
     impl<Eip4844> From<MaybeTaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
     {
         fn from(value: MaybeTaggedTxEnvelope<Eip4844>) -> Self {
             match value {
@@ -779,7 +779,7 @@ mod serde_from {
 
     impl<Eip4844> From<TaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
     {
         fn from(value: TaggedTxEnvelope<Eip4844>) -> Self {
             match value {
@@ -795,7 +795,7 @@ mod serde_from {
 
     impl<Eip4844> From<SeismicTxEnvelope<Eip4844>> for TaggedTxEnvelope<Eip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+        Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize + SignableTransaction<Signature>,
     {
         fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
             match value {
@@ -867,7 +867,7 @@ mod tests {
         let envelope: SeismicTxEnvelope = tx_signed.into();
         let encoded = envelope.encoded_2718();
         let mut slice = encoded.as_slice();
-        let decoded = SeismicTxEnvelope::decode_2718(&mut slice).unwrap();
+        let decoded = SeismicTxEnvelope::<TxEip1559>::decode_2718(&mut slice).unwrap();
         assert!(matches!(decoded, SeismicTxEnvelope::Eip1559(_)));
     }
 }
