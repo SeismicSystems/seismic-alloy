@@ -45,14 +45,14 @@ use alloy_consensus::SignableTransaction;
 #[cfg_attr(
     feature = "serde",
     serde(
-        into = "serde_from::TaggedTxEnvelope",
-        from = "serde_from::MaybeTaggedTxEnvelope"
+        into = "serde_from::TaggedTxEnvelope<Eip4844>",
+        from = "serde_from::MaybeTaggedTxEnvelope<Eip4844>"
     )
 )]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
 pub enum SeismicTxEnvelope<Eip4844 = TxEip4844>
 where
-    Eip4844: RlpEcdsaEncodableTx + Clone,
+    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
 {
     /// An untagged [`TxLegacy`].
     Legacy(Signed<TxLegacy>),
@@ -88,14 +88,19 @@ impl From<Signed<TxEip2930>> for SeismicTxEnvelope {
     }
 }
 
-impl From<Signed<TxEip1559>> for SeismicTxEnvelope {
+impl From<Signed<TxEip1559>> for SeismicTxEnvelope
+where
+{
     fn from(v: Signed<TxEip1559>) -> Self {
         Self::Eip1559(v)
     }
 }
 
-impl From<Signed<TxEip4844Variant>> for SeismicTxEnvelope {
-    fn from(v: Signed<TxEip4844Variant>) -> Self {
+impl<Eip4844> From<Signed<Eip4844>> for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+{
+    fn from(v: Signed<Eip4844>) -> Self {
         Self::Eip4844(v)
     }
 }
@@ -442,7 +447,10 @@ impl InputDecryptionElements for SeismicTxEnvelope {
     }
 }
 
-impl SeismicTxEnvelope {
+impl<Eip4844> SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+{
     /// Returns true if the transaction is a legacy transaction.
     #[inline]
     pub const fn is_legacy(&self) -> bool {
@@ -492,7 +500,7 @@ impl SeismicTxEnvelope {
     }
 
     /// Returns the [`TxEip4844`] variant if the transaction is an EIP-4844 transaction.
-    pub const fn as_eip4844(&self) -> Option<&Signed<TxEip4844Variant>> {
+    pub const fn as_eip4844(&self) -> Option<&Signed<Eip4844>> {
         match self {
             Self::Eip4844(tx) => Some(tx),
             _ => None,
@@ -512,7 +520,7 @@ impl SeismicTxEnvelope {
             Self::Legacy(tx) => tx.signature_hash(),
             Self::Eip2930(tx) => tx.signature_hash(),
             Self::Eip1559(tx) => tx.signature_hash(),
-            Self::Eip4844(tx) => tx.signature_hash(),
+            Self::Eip4844(tx) => tx.tx().signature_hash(),
             Self::Eip7702(tx) => tx.signature_hash(),
             Self::Seismic(tx) => tx.signature_hash(),
         }
@@ -626,12 +634,15 @@ impl Decodable for SeismicTxEnvelope {
     }
 }
 
-impl Decodable2718 for SeismicTxEnvelope {
+impl<Eip4844> Decodable2718 for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx + RlpEcdsaDecodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+{
     fn typed_decode(ty: u8, buf: &mut &[u8]) -> Eip2718Result<Self> {
         match ty.try_into().map_err(|_| Eip2718Error::UnexpectedType(ty))? {
             SeismicTxType::Eip2930 => Ok(Self::Eip2930(TxEip2930::rlp_decode_signed(buf)?)),
             SeismicTxType::Eip1559 => Ok(Self::Eip1559(TxEip1559::rlp_decode_signed(buf)?)),
-            SeismicTxType::Eip4844 => Ok(Self::Eip4844(TxEip4844Variant::rlp_decode_signed(buf)?)),
+            SeismicTxType::Eip4844 => Ok(Self::Eip4844(Eip4844::rlp_decode_signed(buf)?)),
             SeismicTxType::Eip7702 => Ok(Self::Eip7702(TxEip7702::rlp_decode_signed(buf)?)),
             SeismicTxType::Seismic => Ok(Self::Seismic(TxSeismic::rlp_decode_signed(buf)?)),
             SeismicTxType::Legacy => {
@@ -718,6 +729,7 @@ mod serde_from {
     use super::*;
 
     #[derive(Debug, serde::Deserialize)]
+    #[serde(bound(deserialize = "Eip4844: serde::de::DeserializeOwned + RlpEcdsaEncodableTx + Clone + serde::Serialize"))]
     #[serde(untagged)]
     pub(crate) enum MaybeTaggedTxEnvelope<Eip4844 = TxEip4844>
     where
@@ -729,6 +741,7 @@ mod serde_from {
     }
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
+    #[serde(bound(deserialize = "Eip4844: serde::de::DeserializeOwned + RlpEcdsaEncodableTx + Clone + serde::Serialize"))]
     #[serde(tag = "type")]
     pub(crate) enum TaggedTxEnvelope<Eip4844 = TxEip4844>
     where
