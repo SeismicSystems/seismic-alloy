@@ -754,7 +754,7 @@ mod serde_from {
 
     impl<Eip4844> From<MaybeTaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + Clone,
+        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
     {
         fn from(value: MaybeTaggedTxEnvelope<Eip4844>) -> Self {
             match value {
@@ -764,8 +764,11 @@ mod serde_from {
         }
     }
 
-    impl From<TaggedTxEnvelope> for SeismicTxEnvelope {
-        fn from(value: TaggedTxEnvelope) -> Self {
+    impl<Eip4844> From<TaggedTxEnvelope<Eip4844>> for SeismicTxEnvelope<Eip4844>
+    where
+        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
+    {
+        fn from(value: TaggedTxEnvelope<Eip4844>) -> Self {
             match value {
                 TaggedTxEnvelope::Legacy(signed) => Self::Legacy(signed),
                 TaggedTxEnvelope::Eip2930(signed) => Self::Eip2930(signed),
@@ -777,9 +780,9 @@ mod serde_from {
         }
     }
 
-    impl<Eip4844> From<SeismicTxEnvelope<Eip4844>> for TaggedTxEnvelope
+    impl<Eip4844> From<SeismicTxEnvelope<Eip4844>> for TaggedTxEnvelope<Eip4844>
     where
-        Eip4844: RlpEcdsaEncodableTx + Clone,
+        Eip4844: RlpEcdsaEncodableTx + Clone + serde::de::DeserializeOwned + serde::Serialize,
     {
         fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
             match value {
