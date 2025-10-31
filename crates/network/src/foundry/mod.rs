@@ -242,7 +242,7 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
                 Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Eip1559(tx)))
             }
             SeismicTypedTransaction::Eip4844(tx) => {
-                Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Eip4844(tx)))
+                Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Eip4844(tx.into())))
             }
             SeismicTypedTransaction::Eip7702(tx) => {
                 Ok(SeismicFoundryTypedTransaction::Ethereum(TypedTransaction::Eip7702(tx)))
@@ -276,7 +276,7 @@ impl From<SeismicTxEnvelope> for SeismicFoundryTxEnvelope {
                 SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip2930(tx))
             }
             SeismicTxEnvelope::Eip4844(tx) => {
-                SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip4844(tx))
+                SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip4844(tx.into()))
             }
             SeismicTxEnvelope::Eip7702(tx) => {
                 SeismicFoundryTxEnvelope::Ethereum(EthereumTxEnvelope::Eip7702(tx))
@@ -322,7 +322,7 @@ impl NetworkWallet<SeismicFoundry> for EthereumWallet {
                 match signed_tx {
                     TxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
                     TxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
-                    TxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx),
+                    TxEnvelope::Eip4844(tx) => SeismicTxEnvelope::Eip4844(tx.map(|inner_tx| inner_tx.into())),
                     TxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
                     TxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
                 }

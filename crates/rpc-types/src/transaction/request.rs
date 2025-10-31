@@ -3,7 +3,7 @@ use core::fmt::Error;
 use alloc::vec::Vec;
 use alloy_consensus::{
     EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844Variant,
-    TxEip7702, TxLegacy, TypedTransaction,
+    TxEip7702, TxLegacy, TypedTransaction, TxEip4844,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_consensus::transaction::{RlpEcdsaEncodableTx, RlpEcdsaDecodableTx};
@@ -338,6 +338,13 @@ impl From<TxEip7702> for SeismicTransactionRequest {
 impl From<TxEip4844Variant> for SeismicTransactionRequest {
     fn from(tx: TxEip4844Variant) -> Self {
         let inner = tx.into();
+        Self { inner, seismic_elements: None }
+    }
+}
+
+impl From<TxEip4844> for SeismicTransactionRequest {
+    fn from(tx: TxEip4844) -> Self {
+        let inner = TransactionRequest::from_transaction(tx);
         Self { inner, seismic_elements: None }
     }
 }
