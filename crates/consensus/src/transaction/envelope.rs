@@ -45,8 +45,8 @@ use alloy_consensus::SignableTransaction;
 #[cfg_attr(
     feature = "serde",
     serde(
-        into = "serde_from::TaggedTxEnvelope<Eip4844>",
-        from = "serde_from::MaybeTaggedTxEnvelope<Eip4844>"
+        into = "serde_from::TaggedTxEnvelope",
+        from = "serde_from::MaybeTaggedTxEnvelope"
     )
 )]
 #[cfg_attr(all(any(test, feature = "arbitrary"), feature = "k256"), derive(arbitrary::Arbitrary))]
