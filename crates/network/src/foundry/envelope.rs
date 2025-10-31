@@ -2,15 +2,15 @@
 use alloy_consensus::{
     error::ValueError,
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
-    EthereumTxEnvelope, Signed, Transaction as TransactionTrait, TxEip4844Variant, TxEnvelope,
-    Typed2718,
+    EthereumTxEnvelope, SignableTransaction, Signed, Transaction as TransactionTrait,
+    TxEip4844Variant, TxEnvelope, Typed2718,
 };
 use alloy_eip7702::SignedAuthorization;
 use alloy_network::{
     eip2718::{Decodable2718, Encodable2718},
     AnyTxEnvelope, UnknownTxEnvelope,
 };
-use alloy_primitives::{Address, Bytes, ChainId, Selector, TxKind, B256, U256};
+use alloy_primitives::{Address, Bytes, ChainId, Selector, Signature, TxKind, B256, U256};
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{
     InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, TxSeismic,
@@ -344,7 +344,8 @@ where
         + RlpEcdsaDecodableTx
         + Clone
         + serde::de::DeserializeOwned
-        + serde::Serialize,
+        + serde::Serialize
+        + SignableTransaction<Signature>,
     TxEip4844Variant: Into<Eip4844>,
 {
     fn from(foundry_tx: SeismicFoundryTxEnvelope) -> Self {

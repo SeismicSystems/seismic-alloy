@@ -56,7 +56,8 @@ where
         + RlpEcdsaDecodableTx
         + Clone
         + serde::de::DeserializeOwned
-        + serde::Serialize,
+        + serde::Serialize
+        + SignableTransaction<Signature>,
 {
     /// An untagged [`TxLegacy`].
     Legacy(Signed<TxLegacy>),
@@ -105,7 +106,8 @@ where
         + RlpEcdsaDecodableTx
         + Clone
         + serde::de::DeserializeOwned
-        + serde::Serialize,
+        + serde::Serialize
+        + SignableTransaction<Signature>,
 {
     fn from(v: Signed<Eip4844>) -> Self {
         Self::Eip4844(v)
@@ -652,7 +654,8 @@ where
         + RlpEcdsaDecodableTx
         + Clone
         + serde::de::DeserializeOwned
-        + serde::Serialize,
+        + serde::Serialize
+        + SignableTransaction<Signature>,
 {
     fn typed_decode(ty: u8, buf: &mut &[u8]) -> Eip2718Result<Self> {
         match ty.try_into().map_err(|_| Eip2718Error::UnexpectedType(ty))? {
