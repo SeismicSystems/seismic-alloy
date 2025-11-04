@@ -59,26 +59,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install sanvil via sfoundryup
+      - name: Setup sanvil PATH
         run: |
-          if ! command -v sanvil &> /dev/null; then
-            echo "Installing sanvil via sfoundryup..."
-            echo "HOME: $HOME"
-            curl -L \
-              -H "Accept: application/vnd.github.v3.raw" \
-              "https://api.github.com/repos/SeismicSystems/seismic-foundry/contents/sfoundryup/install" \
-              | bash
-            export PATH="$HOME/.seismic/bin:$PATH"
-            sfoundryup
-            echo "Installation complete"
-          else
-            echo "sanvil already installed"
-          fi
-          # Add sanvil to PATH for all subsequent steps
           echo "$HOME/.seismic/bin" >> $GITHUB_PATH
-          echo "Verifying sanvil installation..."
-          which sanvil || echo "sanvil not found yet, PATH: $PATH"
-          sanvil --version || echo "sanvil command failed"
+          echo "Sanvil path configured"
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "test-cache"
