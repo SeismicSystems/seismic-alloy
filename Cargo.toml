@@ -47,26 +47,26 @@ revm = { version = "29.0.0", default-features = false }
 seismic-revm = "1.0.0"
 
 # Alloy
-alloy-consensus = { version = "1.0.30", default-features = false }
-alloy-eips = { version = "1.0.30", default-features = false }
-alloy-network = { version = "1.0.30", default-features = false }
-alloy-network-primitives = { version = "1.0.30", default-features = false }
-alloy-node-bindings = { version = "1.0.30", default-features = false }
-alloy-provider = { version = "1.0.30", features = [
+alloy-consensus = { version = "=1.0.30", default-features = false }
+alloy-eips = { version = "=1.0.30", default-features = false }
+alloy-network = { version = "=1.0.30", default-features = false }
+alloy-network-primitives = { version = "=1.0.30", default-features = false }
+alloy-node-bindings = { version = "=1.0.30", default-features = false }
+alloy-provider = { version = "=1.0.30", features = [
     "reqwest",
     "ws",
     "trace-api",
 ] }
-alloy-pubsub = { version = "1.0.30", default-features = false }
-alloy-rpc-types-eth = { version = "1.0.30", default-features = false }
-alloy-rpc-types-engine = { version = "1.0.30", default-features = false }
-alloy-rpc-client = { version = "1.0.30", default-features = false }
-alloy-rpc-types = { version = "1.0.30", default-features = false }
-alloy-serde = { version = "1.0.30", default-features = false }
-alloy-signer = { version = "1.0.30", default-features = false }
-alloy-signer-local = { version = "1.0.30", default-features = false }
-alloy-transport = { version = "1.0.30", default-features = false }
-alloy-genesis = { version = "1.0.30", default-features = false }
+alloy-pubsub = { version = "=1.0.30", default-features = false }
+alloy-rpc-types-eth = { version = "=1.0.30", default-features = false }
+alloy-rpc-types-engine = { version = "=1.0.30", default-features = false }
+alloy-rpc-client = { version = "=1.0.30", default-features = false }
+alloy-rpc-types = { version = "=1.0.30", default-features = false }
+alloy-serde = { version = "=1.0.30", default-features = false }
+alloy-signer = { version = "=1.0.30", default-features = false }
+alloy-signer-local = { version = "=1.0.30", default-features = false }
+alloy-transport = { version = "=1.0.30", default-features = false }
+alloy-genesis = { version = "=1.0.30", default-features = false }
 
 # Alloy RLP
 alloy-rlp = { version = "0.3.12", default-features = false }
@@ -152,14 +152,6 @@ alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "33e302d06f56bb4dda85359005af7e302f48272f" }
 
 alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "d8425918ced1d62043c3a64b382d6fa1d8c25518" }
-
-alloy-consensus = "=1.0.30"
-alloy-eips = "=1.0.30"
-alloy-network = "=1.0.30"
-alloy-network-primitives = "=1.0.30"
-alloy-serde = "=1.0.30"
-alloy-rpc-types-eth = "=1.0.30"
-alloy-rpc-types = "=1.0.30"
 
 # # OG alloy patches to v1.0.9
 # alloy-consensus = { git = "https://github.com/alloy-rs/alloy", rev = "375ba75" } # 1.0.9
