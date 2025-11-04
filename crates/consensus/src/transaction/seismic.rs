@@ -879,8 +879,8 @@ mod tests {
         let _signature = _signature.0;
 
         let signature = Signature::new(
-            U256::from_be_slice(_signature.r().to_bytes().as_slice()),
-            U256::from_be_slice(_signature.s().to_bytes().as_slice()),
+            U256::from_be_slice(_signature.r().to_bytes().as_ref()),
+            U256::from_be_slice(_signature.s().to_bytes().as_ref()),
             recoverid.is_y_odd(),
         );
 
