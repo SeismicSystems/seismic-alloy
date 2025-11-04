@@ -62,13 +62,11 @@ jobs:
       - name: Setup sanvil PATH
         run: |
           echo "$HOME/.seismic/bin" >> $GITHUB_PATH
-          echo "Sanvil path configured"
+          echo "sanvil path configured"
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "test-cache"
       - name: cargo test
         run: |
-          echo "PATH for tests: $PATH"
-          which sanvil
           cargo test --workspace
         
