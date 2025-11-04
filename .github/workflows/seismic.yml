@@ -62,21 +62,27 @@ jobs:
         run: |
           if ! command -v sanvil &> /dev/null; then
             echo "Installing sanvil via sfoundryup..."
+            echo "HOME: $HOME"
+            export HOME=/home/azureuser
             curl -L \
               -H "Accept: application/vnd.github.v3.raw" \
               "https://api.github.com/repos/SeismicSystems/seismic-foundry/contents/sfoundryup/install" \
               | bash
-            source ~/.bashrc || source ~/.bash_profile || true
+            export PATH="$HOME/.seismic/bin:$PATH"
             sfoundryup
-            source ~/.bashrc || source ~/.bash_profile || true
             echo "Installation complete"
+          else
+            echo "sanvil already installed"
           fi
           echo "Verifying sanvil installation..."
+          export PATH="$HOME/.seismic/bin:$PATH"
           which sanvil
           sanvil --version
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "test-cache"
       - name: cargo test
-        run: cargo test --workspace
+        run: |
+          export PATH="$HOME/.seismic/bin:$PATH"
+          cargo test --workspace
         
