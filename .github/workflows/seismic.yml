@@ -58,27 +58,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Check for sanvil
+      - name: Install sanvil via sfoundryup
         run: |
-          echo "Checking for sanvil installation..."
-          echo "PATH: $PATH"
-          echo "---"
-          if command -v sanvil &> /dev/null; then
-            echo "sanvil found at: $(which sanvil)"
-            sanvil --version || echo "sanvil exists but --version failed"
-          else
-            echo "sanvil NOT FOUND in PATH"
+          if ! command -v sanvil &> /dev/null; then
+            echo "Installing sanvil via sfoundryup..."
+            curl -L \
+              -H "Accept: application/vnd.github.v3.raw" \
+              "https://api.github.com/repos/SeismicSystems/seismic-foundry/contents/sfoundryup/install" \
+              | bash
+            source ~/.bashrc || source ~/.bash_profile || true
+            sfoundryup
+            source ~/.bashrc || source ~/.bash_profile || true
+            echo "Installation complete"
           fi
-          echo "---"
-          echo "Checking common locations:"
-          ls -la ~/.cargo/bin/sanvil 2>/dev/null || echo "Not in ~/.cargo/bin/"
-          ls -la /usr/local/bin/sanvil 2>/dev/null || echo "Not in /usr/local/bin/"
-          ls -la /usr/bin/sanvil 2>/dev/null || echo "Not in /usr/bin/"
-          echo "---"
-          echo "All binaries in ~/.cargo/bin/:"
-          ls -la ~/.cargo/bin/ 2>/dev/null || echo "~/.cargo/bin/ doesn't exist"
+          echo "Verifying sanvil installation..."
+          which sanvil
+          sanvil --version
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "test-cache"
       - name: cargo test
         run: cargo test --workspace
+        
