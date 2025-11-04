@@ -58,6 +58,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: Check for sanvil
+        run: |
+          echo "Checking for sanvil installation..."
+          echo "PATH: $PATH"
+          echo "---"
+          if command -v sanvil &> /dev/null; then
+            echo "sanvil found at: $(which sanvil)"
+            sanvil --version || echo "sanvil exists but --version failed"
+          else
+            echo "sanvil NOT FOUND in PATH"
+          fi
+          echo "---"
+          echo "Checking common locations:"
+          ls -la ~/.cargo/bin/sanvil 2>/dev/null || echo "Not in ~/.cargo/bin/"
+          ls -la /usr/local/bin/sanvil 2>/dev/null || echo "Not in /usr/local/bin/"
+          ls -la /usr/bin/sanvil 2>/dev/null || echo "Not in /usr/bin/"
+          echo "---"
+          echo "All binaries in ~/.cargo/bin/:"
+          ls -la ~/.cargo/bin/ 2>/dev/null || echo "~/.cargo/bin/ doesn't exist"
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "test-cache"
