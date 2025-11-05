@@ -85,7 +85,7 @@ alloy-trie = { version = "0.9.1", default-features = false }
 
 # Serde
 serde_repr = "0.1"
-serde = { version = "=1.0.210", default-features = false, features = [
+serde = { version = "=1.0.220", default-features = false, features = [
     "derive",
     "alloc",
 ] }
