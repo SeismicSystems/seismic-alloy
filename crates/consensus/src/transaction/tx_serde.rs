@@ -1,6 +1,6 @@
 //! Transaction serde utilities
 use alloy_primitives::FixedBytes;
-use seismic_enclave::{constants, PublicKey};
+use seismic_enclave_crypto::{secp256k1::constants, secp256k1::PublicKey};
 use serde::{de::Error, Deserialize, Deserializer};
 
 /// Deserializes a primitive number from a "quantity" hex string.

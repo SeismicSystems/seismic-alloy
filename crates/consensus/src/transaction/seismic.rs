@@ -12,8 +12,9 @@ use alloy_rlp::{BufMut, Decodable, Encodable};
 use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
-use seismic_enclave::{
-    constants, ecdh_decrypt, ecdh_encrypt, rand, Keypair, Nonce, PublicKey, Secp256k1, SecretKey,
+use seismic_enclave_crypto::{
+    ecdh_decrypt, ecdh_encrypt, secp256k1::constants, secp256k1::Keypair, secp256k1::PublicKey,
+    secp256k1::Secp256k1, secp256k1::SecretKey, Nonce,
 };
 use thiserror::Error;
 
@@ -230,9 +231,9 @@ impl Encodable for TxSeismicElements {
     }
 
     fn length(&self) -> usize {
-        self.encryption_pubkey.serialize().length() +
-            self.encryption_nonce.length() +
-            self.message_version.length()
+        self.encryption_pubkey.serialize().length()
+            + self.encryption_nonce.length()
+            + self.message_version.length()
     }
 }
 
@@ -436,14 +437,14 @@ impl From<Signed<TxSeismic>> for TypedDataRequest {
 
 impl RlpEcdsaEncodableTx for TxSeismic {
     fn rlp_encoded_fields_length(&self) -> usize {
-        self.chain_id.length() +
-            self.nonce.length() +
-            self.gas_price.length() +
-            self.gas_limit.length() +
-            self.to.length() +
-            self.value.length() +
-            self.seismic_elements.length() +
-            self.input.length()
+        self.chain_id.length()
+            + self.nonce.length()
+            + self.gas_price.length()
+            + self.gas_limit.length()
+            + self.to.length()
+            + self.value.length()
+            + self.seismic_elements.length()
+            + self.input.length()
     }
 
     fn rlp_encode_fields(&self, out: &mut dyn alloy_rlp::BufMut) {
@@ -800,7 +801,7 @@ mod tests {
         hex::{self, FromHex},
         Address, FixedBytes, Signature,
     };
-    use seismic_enclave::{rpc::SyncEnclaveApiClient, MockEnclaveClient};
+    use seismic_enclave_crypto::get_unsecure_sample_secp256k1_sk;
 
     use super::*;
 
@@ -1023,11 +1024,10 @@ mod tests {
     fn test_encrypt_empty_bytes() {
         let seismic_elements = TxSeismicElements::default();
         let empty_bytes = Bytes::new();
-        let mock_enclave_client = MockEnclaveClient {};
-        let keys = mock_enclave_client
-            .get_purpose_keys(seismic_enclave::keys::GetPurposeKeysRequest { epoch: 0 })
-            .unwrap();
-        let result = seismic_elements.encrypt(&keys.tx_io_sk, &empty_bytes);
+
+        let tx_io_sk = get_unsecure_sample_secp256k1_sk();
+
+        let result = seismic_elements.encrypt(&tx_io_sk, &empty_bytes);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Bytes::new());
     }

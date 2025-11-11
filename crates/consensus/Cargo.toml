@@ -15,7 +15,7 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
-seismic-enclave.workspace = true
+seismic-enclave-crypto.workspace = true
 
 alloy-eips = { workspace = true, features = ["kzg-sidecar"] }
 alloy-primitives = { workspace = true, features = ["rlp", "seismic"] }
@@ -34,7 +34,7 @@ c-kzg = { workspace = true, features = ["serde"], optional = true }
 
 # arbitrary
 arbitrary = { workspace = true, features = ["derive"], optional = true }
-rand = { workspace = true, optional = true }
+rand = { workspace = true }
 
 # serde
 serde = { workspace = true, features = ["derive"], optional = true }

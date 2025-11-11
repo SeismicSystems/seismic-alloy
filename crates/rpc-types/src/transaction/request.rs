@@ -222,7 +222,7 @@ impl SeismicTransactionRequest {
     /// Decrypts the seismic elements and returns a [`TransactionRequest`].
     pub fn to_transaction_request(
         &self,
-        secret_key: &seismic_enclave::SecretKey,
+        secret_key: &seismic_enclave_crypto::secp256k1::SecretKey,
     ) -> Result<TransactionRequest, Error> {
         if let Some(seismic_elements) = &self.seismic_elements {
             let ciphertext = self.inner.input.input().unwrap();
