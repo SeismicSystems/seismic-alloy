@@ -11,7 +11,7 @@ use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
 };
-use seismic_enclave_crypto::secp256k1::PublicKey;
+use seismic_enclave::secp256k1::PublicKey;
 use std::str::FromStr;
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
