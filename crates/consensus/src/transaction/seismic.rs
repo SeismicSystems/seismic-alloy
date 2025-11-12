@@ -13,8 +13,9 @@ use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
-    ecdh_decrypt, ecdh_encrypt, secp256k1::constants, secp256k1::Keypair, secp256k1::PublicKey,
-    secp256k1::Secp256k1, secp256k1::SecretKey, Nonce,
+    ecdh_decrypt, ecdh_encrypt,
+    secp256k1::{constants, Keypair, PublicKey, Secp256k1, SecretKey},
+    Nonce,
 };
 use thiserror::Error;
 
@@ -231,9 +232,9 @@ impl Encodable for TxSeismicElements {
     }
 
     fn length(&self) -> usize {
-        self.encryption_pubkey.serialize().length()
-            + self.encryption_nonce.length()
-            + self.message_version.length()
+        self.encryption_pubkey.serialize().length() +
+            self.encryption_nonce.length() +
+            self.message_version.length()
     }
 }
 
@@ -437,14 +438,14 @@ impl From<Signed<TxSeismic>> for TypedDataRequest {
 
 impl RlpEcdsaEncodableTx for TxSeismic {
     fn rlp_encoded_fields_length(&self) -> usize {
-        self.chain_id.length()
-            + self.nonce.length()
-            + self.gas_price.length()
-            + self.gas_limit.length()
-            + self.to.length()
-            + self.value.length()
-            + self.seismic_elements.length()
-            + self.input.length()
+        self.chain_id.length() +
+            self.nonce.length() +
+            self.gas_price.length() +
+            self.gas_limit.length() +
+            self.to.length() +
+            self.value.length() +
+            self.seismic_elements.length() +
+            self.input.length()
     }
 
     fn rlp_encode_fields(&self, out: &mut dyn alloy_rlp::BufMut) {
