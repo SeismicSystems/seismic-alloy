@@ -350,7 +350,7 @@ mod tests {
         // of sanvil
         let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
 
-        assert_eq!(tee_pubkey, seismic_enclave::crypto::get_unsecure_sample_secp256k1_pk());
+        assert_eq!(tee_pubkey, seismic_enclave::get_unsecure_sample_secp256k1_pk());
     }
 
     #[tokio::test]

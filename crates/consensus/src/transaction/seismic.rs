@@ -13,7 +13,9 @@ use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
-    constants, ecdh_decrypt, ecdh_encrypt, rand, Keypair, Nonce, PublicKey, Secp256k1, SecretKey,
+    ecdh_decrypt, ecdh_encrypt,
+    secp256k1::{constants, Keypair, PublicKey, Secp256k1, SecretKey},
+    Nonce,
 };
 use thiserror::Error;
 
@@ -800,7 +802,7 @@ mod tests {
         hex::{self, FromHex},
         Address, FixedBytes, Signature,
     };
-    use seismic_enclave::{rpc::SyncEnclaveApiClient, MockEnclaveClient};
+    use seismic_enclave::get_unsecure_sample_secp256k1_sk;
 
     use super::*;
 
@@ -1023,11 +1025,10 @@ mod tests {
     fn test_encrypt_empty_bytes() {
         let seismic_elements = TxSeismicElements::default();
         let empty_bytes = Bytes::new();
-        let mock_enclave_client = MockEnclaveClient {};
-        let keys = mock_enclave_client
-            .get_purpose_keys(seismic_enclave::keys::GetPurposeKeysRequest { epoch: 0 })
-            .unwrap();
-        let result = seismic_elements.encrypt(&keys.tx_io_sk, &empty_bytes);
+
+        let tx_io_sk = get_unsecure_sample_secp256k1_sk();
+
+        let result = seismic_elements.encrypt(&tx_io_sk, &empty_bytes);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Bytes::new());
     }

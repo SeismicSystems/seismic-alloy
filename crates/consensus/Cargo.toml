@@ -34,7 +34,7 @@ c-kzg = { workspace = true, features = ["serde"], optional = true }
 
 # arbitrary
 arbitrary = { workspace = true, features = ["derive"], optional = true }
-rand = { workspace = true, optional = true }
+rand = { workspace = true }
 
 # serde
 serde = { workspace = true, features = ["derive"], optional = true }
