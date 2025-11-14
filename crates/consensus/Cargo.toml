@@ -28,6 +28,7 @@ alloy-dyn-abi = { workspace = true, features = ["eip712", "seismic"]}
 
 # k256
 k256 = { workspace = true, features = ["ecdsa"]}
+secp256k1.workspace = true
 
 # kzg
 c-kzg = { workspace = true, features = ["serde"], optional = true }
