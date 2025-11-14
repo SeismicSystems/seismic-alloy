@@ -133,6 +133,7 @@ proptest = "1.6"
 proptest-derive = "0.5"
 tokio = "1"
 rstest = "0.24.0"
+secp256k1 = { version = "0.30" }
 
 ## crypto
 c-kzg = { version = "2.1.1", default-features = false }
@@ -140,7 +141,7 @@ k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 
 [patch.crates-io]
 # Seismic enclave
-seismic-enclave =  { git = "https://github.com/SeismicSystems/enclave.git", rev = "c6bc2ae15b619af1d0ec5e739a90b6f51dd7eb84" }
+seismic-enclave =  { git = "https://github.com/SeismicSystems/enclave.git", rev = "ef9a53d84dc25596f66ccf438cfd3374a5b0eabc" }
 
 # seismic-alloy-core
 alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
