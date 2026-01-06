@@ -593,8 +593,8 @@ impl TxSeismic {
         current_block <= self.seismic_elements.expires_at_block
     }
 
-    /// Comprehensive validation of transaction security features
-    pub fn validate_security_constraints(
+    /// Validate block-related security features (expiration and recent block hash)
+    pub fn validate_block(
         &self,
         current_block: u64,
         recent_blocks: &[B256],
