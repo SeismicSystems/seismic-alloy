@@ -39,27 +39,23 @@ pub struct TxSeismicMetadata {
     pub to: TxKind,
     /// Transaction value
     pub value: U256,
-    /// Recent block hash
-    pub recent_block_hash: B256,
-    /// Expiration block
-    pub expires_at_block: u64,
-    /// Whether this is a signed read call
-    pub signed_read: bool,
+    /// All seismic elements (includes security fields and encryption params)
+    pub seismic_elements: TxSeismicElements,
 }
 
 impl TxSeismicMetadata {
     /// Encode the metadata as additional authenticated data for AEAD
     pub fn encode_as_aad(&self) -> Vec<u8> {
         let mut aad = Vec::new();
+        // Transaction fields
         self.chain_id.encode(&mut aad);
         self.nonce.encode(&mut aad);
         self.gas_price.encode(&mut aad);
         self.gas_limit.encode(&mut aad);
         self.to.encode(&mut aad);
         self.value.encode(&mut aad);
-        self.recent_block_hash.encode(&mut aad);
-        self.expires_at_block.encode(&mut aad);
-        self.signed_read.encode(&mut aad);
+        // All seismic elements (includes security fields and encryption params)
+        self.seismic_elements.encode(&mut aad);
         aad
     }
 }
@@ -581,9 +577,7 @@ impl TxSeismic {
             gas_limit: self.gas_limit,
             to: self.to,
             value: self.value,
-            recent_block_hash: self.seismic_elements.recent_block_hash,
-            expires_at_block: self.seismic_elements.expires_at_block,
-            signed_read: self.seismic_elements.signed_read,
+            seismic_elements: self.seismic_elements,
         }
     }
 
