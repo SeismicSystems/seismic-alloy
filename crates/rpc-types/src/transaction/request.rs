@@ -2,8 +2,9 @@ use core::fmt::Error;
 
 use alloc::vec::Vec;
 use alloy_consensus::{
-    EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844Variant,
-    TxEip7702, TxLegacy, TypedTransaction,
+    transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
+    EthereumTxEnvelope, SignableTransaction, Signed, TxEip1559, TxEip2930, TxEip4844,
+    TxEip4844Variant, TxEip7702, TxLegacy, TypedTransaction,
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
@@ -206,7 +207,7 @@ impl SeismicTransactionRequest {
             TypedTransaction::Legacy(tx) => Ok(SeismicTypedTransaction::Legacy(tx)),
             TypedTransaction::Eip1559(tx) => Ok(SeismicTypedTransaction::Eip1559(tx)),
             TypedTransaction::Eip2930(tx) => Ok(SeismicTypedTransaction::Eip2930(tx)),
-            TypedTransaction::Eip4844(tx) => Ok(SeismicTypedTransaction::Eip4844(tx)),
+            TypedTransaction::Eip4844(tx) => Ok(SeismicTypedTransaction::Eip4844(tx.into())),
             TypedTransaction::Eip7702(tx) => Ok(SeismicTypedTransaction::Eip7702(tx)),
         }
     }
@@ -341,6 +342,13 @@ impl From<TxEip4844Variant> for SeismicTransactionRequest {
     }
 }
 
+impl From<TxEip4844> for SeismicTransactionRequest {
+    fn from(tx: TxEip4844) -> Self {
+        let inner = TransactionRequest::from_transaction(tx);
+        Self { inner, seismic_elements: None }
+    }
+}
+
 impl From<TxSeismic> for SeismicTransactionRequest {
     fn from(tx: TxSeismic) -> Self {
         let ty = tx.ty();
@@ -380,8 +388,16 @@ where
     }
 }
 
-impl From<SeismicTypedTransaction> for SeismicTransactionRequest {
-    fn from(tx: SeismicTypedTransaction) -> Self {
+impl<Eip4844> From<SeismicTypedTransaction<Eip4844>> for SeismicTransactionRequest
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
+    fn from(tx: SeismicTypedTransaction<Eip4844>) -> Self {
         match tx {
             SeismicTypedTransaction::Legacy(tx) => {
                 Self { inner: tx.into(), seismic_elements: None }
@@ -393,7 +409,7 @@ impl From<SeismicTypedTransaction> for SeismicTransactionRequest {
                 Self { inner: tx.into(), seismic_elements: None }
             }
             SeismicTypedTransaction::Eip4844(tx) => {
-                Self { inner: tx.into(), seismic_elements: None }
+                Self { inner: TransactionRequest::from_transaction(tx), seismic_elements: None }
             }
             SeismicTypedTransaction::Eip7702(tx) => {
                 Self { inner: tx.into(), seismic_elements: None }
@@ -403,8 +419,17 @@ impl From<SeismicTypedTransaction> for SeismicTransactionRequest {
     }
 }
 
-impl From<SeismicTxEnvelope> for SeismicTransactionRequest {
-    fn from(value: SeismicTxEnvelope) -> Self {
+impl<Eip4844> From<SeismicTxEnvelope<Eip4844>> for SeismicTransactionRequest
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>
+        + Into<SeismicTransactionRequest>,
+{
+    fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
         match value {
             SeismicTxEnvelope::Legacy(tx) => tx.into(),
             SeismicTxEnvelope::Eip1559(tx) => tx.into(),
