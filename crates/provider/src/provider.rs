@@ -327,7 +327,7 @@ mod tests {
     use crate::test_utils::{ContractTestContext, ISeismicCounter};
     use alloy_network::{ReceiptResponse, TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
-    use alloy_primitives::{address, Address, Bytes, TxKind};
+    use alloy_primitives::{address, Address, Bytes, TxKind, B256};
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
     use alloy_rpc_types_eth::Filter;
     use alloy_signer_local::PrivateKeySigner;
@@ -407,8 +407,16 @@ mod tests {
         let provider =
             SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
-        let tx =
+        let mut tx =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
+        
+        // Set valid seismic elements with security fields
+        let elements = TxSeismicElements::default()
+            .with_recent_block_hash(B256::from_slice(&[1u8; 32]))
+            .with_expires_at_block(1000000)
+            .with_signed_read(false);
+        tx.inner.transaction_type = Some(TxSeismic::TX_TYPE);
+        tx.seismic_elements = Some(elements);
 
         let res = provider.seismic_call(SendableTx::Builder(tx.into())).await;
         assert!(res.is_ok(), "seismic_call failed: {:?}", res.unwrap_err());
@@ -459,7 +467,10 @@ mod tests {
         let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
         let elements = TxSeismicElements::default()
             .with_encryption_pubkey(encryption_keypair.public_key())
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
+            .with_recent_block_hash(B256::from_slice(&[1u8; 32]))
+            .with_expires_at_block(1000000)
+            .with_signed_read(false);
 
         let tx_input = ContractTestContext::get_set_number_input_plaintext();
         let encrypted_input = elements
@@ -512,7 +523,10 @@ mod tests {
         let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
         let elements = TxSeismicElements::default()
             .with_encryption_pubkey(encryption_keypair.public_key())
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
+            .with_recent_block_hash(B256::from_slice(&[1u8; 32]))
+            .with_expires_at_block(1000000)
+            .with_signed_read(false);
 
         let tx_input_set_number = ContractTestContext::get_set_number_input_plaintext();
         let encrypted_input = elements
