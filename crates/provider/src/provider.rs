@@ -409,7 +409,7 @@ mod tests {
 
         let mut tx =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
-        
+
         // Set valid seismic elements with security fields
         let elements = TxSeismicElements::default()
             .with_recent_block_hash(B256::from_slice(&[1u8; 32]))
