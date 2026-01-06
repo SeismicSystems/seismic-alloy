@@ -13,7 +13,7 @@ use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
-    ecdh_decrypt, ecdh_encrypt,
+    ecdh_decrypt, ecdh_encrypt, ecdh_decrypt_aead, ecdh_encrypt_aead,
     secp256k1::{constants, Keypair, PublicKey, Secp256k1, SecretKey},
     Nonce,
 };
@@ -23,6 +23,46 @@ use thiserror::Error;
 use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
+
+/// Transaction metadata used for AEAD additional authenticated data
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TxSeismicMetadata {
+    /// Chain ID
+    pub chain_id: ChainId,
+    /// Transaction nonce
+    pub nonce: u64,
+    /// Gas price
+    pub gas_price: u128,
+    /// Gas limit
+    pub gas_limit: u64,
+    /// Transaction recipient or create flag
+    pub to: TxKind,
+    /// Transaction value
+    pub value: U256,
+    /// Recent block hash
+    pub recent_block_hash: B256,
+    /// Expiration block
+    pub expires_at_block: u64,
+    /// Whether this is a signed read call
+    pub signed_read: bool,
+}
+
+impl TxSeismicMetadata {
+    /// Encode the metadata as additional authenticated data for AEAD
+    pub fn encode_as_aad(&self) -> Vec<u8> {
+        let mut aad = Vec::new();
+        self.chain_id.encode(&mut aad);
+        self.nonce.encode(&mut aad);
+        self.gas_price.encode(&mut aad);
+        self.gas_limit.encode(&mut aad);
+        self.to.encode(&mut aad);
+        self.value.encode(&mut aad);
+        self.recent_block_hash.encode(&mut aad);
+        self.expires_at_block.encode(&mut aad);
+        self.signed_read.encode(&mut aad);
+        aad
+    }
+}
 
 /// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
 pub trait InputDecryptionElements: Clone {
@@ -68,6 +108,25 @@ pub enum InputDecryptionElementsError {
     NoElements,
 }
 
+/// Error type for seismic transaction validation
+#[derive(Debug, Clone, Error)]
+pub enum SeismicValidationError {
+    /// Transaction has expired
+    #[error("Transaction expired: current block {current_block} > expiration block {expires_at_block}")]
+    TransactionExpired {
+        /// The current block number when validation was attempted
+        current_block: u64,
+        /// The block number at which the transaction expires
+        expires_at_block: u64,
+    },
+    /// Invalid recent block hash
+    #[error("Invalid recent block hash: {provided_hash:?} not found in recent blocks")]
+    InvalidRecentBlockHash {
+        /// The block hash provided in the transaction
+        provided_hash: B256,
+    },
+}
+
 impl<T> InputDecryptionElements for WithOtherFields<T>
 where
     T: InputDecryptionElements,
@@ -108,6 +167,18 @@ pub struct TxSeismicElements {
     /// A value of 0 means the transaction was not signed using EIP712
     #[cfg_attr(feature = "serde", serde(alias = "messageVersion", with = "alloy_serde::quantity"))]
     pub message_version: u8,
+
+    /// Recent block hash to prevent replay attacks across different chain states
+    #[cfg_attr(feature = "serde", serde(alias = "recentBlockHash"))]
+    pub recent_block_hash: B256,
+
+    /// Block number at which this transaction expires
+    #[cfg_attr(feature = "serde", serde(alias = "expiresAtBlock", alias = "expirationBlock", with = "alloy_serde::quantity"))]
+    pub expires_at_block: u64,
+
+    /// True if this is a signed read call, false for write transactions (default)
+    #[cfg_attr(feature = "serde", serde(alias = "signedRead"))]
+    pub signed_read: bool,
 }
 
 impl TxSeismicElements {
@@ -126,6 +197,24 @@ impl TxSeismicElements {
     /// Set the encryption nonce
     pub fn with_encryption_nonce(mut self, encryption_nonce: U96) -> Self {
         self.encryption_nonce = encryption_nonce;
+        self
+    }
+
+    /// Set the recent block hash
+    pub fn with_recent_block_hash(mut self, recent_block_hash: B256) -> Self {
+        self.recent_block_hash = recent_block_hash;
+        self
+    }
+
+    /// Set the expiration block
+    pub fn with_expires_at_block(mut self, expires_at_block: u64) -> Self {
+        self.expires_at_block = expires_at_block;
+        self
+    }
+
+    /// Set whether this is a signed read call
+    pub fn with_signed_read(mut self, signed_read: bool) -> Self {
+        self.signed_read = signed_read;
         self
     }
 
@@ -149,7 +238,7 @@ impl TxSeismicElements {
         self.encryption_nonce.to_be_bytes().into()
     }
 
-    /// decrypt a message using a provided secret key
+    /// decrypt a message using a provided secret key with AEAD and additional data
     pub fn decrypt(
         &self,
         secret_key: &SecretKey,
@@ -160,6 +249,21 @@ impl TxSeismicElements {
         }
 
         ecdh_decrypt(&self.encryption_pubkey, secret_key, ciphertext, self.get_enclave_nonce())
+    }
+
+    /// decrypt a message with transaction metadata as additional authenticated data
+    pub fn decrypt_with_aad(
+        &self,
+        secret_key: &SecretKey,
+        ciphertext: &Bytes,
+        tx_metadata: &TxSeismicMetadata,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        if ciphertext.is_empty() {
+            return Ok(ciphertext.to_vec());
+        }
+
+        let aad = tx_metadata.encode_as_aad();
+        ecdh_decrypt_aead(&self.encryption_pubkey, secret_key, ciphertext, self.get_enclave_nonce(), &aad)
     }
 
     /// encrypt a message using a provided secret key
@@ -174,6 +278,22 @@ impl TxSeismicElements {
 
         let ciphertext =
             ecdh_encrypt(&self.encryption_pubkey, secret_key, plaintext, self.get_enclave_nonce())?;
+        Ok(Bytes::from(ciphertext))
+    }
+
+    /// encrypt a message with transaction metadata as additional authenticated data
+    pub fn encrypt_with_aad(
+        &self,
+        secret_key: &SecretKey,
+        plaintext: &Bytes,
+        tx_metadata: &TxSeismicMetadata,
+    ) -> Result<Bytes, anyhow::Error> {
+        if plaintext.is_empty() {
+            return Ok(plaintext.clone());
+        }
+
+        let aad = tx_metadata.encode_as_aad();
+        let ciphertext = ecdh_encrypt_aead(&self.encryption_pubkey, secret_key, plaintext, self.get_enclave_nonce(), &aad)?;
         Ok(Bytes::from(ciphertext))
     }
 
@@ -208,6 +328,9 @@ impl Default for TxSeismicElements {
             .unwrap(),
             encryption_nonce: U96::ZERO,
             message_version: 0,
+            recent_block_hash: B256::ZERO,
+            expires_at_block: 0,
+            signed_read: false,
         }
     }
 }
@@ -220,6 +343,9 @@ impl<'a> arbitrary::Arbitrary<'a> for TxSeismicElements {
             encryption_pubkey: Self::default().encryption_pubkey,
             message_version: u8::arbitrary(u)?,
             encryption_nonce: U96::arbitrary(u)?,
+            recent_block_hash: B256::arbitrary(u)?,
+            expires_at_block: u64::arbitrary(u)?,
+            signed_read: bool::arbitrary(u)?,
         })
     }
 }
@@ -229,12 +355,18 @@ impl Encodable for TxSeismicElements {
         self.encryption_pubkey.serialize().encode(out);
         self.encryption_nonce.encode(out);
         self.message_version.encode(out);
+        self.recent_block_hash.encode(out);
+        self.expires_at_block.encode(out);
+        self.signed_read.encode(out);
     }
 
     fn length(&self) -> usize {
         self.encryption_pubkey.serialize().length() +
             self.encryption_nonce.length() +
-            self.message_version.length()
+            self.message_version.length() +
+            self.recent_block_hash.length() +
+            self.expires_at_block.length() +
+            self.signed_read.length()
     }
 }
 
@@ -243,12 +375,15 @@ impl Decodable for TxSeismicElements {
         // First read the public key bytes
         let pubkey_bytes: [u8; constants::PUBLIC_KEY_SIZE] = Decodable::decode(buf)?;
 
-        // Now decode the message version and construct the result
+        // Now decode all fields and construct the result
         Ok(Self {
             encryption_pubkey: PublicKey::from_slice(&pubkey_bytes)
                 .map_err(|_| alloy_rlp::Error::Custom("invalid public key"))?,
             encryption_nonce: Decodable::decode(buf)?,
             message_version: Decodable::decode(buf)?,
+            recent_block_hash: Decodable::decode(buf)?,
+            expires_at_block: Decodable::decode(buf)?,
+            signed_read: Decodable::decode(buf)?,
         })
     }
 }
@@ -335,7 +470,10 @@ impl TxSeismic {
         self.input.len() + // input
         constants::PUBLIC_KEY_SIZE + // encryption public key
         mem::size_of::<u64>() + // encryption nonce
-        mem::size_of::<u8>() // message_version
+        mem::size_of::<u8>() + // message_version
+        mem::size_of::<B256>() + // recent_block_hash
+        mem::size_of::<u64>() + // expires_at_block
+        mem::size_of::<bool>() // signed_read
     }
 
     /// Encodes a [`TxSeismic`] into a [`TypedData`].
@@ -361,6 +499,9 @@ impl TxSeismic {
                   { "name": "encryptionPubkey", "type": "bytes" },
                   { "name": "encryptionNonce", "type": "uint96" },
                   { "name": "messageVersion", "type": "uint8" },
+                  { "name": "recentBlockHash", "type": "bytes32" },
+                  { "name": "expiresAtBlock", "type": "uint64" },
+                  { "name": "signedRead", "type": "bool" },
                 ],
             },
             "primaryType": "TxSeismic",
@@ -385,6 +526,9 @@ impl TxSeismic {
                 "encryptionPubkey": self.seismic_elements.encryption_pubkey.to_string(),
                 "encryptionNonce": self.seismic_elements.encryption_nonce.to_string(),
                 "messageVersion": self.seismic_elements.message_version.to_string(),
+                "recentBlockHash": self.seismic_elements.recent_block_hash.to_string(),
+                "expiresAtBlock": self.seismic_elements.expires_at_block.to_string(),
+                "signedRead": self.seismic_elements.signed_read,
             }
         });
         serde_json::from_value(typed_data_json)
@@ -426,6 +570,57 @@ impl TxSeismic {
             value: self.value,
             input: self.input.clone(),
         }
+    }
+
+    /// Create metadata for AEAD encryption
+    pub fn create_metadata(&self) -> TxSeismicMetadata {
+        TxSeismicMetadata {
+            chain_id: self.chain_id,
+            nonce: self.nonce,
+            gas_price: self.gas_price,
+            gas_limit: self.gas_limit,
+            to: self.to,
+            value: self.value,
+            recent_block_hash: self.seismic_elements.recent_block_hash,
+            expires_at_block: self.seismic_elements.expires_at_block,
+            signed_read: self.seismic_elements.signed_read,
+        }
+    }
+
+    /// Validate that the recent block hash is in the provided list of recent blocks
+    /// Returns true if the block hash is found in the recent blocks list
+    pub fn validate_recent_block_hash(&self, recent_blocks: &[B256]) -> bool {
+        recent_blocks.contains(&self.seismic_elements.recent_block_hash)
+    }
+
+    /// Validate that the transaction has not expired
+    /// Returns true if current_block <= expires_at_block
+    pub fn validate_expiration(&self, current_block: u64) -> bool {
+        current_block <= self.seismic_elements.expires_at_block
+    }
+
+    /// Comprehensive validation of transaction security features
+    pub fn validate_security_constraints(
+        &self,
+        current_block: u64,
+        recent_blocks: &[B256],
+    ) -> Result<(), SeismicValidationError> {
+        // Check expiration
+        if !self.validate_expiration(current_block) {
+            return Err(SeismicValidationError::TransactionExpired {
+                current_block,
+                expires_at_block: self.seismic_elements.expires_at_block,
+            });
+        }
+
+        // Check recent block hash
+        if !self.validate_recent_block_hash(recent_blocks) {
+            return Err(SeismicValidationError::InvalidRecentBlockHash {
+                provided_hash: self.seismic_elements.recent_block_hash,
+            });
+        }
+
+        Ok(())
     }
 }
 
@@ -903,6 +1098,9 @@ mod tests {
                 encryption_pubkey: TxSeismicElements::get_rand_encryption_keypair().public_key(),
                 encryption_nonce: U96::from(1),
                 message_version: 2,
+                recent_block_hash: B256::from_slice(&hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")),
+                expires_at_block: 1000000,
+                signed_read: false,
             },
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
@@ -947,6 +1145,9 @@ mod tests {
                 encryption_pubkey: TxSeismicElements::get_rand_encryption_keypair().public_key(),
                 message_version: u8::max_value(),
                 encryption_nonce: U96::MAX,
+                recent_block_hash: B256::repeat_byte(0xff),
+                expires_at_block: u64::max_value(),
+                signed_read: true,
             },
             input: Bytes::default(),
         };
@@ -971,6 +1172,9 @@ mod tests {
                 encryption_pubkey: PublicKey::from_str("028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a0").unwrap(),
                 encryption_nonce: U96::from_str("0x7da3a99bf0f90d56551d99ea").unwrap(),
                 message_version: 2,
+                recent_block_hash: B256::from_slice(&hex!("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")),
+                expires_at_block: 1000000,
+                signed_read: false,
             }
         };
         let signature = {
@@ -1015,10 +1219,16 @@ mod tests {
             "\"03c5e6d6b9916ee954b9724be6e31623c80c1fbe598aac48dcc075a7023077d44b\"";
         let key: PublicKey = serde_json::from_str(without_prefix_pubkey).unwrap();
 
-        let raw = "{\"encryptionPubkey\":\"0x03c5e6d6b9916ee954b9724be6e31623c80c1fbe598aac48dcc075a7023077d44b\",\"encryptionNonce\":\"0x5ca801ecf9742c75e30cb9ed\",\"messageVersion\":\"0x0\"}";
+        let raw = "{\"encryptionPubkey\":\"0x03c5e6d6b9916ee954b9724be6e31623c80c1fbe598aac48dcc075a7023077d44b\",\"encryptionNonce\":\"0x5ca801ecf9742c75e30cb9ed\",\"messageVersion\":\"0x0\",\"recentBlockHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"expiresAtBlock\":\"0x0\",\"signedRead\":false}";
 
         let with_prefix_pubkey: TxSeismicElements = serde_json::from_str(raw).unwrap();
         assert_eq!(with_prefix_pubkey.encryption_pubkey, key);
+        
+        // Test backward compatibility with old field name
+        let raw_old = "{\"encryptionPubkey\":\"0x03c5e6d6b9916ee954b9724be6e31623c80c1fbe598aac48dcc075a7023077d44b\",\"encryptionNonce\":\"0x5ca801ecf9742c75e30cb9ed\",\"messageVersion\":\"0x0\",\"recentBlockHash\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"expirationBlock\":\"0x0\",\"signedRead\":false}";
+        let with_old_field: TxSeismicElements = serde_json::from_str(raw_old).unwrap();
+        assert_eq!(with_old_field.encryption_pubkey, key);
+        assert_eq!(with_old_field.expires_at_block, 0);
     }
 
     #[test]
