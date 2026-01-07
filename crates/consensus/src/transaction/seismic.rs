@@ -786,20 +786,6 @@ impl InputDecryptionElements for TxSeismic {
         self.input = data;
         Ok(())
     }
-
-    fn plaintext_copy(
-        &self,
-        decryption_key: &SecretKey,
-    ) -> Result<Self, InputDecryptionElementsError> {
-        let mut tx = self.clone();
-        let ciphertext = tx.get_input();
-        let metadata = tx.create_metadata();
-        let decrypted_data = tx.seismic_elements
-            .decrypt(decryption_key, &ciphertext, &metadata)
-            .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
-        tx.set_input(Bytes::from(decrypted_data))?;
-        Ok(tx)
-    }
 }
 
 impl Typed2718 for TxSeismic {

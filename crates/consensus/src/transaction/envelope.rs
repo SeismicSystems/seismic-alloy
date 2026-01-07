@@ -454,33 +454,6 @@ impl InputDecryptionElements for SeismicTxEnvelope {
             Self::Seismic(tx) => tx.tx_mut().set_input(data),
         }
     }
-
-    fn plaintext_copy(
-        &self,
-        decryption_key: &seismic_enclave::secp256k1::SecretKey,
-    ) -> Result<Self, InputDecryptionElementsError> {
-        match self {
-            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTxEnvelope::Legacy".to_string(),
-            )),
-            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTxEnvelope::Eip2930".to_string(),
-            )),
-            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTxEnvelope::Eip1559".to_string(),
-            )),
-            Self::Eip4844(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTxEnvelope::Eip4844".to_string(),
-            )),
-            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTxEnvelope::Eip7702".to_string(),
-            )),
-            Self::Seismic(signed_tx) => {
-                let decrypted_tx = signed_tx.tx().plaintext_copy(decryption_key)?;
-                Ok(Self::Seismic(decrypted_tx.into_signed(*signed_tx.signature())))
-            }
-        }
-    }
 }
 
 impl<Eip4844> SeismicTxEnvelope<Eip4844>
