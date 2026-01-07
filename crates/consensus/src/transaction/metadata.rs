@@ -25,6 +25,18 @@ pub struct TxLegacyFields {
     pub value: U256,
 }
 
+impl TxLegacyFields {
+    /// Encode legacy fields to a buffer
+    pub fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
+        self.chain_id.encode(out);
+        self.nonce.encode(out);
+        self.gas_price.encode(out);
+        self.gas_limit.encode(out);
+        self.to.encode(out);
+        self.value.encode(out);
+    }
+}
+
 /// Transaction metadata used for AEAD additional authenticated data
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TxSeismicMetadata {
@@ -39,12 +51,7 @@ impl TxSeismicMetadata {
     pub fn encode_as_aad(&self) -> Vec<u8> {
         let mut aad = Vec::new();
         // Legacy transaction fields
-        self.legacy_fields.chain_id.encode(&mut aad);
-        self.legacy_fields.nonce.encode(&mut aad);
-        self.legacy_fields.gas_price.encode(&mut aad);
-        self.legacy_fields.gas_limit.encode(&mut aad);
-        self.legacy_fields.to.encode(&mut aad);
-        self.legacy_fields.value.encode(&mut aad);
+        self.legacy_fields.encode(&mut aad);
         // All seismic elements (includes security fields and encryption params)
         self.seismic_elements.encode(&mut aad);
         aad
