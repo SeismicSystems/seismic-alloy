@@ -549,8 +549,6 @@ impl InputDecryptionElements for SeismicTransactionRequest {
 
 #[cfg(test)]
 mod tests {
-    use Bytes;
-
     use super::*;
 
     #[test]
