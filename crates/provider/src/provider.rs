@@ -36,30 +36,30 @@ where
     }
 
     /// Extract legacy transaction fields from a transaction builder
-    fn legacy_fields_metadata<B>(builder: &B) -> TransportResult<seismic_alloy_consensus::TxLegacyFields>
+    fn legacy_fields_metadata<B>(
+        builder: &B,
+    ) -> TransportResult<seismic_alloy_consensus::TxLegacyFields>
     where
         B: TransactionBuilder<N>,
     {
         use seismic_alloy_consensus::TxLegacyFields;
         Ok(TxLegacyFields {
-            chain_id: builder.chain_id().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing chain_id")
-            })?,
-            nonce: builder.nonce().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing nonce")
-            })?,
-            gas_price: builder.gas_price().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing gas_price")
-            })?,
-            gas_limit: builder.gas_limit().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing gas_limit")
-            })?,
-            to: builder.kind().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing to")
-            })?,
-            value: builder.value().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing value")
-            })?,
+            chain_id: builder
+                .chain_id()
+                .ok_or_else(|| TransportErrorKind::custom_str("Missing chain_id"))?,
+            nonce: builder
+                .nonce()
+                .ok_or_else(|| TransportErrorKind::custom_str("Missing nonce"))?,
+            gas_price: builder
+                .gas_price()
+                .ok_or_else(|| TransportErrorKind::custom_str("Missing gas_price"))?,
+            gas_limit: builder
+                .gas_limit()
+                .ok_or_else(|| TransportErrorKind::custom_str("Missing gas_limit"))?,
+            to: builder.kind().ok_or_else(|| TransportErrorKind::custom_str("Missing to"))?,
+            value: builder
+                .value()
+                .ok_or_else(|| TransportErrorKind::custom_str("Missing value"))?,
         })
     }
 
@@ -94,7 +94,12 @@ where
 
         // Encrypt using the metadata
         let encrypted_input = seismic_elements
-            .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key(), &tx_metadata)
+            .client_encrypt(
+                &plaintext_input,
+                &network_pk,
+                &encryption_keypair.secret_key(),
+                &tx_metadata,
+            )
             .map_err(|e| {
                 TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
             })?;
@@ -172,7 +177,12 @@ where
                 };
 
                 let encrypted_input = seismic_elements
-                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key(), &metadata)
+                    .client_encrypt(
+                        &plaintext_input,
+                        &network_pk,
+                        &encryption_keypair.secret_key(),
+                        &metadata,
+                    )
                     .map_err(|e| {
                         TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
@@ -196,7 +206,12 @@ where
 
         // decrypt the output
         let decrypted_output = seismic_elements
-            .client_decrypt(&encrypted_output, &network_pk, &encryption_keypair.secret_key(), &tx_metadata)
+            .client_decrypt(
+                &encrypted_output,
+                &network_pk,
+                &encryption_keypair.secret_key(),
+                &tx_metadata,
+            )
             .map_err(|e| {
                 TransportErrorKind::custom_str(&format!(
                     "Provider decryption error during seismic_call: {:?}. ciphertext: {:?}",
