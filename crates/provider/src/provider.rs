@@ -12,6 +12,7 @@ use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
 };
 use std::ops::Deref;
+use seismic_alloy_consensus::TxLegacyFields;
 
 use crate::SeismicProviderExt;
 
@@ -42,8 +43,6 @@ where
     where
         B: TransactionBuilder<N>,
     {
-        use seismic_alloy_consensus::TxLegacyFields;
-
         Ok(TxLegacyFields {
             chain_id: builder.chain_id().ok_or_else(|| {
                 TransportErrorKind::custom_str("Missing chain_id - fillers should have set this")
