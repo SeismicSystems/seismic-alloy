@@ -7,12 +7,11 @@ use alloy_provider::{
 };
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::TxSeismicElements;
+use seismic_alloy_consensus::{TxLegacyFields, TxSeismicElements};
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
 };
 use std::ops::Deref;
-use seismic_alloy_consensus::TxLegacyFields;
 
 use crate::SeismicProviderExt;
 

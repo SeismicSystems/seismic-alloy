@@ -195,8 +195,7 @@ impl From<Signed<SeismicTypedTransaction>> for SeismicTxEnvelope {
     }
 }
 
-impl Typed2718 for SeismicTxEnvelope
-{
+impl Typed2718 for SeismicTxEnvelope {
     fn ty(&self) -> u8 {
         match self {
             Self::Legacy(tx) => tx.tx().ty(),
@@ -698,8 +697,7 @@ where
     }
 }
 
-impl Encodable2718 for SeismicTxEnvelope
-{
+impl Encodable2718 for SeismicTxEnvelope {
     fn type_flag(&self) -> Option<u8> {
         match self {
             Self::Legacy(_) => None,
