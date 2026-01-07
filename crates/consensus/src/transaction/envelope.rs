@@ -195,7 +195,16 @@ impl From<Signed<SeismicTypedTransaction>> for SeismicTxEnvelope {
     }
 }
 
-impl Typed2718 for SeismicTxEnvelope {
+impl<Eip4844> Typed2718 for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>
+        + Typed2718,
+{
     fn ty(&self) -> u8 {
         match self {
             Self::Legacy(tx) => tx.tx().ty(),
@@ -697,7 +706,16 @@ where
     }
 }
 
-impl Encodable2718 for SeismicTxEnvelope {
+impl<Eip4844> Encodable2718 for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>
+        + Typed2718,
+{
     fn type_flag(&self) -> Option<u8> {
         match self {
             Self::Legacy(_) => None,
