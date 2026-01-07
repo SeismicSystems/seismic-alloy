@@ -528,16 +528,18 @@ impl InputDecryptionElements for SeismicTransactionRequest {
 
     fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
         Ok(TxSeismicMetadata {
-            chain_id: self
-                .chain_id
-                .ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
-            nonce: self.nonce.ok_or(InputDecryptionElementsError::MissingField("nonce"))?,
-            gas_price: self
-                .gas_price
-                .ok_or(InputDecryptionElementsError::MissingField("gas_price"))?,
-            gas_limit: self.gas.ok_or(InputDecryptionElementsError::MissingField("gas"))?,
-            to: self.to.ok_or(InputDecryptionElementsError::MissingField("to"))?,
-            value: self.value.ok_or(InputDecryptionElementsError::MissingField("value"))?,
+            legacy_fields: seismic_alloy_consensus::TxLegacyFields {
+                chain_id: self
+                    .chain_id
+                    .ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
+                nonce: self.nonce.ok_or(InputDecryptionElementsError::MissingField("nonce"))?,
+                gas_price: self
+                    .gas_price
+                    .ok_or(InputDecryptionElementsError::MissingField("gas_price"))?,
+                gas_limit: self.gas.ok_or(InputDecryptionElementsError::MissingField("gas"))?,
+                to: self.to.ok_or(InputDecryptionElementsError::MissingField("to"))?,
+                value: self.value.ok_or(InputDecryptionElementsError::MissingField("value"))?,
+            },
             seismic_elements: self
                 .seismic_elements
                 .ok_or(InputDecryptionElementsError::NoElements)?,

@@ -472,7 +472,7 @@ impl InputDecryptionElements for SeismicTxEnvelope {
             Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
                 "SeismicTxEnvelope::Eip7702".to_string(),
             )),
-            Self::Seismic(tx) => Ok(tx.tx().metadata()),
+            Self::Seismic(tx) => Ok(tx.tx().tx_metadata()),
         }
     }
 }

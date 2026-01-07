@@ -8,9 +8,9 @@ use alloy_primitives::Address;
 
 use super::seismic::TxSeismicElements;
 
-/// Transaction metadata used for AEAD additional authenticated data
+/// Legacy transaction fields used in metadata
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TxSeismicMetadata {
+pub struct TxLegacyFields {
     /// Chain ID
     pub chain_id: ChainId,
     /// Transaction nonce
@@ -23,6 +23,13 @@ pub struct TxSeismicMetadata {
     pub to: TxKind,
     /// Transaction value
     pub value: U256,
+}
+
+/// Transaction metadata used for AEAD additional authenticated data
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TxSeismicMetadata {
+    /// Legacy transaction fields
+    pub legacy_fields: TxLegacyFields,
     /// All seismic elements (includes security fields and encryption params)
     pub seismic_elements: TxSeismicElements,
 }
@@ -31,27 +38,30 @@ impl TxSeismicMetadata {
     /// Encode the metadata as additional authenticated data for AEAD
     pub fn encode_as_aad(&self) -> Vec<u8> {
         let mut aad = Vec::new();
-        // Transaction fields
-        self.chain_id.encode(&mut aad);
-        self.nonce.encode(&mut aad);
-        self.gas_price.encode(&mut aad);
-        self.gas_limit.encode(&mut aad);
-        self.to.encode(&mut aad);
-        self.value.encode(&mut aad);
+        // Legacy transaction fields
+        self.legacy_fields.chain_id.encode(&mut aad);
+        self.legacy_fields.nonce.encode(&mut aad);
+        self.legacy_fields.gas_price.encode(&mut aad);
+        self.legacy_fields.gas_limit.encode(&mut aad);
+        self.legacy_fields.to.encode(&mut aad);
+        self.legacy_fields.value.encode(&mut aad);
         // All seismic elements (includes security fields and encryption params)
         self.seismic_elements.encode(&mut aad);
         aad
     }
 
     #[cfg(test)]
-    pub fn example_metadata(seismic_elements: TxSeismicElements) -> TxSeismicMetadata {
+    /// Metadata for testing
+    pub fn example(seismic_elements: TxSeismicElements) -> TxSeismicMetadata {
         TxSeismicMetadata {
-            chain_id: 5124,
-            nonce: 0,
-            gas_price: 7,
-            gas_limit: 21000,
-            to: TxKind::Call(Address::ZERO),
-            value: U256::ZERO,
+            legacy_fields: TxLegacyFields {
+                chain_id: 5124,
+                nonce: 0,
+                gas_price: 7,
+                gas_limit: 21000,
+                to: TxKind::Call(Address::ZERO),
+                value: U256::ZERO,
+            },
             seismic_elements,
         }
     }

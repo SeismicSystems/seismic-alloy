@@ -482,7 +482,7 @@ impl InputDecryptionElements for SeismicTypedTransaction {
             Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
                 "SeismicTypedTransaction::Eip7702".to_string(),
             )),
-            Self::Seismic(tx) => Ok(tx.metadata()),
+            Self::Seismic(tx) => Ok(tx.tx_metadata()),
         }
     }
 }

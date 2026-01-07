@@ -426,7 +426,7 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
         &self,
     ) -> Result<seismic_alloy_consensus::TxSeismicMetadata, InputDecryptionElementsError> {
         match self {
-            SeismicFoundryTxEnvelope::Seismic(tx) => Ok(tx.tx().metadata()),
+            SeismicFoundryTxEnvelope::Seismic(tx) => Ok(tx.tx().tx_metadata()),
             SeismicFoundryTxEnvelope::Ethereum(_) => {
                 Err(InputDecryptionElementsError::UnsupportedTxType("Ethereum".to_string()))
             }

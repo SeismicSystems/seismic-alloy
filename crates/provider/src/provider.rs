@@ -8,7 +8,7 @@ use alloy_provider::{
 };
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
+use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
 };
@@ -34,6 +34,77 @@ where
     pub(crate) fn new(inner: P) -> Self {
         Self { inner, _network: std::marker::PhantomData }
     }
+
+    /// Extract legacy transaction fields from a transaction builder
+    fn legacy_fields_metadata<B>(builder: &B) -> TransportResult<seismic_alloy_consensus::TxLegacyFields>
+    where
+        B: TransactionBuilder<N>,
+    {
+        use seismic_alloy_consensus::TxLegacyFields;
+        Ok(TxLegacyFields {
+            chain_id: builder.chain_id().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing chain_id")
+            })?,
+            nonce: builder.nonce().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing nonce")
+            })?,
+            gas_price: builder.gas_price().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing gas_price")
+            })?,
+            gas_limit: builder.gas_limit().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing gas_limit")
+            })?,
+            to: builder.kind().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing to")
+            })?,
+            value: builder.value().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing value")
+            })?,
+        })
+    }
+
+    /// Helper to encrypt transaction input for seismic transactions
+    async fn encrypt_transaction_input(
+        &self,
+        builder: &mut N::TransactionRequest,
+    ) -> TransportResult<()> {
+        let network_pk = self.get_tee_pubkey().await.map_err(|e| {
+            TransportErrorKind::custom_str(&format!(
+                "Error getting tee pubkey from server: {:?}",
+                e
+            ))
+        })?;
+        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        let seismic_elements = TxSeismicElements::default()
+            .with_encryption_pubkey(encryption_keypair.public_key())
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+
+        // Set seismic elements first
+        N::set_seismic_elements(builder, seismic_elements);
+
+        // Get plaintext input before encrypting
+        let plaintext_input = N::get_request_input(builder).unwrap();
+
+        // Build metadata manually from the builder's fields
+        use seismic_alloy_consensus::TxSeismicMetadata;
+        let tx_metadata = TxSeismicMetadata {
+            legacy_fields: Self::legacy_fields_metadata(builder)?,
+            seismic_elements,
+        };
+
+        // Encrypt using the metadata
+        let encrypted_input = seismic_elements
+            .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key(), &tx_metadata)
+            .map_err(|e| {
+                TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+            })?;
+
+        // Set the encrypted input
+        N::set_request_input(builder, encrypted_input)
+            .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
+
+        Ok(())
+    }
 }
 
 /// Implement the Provider trait for the SeismicProvider
@@ -42,7 +113,6 @@ where
 impl<N: SeismicNetwork, P> Provider<N> for SeismicProvider<N, P>
 where
     N::UnsignedTx: Send + Sync,
-    N::TransactionRequest: InputDecryptionElements,
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -56,38 +126,7 @@ where
     ) -> TransportResult<PendingTransactionBuilder<N>> {
         if let Some(mut builder) = tx.as_mut_builder() {
             if self.should_encrypt_input(builder) {
-                let network_pk = self.get_tee_pubkey().await.map_err(|e| {
-                    TransportErrorKind::custom_str(&format!(
-                        "Error getting tee pubkey from server: {:?}",
-                        e
-                    ))
-                })?;
-                let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
-                let seismic_elements = TxSeismicElements::default()
-                    .with_encryption_pubkey(encryption_keypair.public_key())
-                    .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
-                // Set seismic elements first so metadata includes them
-                N::set_seismic_elements(&mut builder, seismic_elements);
-
-                // Get plaintext input before encrypting
-                let plaintext_input = N::get_request_input(builder).unwrap();
-
-                // Build metadata from the builder (now with seismic_elements set)
-                let tx_metadata = builder.metadata().map_err(|e| {
-                    TransportErrorKind::custom_str(&format!("Error building metadata: {:?}", e))
-                })?;
-
-                // Encrypt using the metadata
-                let encrypted_input = seismic_elements
-                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key(), &tx_metadata)
-                    .map_err(|e| {
-                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
-                    })?;
-
-                // Set the encrypted input
-                N::set_request_input(builder, encrypted_input)
-                    .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
+                self.encrypt_transaction_input(&mut builder).await?;
             }
         }
         let res = self.inner.send_transaction_internal(tx).await;
@@ -100,7 +139,6 @@ where
 impl<N: SeismicNetwork, P> SeismicProviderExt<N> for SeismicProvider<N, P>
 where
     N::UnsignedTx: Send + Sync,
-    N::TransactionRequest: InputDecryptionElements,
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -126,10 +164,12 @@ where
 
                 let plaintext_input = N::get_request_input(&builder).unwrap();
 
-                // Build metadata from builder (with seismic_elements set)
-                let metadata = builder.metadata().map_err(|e| {
-                    TransportErrorKind::custom_str(&format!("Error building metadata: {:?}", e))
-                })?;
+                // Build metadata manually from builder's fields
+                use seismic_alloy_consensus::TxSeismicMetadata;
+                let metadata = TxSeismicMetadata {
+                    legacy_fields: Self::legacy_fields_metadata(&builder)?,
+                    seismic_elements,
+                };
 
                 let encrypted_input = seismic_elements
                     .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key(), &metadata)
@@ -176,7 +216,6 @@ pub(crate) struct SeismicLayer;
 impl<N: SeismicNetwork, P> ProviderLayer<P, N> for SeismicLayer
 where
     N::UnsignedTx: Send + Sync,
-    N::TransactionRequest: InputDecryptionElements,
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -210,7 +249,6 @@ where
 impl<N: SeismicNetwork> SeismicSignedProvider<N>
 where
     N::UnsignedTx: Send + Sync,
-    N::TransactionRequest: InputDecryptionElements,
     RootProvider<N>: SeismicProviderExt<N>,
 {
     /// Creates a new seismic signed provider
@@ -248,18 +286,12 @@ where
 {
     /// Creates a new Seismic unsigned provider (defaults to HTTP connection via `new_http`)
     #[deprecated(note = "Use `new_http` instead")]
-    pub fn new(url: reqwest::Url) -> Self
-    where
-        N::TransactionRequest: InputDecryptionElements,
-    {
+    pub fn new(url: reqwest::Url) -> Self {
         Self::new_http(url)
     }
 
     /// Creates a new Seismic unsigned provider with an HTTP connection
-    pub fn new_http(url: reqwest::Url) -> Self
-    where
-        N::TransactionRequest: InputDecryptionElements,
-    {
+    pub fn new_http(url: reqwest::Url) -> Self {
         // Create layer with recommended fillers and Identity
         let tx_filler_layer =
             JoinFill::new(Identity, <N as RecommendedFillers>::recommended_fillers());
@@ -274,10 +306,7 @@ where
     }
 
     /// Creates a new Seismic unsigned provider with a websocket connection
-    pub async fn new_ws(url: reqwest::Url) -> Self
-    where
-        N::TransactionRequest: InputDecryptionElements,
-    {
+    pub async fn new_ws(url: reqwest::Url) -> Self {
         let tx_filler_layer =
             JoinFill::new(Identity, <N as RecommendedFillers>::recommended_fillers());
 

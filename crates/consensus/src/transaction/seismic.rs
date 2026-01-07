@@ -548,15 +548,22 @@ impl TxSeismic {
         }
     }
 
-    /// Create metadata for AEAD encryption
-    pub fn metadata(&self) -> TxSeismicMetadata {
-        TxSeismicMetadata {
+    /// Extract legacy transaction fields
+    pub fn legacy_fields(&self) -> crate::TxLegacyFields {
+        crate::TxLegacyFields {
             chain_id: self.chain_id,
             nonce: self.nonce,
             gas_price: self.gas_price,
             gas_limit: self.gas_limit,
             to: self.to,
             value: self.value,
+        }
+    }
+
+    /// Create metadata for AEAD encryption
+    pub fn tx_metadata(&self) -> TxSeismicMetadata {
+        TxSeismicMetadata {
+            legacy_fields: self.legacy_fields(),
             seismic_elements: self.seismic_elements,
         }
     }
@@ -568,7 +575,7 @@ impl TxSeismic {
         secret_key: &SecretKey,
         plaintext: &Bytes,
     ) -> Result<Bytes, anyhow::Error> {
-        let metadata = self.metadata();
+        let metadata = self.tx_metadata();
         self.seismic_elements.encrypt(secret_key, plaintext, &metadata)
     }
 
@@ -579,7 +586,7 @@ impl TxSeismic {
         secret_key: &SecretKey,
         ciphertext: &Bytes,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        let metadata = self.metadata();
+        let metadata = self.tx_metadata();
         self.seismic_elements.decrypt(secret_key, ciphertext, &metadata)
     }
 
@@ -782,7 +789,7 @@ impl InputDecryptionElements for TxSeismic {
     }
 
     fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
-        Ok(self.metadata())
+        Ok(self.tx_metadata())
     }
 }
 
@@ -1237,7 +1244,7 @@ mod tests {
         let empty_bytes = Bytes::new();
 
         let tx_io_sk = get_unsecure_sample_secp256k1_sk();
-        let tx_metadata = TxSeismicMetadata::example_metadata(seismic_elements.clone());
+        let tx_metadata = TxSeismicMetadata::example(seismic_elements.clone());
 
         let result = seismic_elements.encrypt(&tx_io_sk, &empty_bytes, &tx_metadata);
         assert!(result.is_ok());
