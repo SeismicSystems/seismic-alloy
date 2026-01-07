@@ -464,6 +464,30 @@ impl InputDecryptionElements for SeismicTypedTransaction {
             Self::Seismic(tx) => tx.set_input(data),
         }
     }
+
+    fn plaintext_copy(
+        &self,
+        decryption_key: &seismic_enclave::secp256k1::SecretKey,
+    ) -> Result<Self, InputDecryptionElementsError> {
+        match self {
+            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Legacy".to_string(),
+            )),
+            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip1559".to_string(),
+            )),
+            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip2930".to_string(),
+            )),
+            Self::Eip4844(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip4844".to_string(),
+            )),
+            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip7702".to_string(),
+            )),
+            Self::Seismic(tx) => Ok(Self::Seismic(tx.plaintext_copy(decryption_key)?)),
+        }
+    }
 }
 
 impl RlpEcdsaEncodableTx for SeismicTypedTransaction {

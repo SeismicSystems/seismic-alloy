@@ -421,4 +421,22 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
             }
         }
     }
+
+    fn plaintext_copy(
+        &self,
+        decryption_key: &seismic_enclave::secp256k1::SecretKey,
+    ) -> Result<Self, InputDecryptionElementsError> {
+        match self {
+            SeismicFoundryTxEnvelope::Seismic(signed_tx) => {
+                let decrypted_tx = signed_tx.tx().plaintext_copy(decryption_key)?;
+                Ok(Self::Seismic(decrypted_tx.into_signed(*signed_tx.signature())))
+            }
+            SeismicFoundryTxEnvelope::Ethereum(_) => {
+                Err(InputDecryptionElementsError::UnsupportedTxType("Ethereum".to_string()))
+            }
+            SeismicFoundryTxEnvelope::Unknown(_) => {
+                Err(InputDecryptionElementsError::UnsupportedTxType("Unknown".to_string()))
+            }
+        }
+    }
 }

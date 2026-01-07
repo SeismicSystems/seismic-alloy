@@ -246,21 +246,6 @@ impl TxSeismicElements {
             return Ok(ciphertext.to_vec());
         }
 
-        // Use AEAD by default
-        self.decrypt_with_aad(secret_key, ciphertext, tx_metadata)
-    }
-
-    /// decrypt a message with transaction metadata as additional authenticated data
-    pub fn decrypt_with_aad(
-        &self,
-        secret_key: &SecretKey,
-        ciphertext: &Bytes,
-        tx_metadata: &TxSeismicMetadata,
-    ) -> Result<Vec<u8>, anyhow::Error> {
-        if ciphertext.is_empty() {
-            return Ok(ciphertext.to_vec());
-        }
-
         let aad = tx_metadata.encode_as_aad();
         ecdh_decrypt_aead(
             &self.encryption_pubkey,
@@ -274,21 +259,6 @@ impl TxSeismicElements {
 
     /// encrypt a message using a provided secret key
     pub fn encrypt(
-        &self,
-        secret_key: &SecretKey,
-        plaintext: &Bytes,
-        tx_metadata: &TxSeismicMetadata,
-    ) -> Result<Bytes, anyhow::Error> {
-        if plaintext.is_empty() {
-            return Ok(plaintext.clone());
-        }
-
-        // Use AEAD by default
-        self.encrypt_with_aad(secret_key, plaintext, tx_metadata)
-    }
-
-    /// encrypt a message with transaction metadata as additional authenticated data
-    pub fn encrypt_with_aad(
         &self,
         secret_key: &SecretKey,
         plaintext: &Bytes,
@@ -605,7 +575,7 @@ impl TxSeismic {
         plaintext: &Bytes,
     ) -> Result<Bytes, anyhow::Error> {
         let metadata = self.create_metadata();
-        self.seismic_elements.encrypt_with_aad(secret_key, plaintext, &metadata)
+        self.seismic_elements.encrypt(secret_key, plaintext, &metadata)
     }
 
     /// Decrypt input data with AEAD using transaction metadata
@@ -616,7 +586,7 @@ impl TxSeismic {
         ciphertext: &Bytes,
     ) -> Result<Vec<u8>, anyhow::Error> {
         let metadata = self.create_metadata();
-        self.seismic_elements.decrypt_with_aad(secret_key, ciphertext, &metadata)
+        self.seismic_elements.decrypt(secret_key, ciphertext, &metadata)
     }
 
     /// Validate that the recent block hash is in the provided list of recent blocks
@@ -815,6 +785,20 @@ impl InputDecryptionElements for TxSeismic {
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
         self.input = data;
         Ok(())
+    }
+
+    fn plaintext_copy(
+        &self,
+        decryption_key: &SecretKey,
+    ) -> Result<Self, InputDecryptionElementsError> {
+        let mut tx = self.clone();
+        let ciphertext = tx.get_input();
+        let metadata = tx.create_metadata();
+        let decrypted_data = tx.seismic_elements
+            .decrypt(decryption_key, &ciphertext, &metadata)
+            .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
+        tx.set_input(Bytes::from(decrypted_data))?;
+        Ok(tx)
     }
 }
 
