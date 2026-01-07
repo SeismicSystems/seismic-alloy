@@ -76,17 +76,12 @@ pub trait InputDecryptionElements: Clone {
     /// Errors if the decryption fails, etc.
     fn plaintext_copy(
         &self,
-        decryption_key: &SecretKey,
+        _decryption_key: &SecretKey,
     ) -> Result<Self, InputDecryptionElementsError> {
-        let mut tx = self.clone();
-        if let Ok(seismic_elements) = tx.get_decryption_elements() {
-            let ciphertext = tx.get_input();
-            let decrypted_data = seismic_elements
-                .decrypt(decryption_key, &ciphertext)
-                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
-            tx.set_input(Bytes::from(decrypted_data))?;
-        }
-        Ok(tx)
+        // For generic implementations that can't build metadata, return error
+        Err(InputDecryptionElementsError::DecryptionError(
+            "plaintext_copy requires AEAD metadata, use to_transaction_request instead".to_string()
+        ))
     }
 }
 
@@ -239,17 +234,20 @@ impl TxSeismicElements {
         self.encryption_nonce.to_be_bytes().into()
     }
 
+
     /// decrypt a message using a provided secret key with AEAD and additional data
     pub fn decrypt(
         &self,
         secret_key: &SecretKey,
         ciphertext: &Bytes,
+        tx_metadata: &TxSeismicMetadata,
     ) -> Result<Vec<u8>, anyhow::Error> {
         if ciphertext.is_empty() {
             return Ok(ciphertext.to_vec());
         }
 
-        ecdh_decrypt(&self.encryption_pubkey, secret_key, ciphertext, self.get_enclave_nonce())
+        // Use AEAD by default
+        self.decrypt_with_aad(secret_key, ciphertext, tx_metadata)
     }
 
     /// decrypt a message with transaction metadata as additional authenticated data
@@ -273,19 +271,20 @@ impl TxSeismicElements {
         )
     }
 
+
     /// encrypt a message using a provided secret key
     pub fn encrypt(
         &self,
         secret_key: &SecretKey,
         plaintext: &Bytes,
+        tx_metadata: &TxSeismicMetadata,
     ) -> Result<Bytes, anyhow::Error> {
         if plaintext.is_empty() {
             return Ok(plaintext.clone());
         }
 
-        let ciphertext =
-            ecdh_encrypt(&self.encryption_pubkey, secret_key, plaintext, self.get_enclave_nonce())?;
-        Ok(Bytes::from(ciphertext))
+        // Use AEAD by default
+        self.encrypt_with_aad(secret_key, plaintext, tx_metadata)
     }
 
     /// encrypt a message with transaction metadata as additional authenticated data

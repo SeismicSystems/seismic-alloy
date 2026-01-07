@@ -227,8 +227,15 @@ impl SeismicTransactionRequest {
     ) -> Result<TransactionRequest, Error> {
         if let Some(seismic_elements) = &self.seismic_elements {
             let ciphertext = self.inner.input.input().unwrap();
-            let plaintext = seismic_elements.decrypt(secret_key, ciphertext).map_err(|_| Error)?;
-            self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into());
+            if let Ok(typed_tx) = self.clone().build_typed_tx() {
+                if let seismic_alloy_consensus::SeismicTypedTransaction::Seismic(tx) = typed_tx {
+                    let metadata = tx.create_metadata();
+                    let plaintext = seismic_elements.decrypt(secret_key, ciphertext, &metadata).map_err(|_| Error)?;
+                    return Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()));
+                }
+            }
+            // If we can't build seismic transaction, return as-is
+            return Ok(self.inner.clone());
         }
         Ok(self.inner.clone())
     }
@@ -523,6 +530,18 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         let new_self = core::mem::take(self).input(data.into());
         *self = new_self;
         Ok(())
+    }
+
+    fn plaintext_copy(
+        &self,
+        decryption_key: &seismic_enclave::secp256k1::SecretKey,
+    ) -> Result<Self, seismic_alloy_consensus::InputDecryptionElementsError> {
+        let decrypted_tx_request = self
+            .to_transaction_request(decryption_key)
+            .map_err(|e| seismic_alloy_consensus::InputDecryptionElementsError::DecryptionError(
+                format!("Failed to decrypt: {e:?}")
+            ))?;
+        Ok(decrypted_tx_request.into())
     }
 }
 
