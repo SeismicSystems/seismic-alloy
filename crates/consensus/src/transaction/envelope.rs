@@ -457,7 +457,7 @@ impl InputDecryptionElements for SeismicTxEnvelope {
 
     fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
         match self {
-             Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
                 "SeismicTxEnvelope::Legacy".to_string(),
             )),
             Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
@@ -472,7 +472,7 @@ impl InputDecryptionElements for SeismicTxEnvelope {
             Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
                 "SeismicTxEnvelope::Eip7702".to_string(),
             )),
-            Self::Seismic(tx) => Ok(tx.tx().metadata()),   
+            Self::Seismic(tx) => Ok(tx.tx().metadata()),
         }
     }
 }

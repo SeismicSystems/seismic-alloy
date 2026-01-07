@@ -12,7 +12,9 @@ use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
-    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements, TxSeismicMetadata, TypedDataRequest
+    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
+    SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
+    TxSeismicMetadata, TypedDataRequest,
 };
 
 /// Builder for [`SeismicTypedTransaction`].
@@ -228,7 +230,9 @@ impl SeismicTransactionRequest {
             if let Ok(typed_tx) = self.clone().build_typed_tx() {
                 if let seismic_alloy_consensus::SeismicTypedTransaction::Seismic(tx) = typed_tx {
                     let metadata = tx.metadata();
-                    let plaintext = seismic_elements.decrypt(secret_key, ciphertext, &metadata).map_err(|_| Error)?;
+                    let plaintext = seismic_elements
+                        .decrypt(secret_key, ciphertext, &metadata)
+                        .map_err(|_| Error)?;
                     return Ok(self.inner.clone().input(Bytes::from(plaintext).into()));
                 }
             }
@@ -532,13 +536,19 @@ impl InputDecryptionElements for SeismicTransactionRequest {
 
     fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
         Ok(TxSeismicMetadata {
-            chain_id: self.chain_id.ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
+            chain_id: self
+                .chain_id
+                .ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
             nonce: self.nonce.ok_or(InputDecryptionElementsError::MissingField("nonce"))?,
-            gas_price: self.gas_price.ok_or(InputDecryptionElementsError::MissingField("gas_price"))?,
+            gas_price: self
+                .gas_price
+                .ok_or(InputDecryptionElementsError::MissingField("gas_price"))?,
             gas_limit: self.gas.ok_or(InputDecryptionElementsError::MissingField("gas"))?,
             to: self.to.ok_or(InputDecryptionElementsError::MissingField("to"))?,
             value: self.value.ok_or(InputDecryptionElementsError::MissingField("value"))?,
-            seismic_elements: self.seismic_elements.ok_or(InputDecryptionElementsError::NoElements)?,
+            seismic_elements: self
+                .seismic_elements
+                .ok_or(InputDecryptionElementsError::NoElements)?,
         })
     }
 }

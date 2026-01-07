@@ -422,7 +422,9 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
         }
     }
 
-    fn metadata(&self) -> Result<seismic_alloy_consensus::TxSeismicMetadata, InputDecryptionElementsError> {
+    fn metadata(
+        &self,
+    ) -> Result<seismic_alloy_consensus::TxSeismicMetadata, InputDecryptionElementsError> {
         match self {
             SeismicFoundryTxEnvelope::Seismic(tx) => Ok(tx.tx().metadata()),
             SeismicFoundryTxEnvelope::Ethereum(_) => {

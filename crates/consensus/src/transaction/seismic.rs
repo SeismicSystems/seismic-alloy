@@ -13,13 +13,13 @@ use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
 use seismic_enclave::{
-    ecdh_decrypt, ecdh_decrypt_aead, ecdh_encrypt, ecdh_encrypt_aead,
+    ecdh_decrypt_aead, ecdh_encrypt_aead,
     secp256k1::{constants, Keypair, PublicKey, Secp256k1, SecretKey},
     Nonce,
 };
 use thiserror::Error;
 
-use super::metadata::TxSeismicMetadata;
+use crate::transaction::metadata::TxSeismicMetadata;
 
 #[cfg(feature = "serde")]
 use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
@@ -216,7 +216,6 @@ impl TxSeismicElements {
         self.encryption_nonce.to_be_bytes().into()
     }
 
-
     /// decrypt a message using a provided secret key with AEAD and additional data
     pub fn decrypt(
         &self,
@@ -237,7 +236,6 @@ impl TxSeismicElements {
             &aad,
         )
     }
-
 
     /// encrypt a message using a provided secret key
     pub fn encrypt(
@@ -267,8 +265,15 @@ impl TxSeismicElements {
         plaintext: &Bytes,
         network_pk: &PublicKey,
         client_sk: &SecretKey,
+        tx_metadata: &TxSeismicMetadata,
     ) -> Result<Bytes, anyhow::Error> {
-        Ok(Bytes::from(ecdh_encrypt(network_pk, client_sk, plaintext, self.get_enclave_nonce())?))
+        Ok(Bytes::from(ecdh_encrypt_aead(
+            network_pk,
+            client_sk,
+            plaintext,
+            self.get_enclave_nonce(),
+            &tx_metadata.encode_as_aad(),
+        )?))
     }
 
     /// client decrypt: network pubkey, client sk
@@ -277,8 +282,15 @@ impl TxSeismicElements {
         ciphertext: &Bytes,
         network_pk: &PublicKey,
         client_sk: &SecretKey,
+        tx_metadata: &TxSeismicMetadata,
     ) -> Result<Bytes, anyhow::Error> {
-        Ok(Bytes::from(ecdh_decrypt(network_pk, client_sk, ciphertext, self.get_enclave_nonce())?))
+        Ok(Bytes::from(ecdh_decrypt_aead(
+            network_pk,
+            client_sk,
+            ciphertext,
+            self.get_enclave_nonce(),
+            &tx_metadata.encode_as_aad(),
+        )?))
     }
 }
 
