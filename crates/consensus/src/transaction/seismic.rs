@@ -19,46 +19,12 @@ use seismic_enclave::{
 };
 use thiserror::Error;
 
+use super::metadata::TxSeismicMetadata;
+
 #[cfg(feature = "serde")]
 use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
-
-/// Transaction metadata used for AEAD additional authenticated data
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TxSeismicMetadata {
-    /// Chain ID
-    pub chain_id: ChainId,
-    /// Transaction nonce
-    pub nonce: u64,
-    /// Gas price
-    pub gas_price: u128,
-    /// Gas limit
-    pub gas_limit: u64,
-    /// Transaction recipient or create flag
-    pub to: TxKind,
-    /// Transaction value
-    pub value: U256,
-    /// All seismic elements (includes security fields and encryption params)
-    pub seismic_elements: TxSeismicElements,
-}
-
-impl TxSeismicMetadata {
-    /// Encode the metadata as additional authenticated data for AEAD
-    pub fn encode_as_aad(&self) -> Vec<u8> {
-        let mut aad = Vec::new();
-        // Transaction fields
-        self.chain_id.encode(&mut aad);
-        self.nonce.encode(&mut aad);
-        self.gas_price.encode(&mut aad);
-        self.gas_limit.encode(&mut aad);
-        self.to.encode(&mut aad);
-        self.value.encode(&mut aad);
-        // All seismic elements (includes security fields and encryption params)
-        self.seismic_elements.encode(&mut aad);
-        aad
-    }
-}
 
 /// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
 pub trait InputDecryptionElements: Clone {
@@ -72,16 +38,25 @@ pub trait InputDecryptionElements: Clone {
     /// Sets the 'input' field of the transaction to the provided data.
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
 
+    /// TODO: claude document
+    fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError>;
+
     /// Creates a copy of the transaction with the input field set to the plaintext.
     /// Errors if the decryption fails, etc.
     fn plaintext_copy(
         &self,
-        _decryption_key: &SecretKey,
+        decryption_key: &SecretKey,
     ) -> Result<Self, InputDecryptionElementsError> {
-        // For generic implementations that can't build metadata, return error
-        Err(InputDecryptionElementsError::DecryptionError(
-            "plaintext_copy requires AEAD metadata, use to_transaction_request instead".to_string()
-        ))
+        let tx_metadata = self.metadata()?;
+        let mut tx = self.clone();
+        if let Ok(seismic_elements) = tx.get_decryption_elements() {
+            let ciphertext = tx.get_input();
+            let decrypted_data = seismic_elements
+                .decrypt(decryption_key, &ciphertext, &tx_metadata)
+                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
+            tx.set_input(Bytes::from(decrypted_data))?;
+        }
+        Ok(tx)
     }
 }
 
@@ -97,6 +72,9 @@ pub enum InputDecryptionElementsError {
     /// No elements were found
     #[error("Expected Elemements but no elements found")]
     NoElements,
+    /// A required field is missing
+    #[error("Missing required field: {0}")]
+    MissingField(&'static str),
 }
 
 /// Error type for seismic transaction validation
@@ -137,6 +115,10 @@ where
         data: alloy_primitives::Bytes,
     ) -> Result<(), InputDecryptionElementsError> {
         self.inner.set_input(data)
+    }
+
+    fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+        self.inner.metadata()
     }
 }
 
@@ -555,7 +537,7 @@ impl TxSeismic {
     }
 
     /// Create metadata for AEAD encryption
-    pub fn create_metadata(&self) -> TxSeismicMetadata {
+    pub fn metadata(&self) -> TxSeismicMetadata {
         TxSeismicMetadata {
             chain_id: self.chain_id,
             nonce: self.nonce,
@@ -574,7 +556,7 @@ impl TxSeismic {
         secret_key: &SecretKey,
         plaintext: &Bytes,
     ) -> Result<Bytes, anyhow::Error> {
-        let metadata = self.create_metadata();
+        let metadata = self.metadata();
         self.seismic_elements.encrypt(secret_key, plaintext, &metadata)
     }
 
@@ -585,7 +567,7 @@ impl TxSeismic {
         secret_key: &SecretKey,
         ciphertext: &Bytes,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        let metadata = self.create_metadata();
+        let metadata = self.metadata();
         self.seismic_elements.decrypt(secret_key, ciphertext, &metadata)
     }
 
@@ -785,6 +767,10 @@ impl InputDecryptionElements for TxSeismic {
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
         self.input = data;
         Ok(())
+    }
+
+    fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+        Ok(self.metadata())
     }
 }
 
@@ -1239,8 +1225,9 @@ mod tests {
         let empty_bytes = Bytes::new();
 
         let tx_io_sk = get_unsecure_sample_secp256k1_sk();
+        let tx_metadata = TxSeismicMetadata::example_metadata(seismic_elements.clone());
 
-        let result = seismic_elements.encrypt(&tx_io_sk, &empty_bytes);
+        let result = seismic_elements.encrypt(&tx_io_sk, &empty_bytes, &tx_metadata);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Bytes::new());
     }
