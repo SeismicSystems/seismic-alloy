@@ -598,6 +598,28 @@ impl TxSeismic {
         }
     }
 
+    /// Encrypt input data with AEAD using transaction metadata
+    /// This is the main method for encrypting transaction calldata
+    pub fn encrypt_input_aead(
+        &self,
+        secret_key: &SecretKey,
+        plaintext: &Bytes,
+    ) -> Result<Bytes, anyhow::Error> {
+        let metadata = self.create_metadata();
+        self.seismic_elements.encrypt_with_aad(secret_key, plaintext, &metadata)
+    }
+
+    /// Decrypt input data with AEAD using transaction metadata
+    /// This is the main method for decrypting transaction calldata
+    pub fn decrypt_input_aead(
+        &self,
+        secret_key: &SecretKey,
+        ciphertext: &Bytes,
+    ) -> Result<Vec<u8>, anyhow::Error> {
+        let metadata = self.create_metadata();
+        self.seismic_elements.decrypt_with_aad(secret_key, ciphertext, &metadata)
+    }
+
     /// Validate that the recent block hash is in the provided list of recent blocks
     /// Returns true if the block hash is found in the recent blocks list
     pub fn validate_recent_block_hash(&self, recent_blocks: &[B256]) -> bool {
