@@ -1,5 +1,3 @@
-use core::fmt::Error;
-
 use alloc::vec::Vec;
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
@@ -224,20 +222,14 @@ impl SeismicTransactionRequest {
     pub fn to_transaction_request(
         &self,
         secret_key: &seismic_enclave::secp256k1::SecretKey,
-    ) -> Result<TransactionRequest, Error> {
+    ) -> Result<TransactionRequest, InputDecryptionElementsError> {
         if let Some(seismic_elements) = &self.seismic_elements {
+            let tx_metadata = self.metadata()?;
             let ciphertext = self.inner.input.input().unwrap();
-            if let Ok(typed_tx) = self.clone().build_typed_tx() {
-                if let seismic_alloy_consensus::SeismicTypedTransaction::Seismic(tx) = typed_tx {
-                    let metadata = tx.metadata();
-                    let plaintext = seismic_elements
-                        .decrypt(secret_key, ciphertext, &metadata)
-                        .map_err(|_| Error)?;
-                    return Ok(self.inner.clone().input(Bytes::from(plaintext).into()));
-                }
-            }
-            // If we can't build seismic transaction, return as-is
-            return Ok(self.inner.clone());
+            let plaintext = seismic_elements
+                .decrypt(secret_key, ciphertext, &tx_metadata)
+                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
+            return Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()));
         }
         Ok(self.inner.clone())
     }
