@@ -36,7 +36,8 @@ where
 
     /// Extract legacy transaction fields from a transaction builder
     /// All fields must be present (fillers should have run first)
-    fn legacy_fields_metadata<B>(
+    /// This is for transactions, not calls
+    fn legacy_fields_metadata_for_tx<B>(
         builder: &B,
     ) -> TransportResult<seismic_alloy_consensus::TxLegacyFields>
     where
@@ -45,24 +46,53 @@ where
         use seismic_alloy_consensus::TxLegacyFields;
 
         Ok(TxLegacyFields {
-            chain_id: builder
-                .chain_id()
-                .ok_or_else(|| TransportErrorKind::custom_str("Missing chain_id - fillers should have set this"))?,
-            nonce: builder
-                .nonce()
-                .ok_or_else(|| TransportErrorKind::custom_str("Missing nonce - fillers should have set this"))?,
-            gas_price: builder
-                .gas_price()
-                .ok_or_else(|| TransportErrorKind::custom_str("Missing gas_price - fillers should have set this"))?,
-            gas_limit: builder
-                .gas_limit()
-                .ok_or_else(|| TransportErrorKind::custom_str("Missing gas_limit - fillers should have set this"))?,
-            to: builder
-                .kind()
-                .ok_or_else(|| TransportErrorKind::custom_str("Missing to - fillers should have set this"))?,
-            value: builder
-                .value()
-                .ok_or_else(|| TransportErrorKind::custom_str("Missing value - fillers should have set this"))?,
+            chain_id: builder.chain_id().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing chain_id - fillers should have set this")
+            })?,
+            nonce: builder.nonce().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing nonce - fillers should have set this")
+            })?,
+            gas_price: builder.gas_price().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing gas_price - fillers should have set this")
+            })?,
+            gas_limit: builder.gas_limit().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing gas_limit - fillers should have set this")
+            })?,
+            to: builder.kind().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing to - fillers should have set this")
+            })?,
+            value: builder.value().ok_or_else(|| {
+                TransportErrorKind::custom_str("Missing value - fillers should have set this")
+            })?,
+        })
+    }
+
+    /// Extract legacy fields for calls (eth_call)
+    /// For calls, nonce/gas_price/value are not used, so we use defaults
+    /// Only chain_id and to are meaningful for calls
+    async fn legacy_fields_metadata_for_call<B>(
+        &self,
+        builder: &B,
+    ) -> TransportResult<seismic_alloy_consensus::TxLegacyFields>
+    where
+        B: TransactionBuilder<N>,
+    {
+        use alloy_primitives::{TxKind, U256};
+        use seismic_alloy_consensus::TxLegacyFields;
+
+        // Get chain_id, fetch from provider if not set
+        let chain_id = match builder.chain_id() {
+            Some(id) => id,
+            None => self.root().get_chain_id().await?,
+        };
+
+        Ok(TxLegacyFields {
+            chain_id,
+            nonce: 0,     // Calls don't have nonces
+            gas_price: 0, // Not used for calls
+            gas_limit: builder.gas_limit().unwrap_or(0),
+            to: builder.kind().unwrap_or(TxKind::Create),
+            value: builder.value().unwrap_or(U256::ZERO),
         })
     }
 
@@ -91,10 +121,10 @@ where
         // Get plaintext input before encrypting
         let plaintext_input = N::get_request_input(builder).unwrap();
 
-        // Build metadata manually from the builder's fields
+        // Build metadata manually from the builder's fields (for transactions)
         use seismic_alloy_consensus::TxSeismicMetadata;
         let tx_metadata = TxSeismicMetadata {
-            legacy_fields: Self::legacy_fields_metadata(builder)?,
+            legacy_fields: Self::legacy_fields_metadata_for_tx(builder)?,
             seismic_elements,
         };
 
@@ -154,7 +184,10 @@ where
     RootProvider<N>: SeismicProviderExt<N>,
 {
     /// Encrypts the input data, runs self.call_conditionally_signed, and decrypts the output data
-    async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<alloy_primitives::Bytes> {
+    async fn seismic_call(
+        &self,
+        mut tx: SendableTx<N>,
+    ) -> TransportResult<alloy_primitives::Bytes> {
         use seismic_alloy_consensus::TxSeismicMetadata;
 
         let network_pk = self.get_tee_pubkey().await.map_err(|e| {
@@ -179,9 +212,9 @@ where
 
                 let plaintext_input = N::get_request_input(&builder).unwrap();
 
-                // Build metadata manually from builder's fields (must be filled already)
+                // Build metadata manually from builder's fields (for calls)
                 let metadata = TxSeismicMetadata {
-                    legacy_fields: Self::legacy_fields_metadata(&builder)?,
+                    legacy_fields: self.legacy_fields_metadata_for_call(&builder).await?,
                     seismic_elements,
                 };
 
@@ -214,7 +247,8 @@ where
         let encrypted_output = self.inner.seismic_call(tx).await?;
 
         // decrypt the output using elements from metadata
-        let decrypted_output = tx_metadata.seismic_elements
+        let decrypted_output = tx_metadata
+            .seismic_elements
             .client_decrypt(
                 &encrypted_output,
                 &network_pk,
