@@ -80,7 +80,13 @@ where
     P: Provider<N> + SeismicProviderExt<N>,
     N::UnsignedTx: Send + Sync,
 {
-    // No custom seismic_call implementation - use the default from the trait
-    // which calls call_conditionally_signed. This allows the call to properly
-    // flow through provider layers (fill happens via alloy's built-in mechanisms)
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
+        // Fill the transaction first to ensure all fields are populated
+        let builder = tx.as_builder().unwrap().clone();
+        let filled_tx = self.fill(builder).await?;
+
+        // Use the default trait implementation which calls call_conditionally_signed
+        // This will flow through SeismicProvider if it's in the stack
+        SeismicProviderExt::call_conditionally_signed(self, filled_tx).await
+    }
 }
