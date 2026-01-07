@@ -20,6 +20,8 @@ where
         req: &mut Self::TransactionRequest,
         seismic_elements: TxSeismicElements,
     );
+    /// Get the seismic elements from the transaction request.
+    fn get_seismic_elements(req: &Self::TransactionRequest) -> Option<TxSeismicElements>;
     /// Get the request input from the transaction request.
     fn get_request_input(req: &Self::TransactionRequest) -> Option<&Bytes>;
     /// Get the envelope input from the transaction envelope.
@@ -51,6 +53,9 @@ impl SeismicNetwork for SeismicReth {
         seismic_elements: TxSeismicElements,
     ) {
         req.set_seismic_elements(seismic_elements);
+    }
+    fn get_seismic_elements(req: &Self::TransactionRequest) -> Option<TxSeismicElements> {
+        req.seismic_elements
     }
     fn get_request_input(req: &Self::TransactionRequest) -> Option<&Bytes> {
         req.inner.input.input()
@@ -119,6 +124,9 @@ impl SeismicNetwork for SeismicFoundry {
         seismic_elements: TxSeismicElements,
     ) {
         req.set_seismic_elements(seismic_elements);
+    }
+    fn get_seismic_elements(req: &Self::TransactionRequest) -> Option<TxSeismicElements> {
+        req.seismic_elements
     }
     fn get_request_input(req: &Self::TransactionRequest) -> Option<&Bytes> {
         req.input()
