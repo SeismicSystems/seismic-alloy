@@ -6,7 +6,7 @@ use alloy_provider::{
     SendableTx, WsConnect,
 };
 use alloy_rpc_client::RpcClient;
-use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
+use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::{TxLegacyFields, TxSeismicElements, TxSeismicMetadata};
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
