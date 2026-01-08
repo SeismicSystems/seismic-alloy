@@ -1257,7 +1257,10 @@ mod tests {
             encryption_pubkey: get_unsecure_sample_secp256k1_pk(),
             encryption_nonce: U96::MAX,
             message_version: 0,
-            recent_block_hash: FixedBytes::<32>::from_str("0x3a7c05da853bd4c4683023e3ba72a81e1015a60aab8b12218f033c0d6544d10e").unwrap(),
+            recent_block_hash: FixedBytes::<32>::from_str(
+                "0x3a7c05da853bd4c4683023e3ba72a81e1015a60aab8b12218f033c0d6544d10e",
+            )
+            .unwrap(),
             expires_at_block: 100,
             signed_read: false,
         };
@@ -1277,7 +1280,8 @@ mod tests {
         let encoded_metadata = Bytes::from(tx_metadata.encode_as_aad());
         let expected_emd = Bytes::from_hex("0xf88294f39fd6e51aad88f6f4ce6ab8827279cfffb92266827a698094000000000000000000000000000000000000000001a1028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a08cffffffffffffffffffffffff80a03a7c05da853bd4c4683023e3ba72a81e1015a60aab8b12218f033c0d6544d10e6480").unwrap();
         assert_eq!(encoded_metadata, expected_emd);
-        let encrypted_calldata = seismic_elements.encrypt(&secret_key, &plaintext, &tx_metadata).unwrap();
+        let encrypted_calldata =
+            seismic_elements.encrypt(&secret_key, &plaintext, &tx_metadata).unwrap();
         let expected_ecd = Bytes::from_hex("0x12fbf3f819e7ae972bfedfc6a5a249983ae527e0").unwrap();
         assert_eq!(encrypted_calldata, expected_ecd);
     }
