@@ -1001,7 +1001,7 @@ mod tests {
         hex::{self, FromHex},
         Address, FixedBytes, Signature,
     };
-    use seismic_enclave::get_unsecure_sample_secp256k1_sk;
+    use seismic_enclave::{get_unsecure_sample_secp256k1_pk, get_unsecure_sample_secp256k1_sk};
 
     use super::*;
 
@@ -1247,5 +1247,38 @@ mod tests {
         let result = seismic_elements.encrypt(&tx_io_sk, &empty_bytes, &tx_metadata);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Bytes::new());
+    }
+
+    #[test]
+    fn test_seismic_calldata_encoding() {
+        // similar test to seismic-viem-test's trace.ts
+        let plaintext = Bytes::from_str("0xdeadbeef").unwrap();
+        let seismic_elements = TxSeismicElements {
+            encryption_pubkey: get_unsecure_sample_secp256k1_pk(),
+            encryption_nonce: U96::MAX,
+            message_version: 0,
+            recent_block_hash: FixedBytes::<32>::from_str("0x3a7c05da853bd4c4683023e3ba72a81e1015a60aab8b12218f033c0d6544d10e").unwrap(),
+            expires_at_block: 100,
+            signed_read: false,
+        };
+        let secret_key = get_unsecure_sample_secp256k1_sk();
+        let orig_decoded_tx = TxSeismic {
+            chain_id: 31337u64,
+            nonce: 0,
+            gas_price: 10_000_000_000,
+            gas_limit: 30_000_000,
+            to: Address::ZERO.into(),
+            value: U256::from(1u64),
+            seismic_elements,
+            input: plaintext.clone(),
+        };
+        let sender = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
+        let tx_metadata = orig_decoded_tx.metadata(sender).unwrap();
+        let encoded_metadata = Bytes::from(tx_metadata.encode_as_aad());
+        let expected_emd = Bytes::from_hex("0xf88294f39fd6e51aad88f6f4ce6ab8827279cfffb92266827a698094000000000000000000000000000000000000000001a1028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a08cffffffffffffffffffffffff80a03a7c05da853bd4c4683023e3ba72a81e1015a60aab8b12218f033c0d6544d10e6480").unwrap();
+        assert_eq!(encoded_metadata, expected_emd);
+        let encrypted_calldata = seismic_elements.encrypt(&secret_key, &plaintext, &tx_metadata).unwrap();
+        let expected_ecd = Bytes::from_hex("0x12fbf3f819e7ae972bfedfc6a5a249983ae527e0").unwrap();
+        assert_eq!(encrypted_calldata, expected_ecd);
     }
 }
