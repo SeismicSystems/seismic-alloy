@@ -6,11 +6,12 @@ use alloy_provider::{
     SendableTx, WsConnect,
 };
 use alloy_rpc_client::RpcClient;
-use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::{TxLegacyFields, TxSeismicElements};
+use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
+use seismic_alloy_consensus::{TxLegacyFields, TxSeismicElements, TxSeismicMetadata};
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
 };
+
 use std::ops::Deref;
 
 use crate::SeismicProviderExt;
@@ -43,24 +44,18 @@ where
         B: TransactionBuilder<N>,
     {
         Ok(TxLegacyFields {
-            chain_id: builder.chain_id().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing chain_id - fillers should have set this")
-            })?,
-            nonce: builder.nonce().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing nonce - fillers should have set this")
-            })?,
-            gas_price: builder.gas_price().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing gas_price - fillers should have set this")
-            })?,
-            gas_limit: builder.gas_limit().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing gas_limit - fillers should have set this")
-            })?,
-            to: builder.kind().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing to - fillers should have set this")
-            })?,
-            value: builder.value().ok_or_else(|| {
-                TransportErrorKind::custom_str("Missing value - fillers should have set this")
-            })?,
+            chain_id: builder
+                .chain_id()
+                .ok_or_else(|| TransportErrorKind::custom_str("Tx metadata missing 'chain_id'"))?,
+            nonce: builder
+                .nonce()
+                .ok_or_else(|| TransportErrorKind::custom_str("Tx metadata missing 'nonce'"))?,
+            to: builder
+                .kind()
+                .ok_or_else(|| TransportErrorKind::custom_str("Tx metadata missing 'to'"))?,
+            value: builder
+                .value()
+                .ok_or_else(|| TransportErrorKind::custom_str("Tx metadata missing 'value'"))?,
         })
     }
 
@@ -89,9 +84,16 @@ where
         // Get plaintext input before encrypting
         let plaintext_input = N::get_request_input(builder).unwrap();
 
+        let sender = match builder.from() {
+            Some(address) => address,
+            None => {
+                return Err(TransportErrorKind::custom_str("Signed reads must set 'from'"));
+            }
+        };
+
         // Build metadata manually from the builder's fields
-        use seismic_alloy_consensus::TxSeismicMetadata;
         let tx_metadata = TxSeismicMetadata {
+            sender,
             legacy_fields: Self::legacy_fields_metadata(builder)?,
             seismic_elements,
         };
@@ -157,8 +159,6 @@ where
         &self,
         mut tx: SendableTx<N>,
     ) -> TransportResult<alloy_primitives::Bytes> {
-        use seismic_alloy_consensus::TxSeismicMetadata;
-
         // Check if this should be encrypted
         if let Some(builder) = tx.as_builder() {
             if self.should_encrypt_input(builder) {
@@ -173,6 +173,13 @@ where
                 // Encrypt using recipient's public key and generated private key
                 let (new_tx, tx_metadata) = match tx {
                     SendableTx::Builder(mut builder) => {
+                        let sender = match builder.from() {
+                            Some(address) => address,
+                            None => {
+                                return Err(TransportErrorKind::custom_str("Signed reads must set 'from'"));
+                            }
+                        };
+
                         // Check if elements are already set, if so use them and add encryption fields
                         let seismic_elements = N::get_seismic_elements(&builder)
                             .unwrap_or_default()
@@ -186,6 +193,7 @@ where
 
                         // Build metadata manually from builder's fields (must be filled by now)
                         let metadata = TxSeismicMetadata {
+                            sender,
                             legacy_fields: Self::legacy_fields_metadata(&builder)?,
                             seismic_elements,
                         };

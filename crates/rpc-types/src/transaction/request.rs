@@ -224,7 +224,13 @@ impl SeismicTransactionRequest {
         secret_key: &seismic_enclave::secp256k1::SecretKey,
     ) -> Result<TransactionRequest, InputDecryptionElementsError> {
         if let Some(seismic_elements) = &self.seismic_elements {
-            let tx_metadata = self.metadata()?;
+            let sender = match self.from {
+                Some(addr) => addr,
+                None => {
+                    return Err(InputDecryptionElementsError::MissingField("sender"));
+                }
+            };
+            let tx_metadata = self.metadata(sender)?;
             let ciphertext = self.inner.input.input().unwrap();
             let plaintext = seismic_elements
                 .decrypt(secret_key, ciphertext, &tx_metadata)
@@ -526,17 +532,14 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         Ok(())
     }
 
-    fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
         Ok(TxSeismicMetadata {
+            sender,
             legacy_fields: seismic_alloy_consensus::TxLegacyFields {
                 chain_id: self
                     .chain_id
                     .ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
                 nonce: self.nonce.ok_or(InputDecryptionElementsError::MissingField("nonce"))?,
-                gas_price: self
-                    .gas_price
-                    .ok_or(InputDecryptionElementsError::MissingField("gas_price"))?,
-                gas_limit: self.gas.ok_or(InputDecryptionElementsError::MissingField("gas"))?,
                 to: self.to.ok_or(InputDecryptionElementsError::MissingField("to"))?,
                 value: self.value.ok_or(InputDecryptionElementsError::MissingField("value"))?,
             },

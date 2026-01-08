@@ -38,16 +38,17 @@ pub trait InputDecryptionElements: Clone {
     /// Sets the 'input' field of the transaction to the provided data.
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
 
-    /// TODO: claude document
-    fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError>;
+    /// Returns tx metadata for encryption with AEAD
+    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError>;
 
     /// Creates a copy of the transaction with the input field set to the plaintext.
     /// Errors if the decryption fails, etc.
     fn plaintext_copy(
         &self,
         decryption_key: &SecretKey,
+        sender: Address,
     ) -> Result<Self, InputDecryptionElementsError> {
-        let tx_metadata = self.metadata()?;
+        let tx_metadata = self.metadata(sender)?;
         let mut tx = self.clone();
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
             let ciphertext = tx.get_input();
@@ -117,8 +118,8 @@ where
         self.inner.set_input(data)
     }
 
-    fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
-        self.inner.metadata()
+    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+        self.inner.metadata(sender)
     }
 }
 
@@ -553,16 +554,15 @@ impl TxSeismic {
         crate::TxLegacyFields {
             chain_id: self.chain_id,
             nonce: self.nonce,
-            gas_price: self.gas_price,
-            gas_limit: self.gas_limit,
             to: self.to,
             value: self.value,
         }
     }
 
     /// Create metadata for AEAD encryption
-    pub fn tx_metadata(&self) -> TxSeismicMetadata {
+    pub fn tx_metadata(&self, sender: Address) -> TxSeismicMetadata {
         TxSeismicMetadata {
+            sender,
             legacy_fields: self.legacy_fields(),
             seismic_elements: self.seismic_elements,
         }
@@ -574,8 +574,9 @@ impl TxSeismic {
         &self,
         secret_key: &SecretKey,
         plaintext: &Bytes,
+        sender: Address,
     ) -> Result<Bytes, anyhow::Error> {
-        let metadata = self.tx_metadata();
+        let metadata = self.tx_metadata(sender);
         self.seismic_elements.encrypt(secret_key, plaintext, &metadata)
     }
 
@@ -585,8 +586,9 @@ impl TxSeismic {
         &self,
         secret_key: &SecretKey,
         ciphertext: &Bytes,
+        sender: Address,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        let metadata = self.tx_metadata();
+        let metadata = self.tx_metadata(sender);
         self.seismic_elements.decrypt(secret_key, ciphertext, &metadata)
     }
 
@@ -788,8 +790,8 @@ impl InputDecryptionElements for TxSeismic {
         Ok(())
     }
 
-    fn metadata(&self) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
-        Ok(self.tx_metadata())
+    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+        Ok(self.tx_metadata(sender))
     }
 }
 
@@ -1240,11 +1242,12 @@ mod tests {
 
     #[test]
     fn test_encrypt_empty_bytes() {
+        let sender = Address::ZERO;
         let seismic_elements = TxSeismicElements::default();
         let empty_bytes = Bytes::new();
 
         let tx_io_sk = get_unsecure_sample_secp256k1_sk();
-        let tx_metadata = TxSeismicMetadata::example(seismic_elements.clone());
+        let tx_metadata = TxSeismicMetadata::example(seismic_elements.clone(), sender);
 
         let result = seismic_elements.encrypt(&tx_io_sk, &empty_bytes, &tx_metadata);
         assert!(result.is_ok());
