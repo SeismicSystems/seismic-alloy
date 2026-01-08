@@ -349,10 +349,7 @@ impl Encodable for TxSeismicElements {
 
 impl Decodable for TxSeismicElements {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        // First read the public key bytes
         let pubkey_bytes: [u8; constants::PUBLIC_KEY_SIZE] = Decodable::decode(buf)?;
-
-        // Now decode all fields and construct the result
         Ok(Self {
             encryption_pubkey: PublicKey::from_slice(&pubkey_bytes)
                 .map_err(|_| alloy_rlp::Error::Custom("invalid public key"))?,
@@ -610,7 +607,6 @@ impl TxSeismic {
         current_block: u64,
         recent_blocks: &[B256],
     ) -> Result<(), SeismicValidationError> {
-        // Check expiration
         if !self.validate_expiration(current_block) {
             return Err(SeismicValidationError::TransactionExpired {
                 current_block,
@@ -618,7 +614,6 @@ impl TxSeismic {
             });
         }
 
-        // Check recent block hash
         if !self.validate_recent_block_hash(recent_blocks) {
             return Err(SeismicValidationError::InvalidRecentBlockHash {
                 provided_hash: self.seismic_elements.recent_block_hash,
