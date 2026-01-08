@@ -41,12 +41,19 @@ pub struct TxSeismicMetadata {
 
 impl TxSeismicMetadata {
     /// Encode the metadata as additional authenticated data for AEAD
+    /// Encodes all fields as a single RLP list for easy decoding
     pub fn encode_as_aad(&self) -> Vec<u8> {
-        let mut aad = Vec::new();
-        self.sender.encode(&mut aad);
-        self.legacy_fields.encode(&mut aad);
-        self.seismic_elements.encode(&mut aad);
-        aad
+        let mut payload = Vec::new();
+        self.sender.encode(&mut payload);
+        self.legacy_fields.encode(&mut payload);
+        self.seismic_elements.encode(&mut payload);
+
+        // Wrap the concatenated fields in an RLP list header
+        let header = alloy_rlp::Header { list: true, payload_length: payload.len() };
+        let mut out = Vec::new();
+        header.encode(&mut out);
+        out.extend_from_slice(&payload);
+        out
     }
 
     #[cfg(test)]
