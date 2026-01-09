@@ -1,7 +1,8 @@
 //! Transaction metadata for AEAD encryption
 
-use alloy_primitives::{Address, ChainId, TxKind, U256};
+use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_rlp::Encodable;
+use secp256k1::SecretKey;
 
 use super::seismic::TxSeismicElements;
 
@@ -54,6 +55,16 @@ impl TxSeismicMetadata {
         header.encode(&mut out);
         out.extend_from_slice(&payload);
         out
+    }
+
+    /// encrypt plaintext calldata using AEAD
+    pub fn encrypt(&self, secret_key: &SecretKey, plaintext: Bytes) -> Result<Bytes, anyhow::Error> {
+        self.seismic_elements.encrypt(secret_key, &plaintext, self)
+    }
+
+    /// decrypt plaintext calldata using AEAD
+    pub fn decrypt(&self, secret_key: &SecretKey, ciphertext: Bytes) -> Result<Vec<u8>, anyhow::Error> {
+        self.seismic_elements.decrypt(secret_key, &ciphertext, self)
     }
 
     #[cfg(test)]
