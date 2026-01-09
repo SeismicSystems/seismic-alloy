@@ -269,7 +269,7 @@ impl SeismicTransactionRequest {
                     Err(e) => {
                         println!("No elements & no tx type");
                         Err(e)
-                    },
+                    }
                 }
             }
             _ => Ok(self.inner.clone()),
