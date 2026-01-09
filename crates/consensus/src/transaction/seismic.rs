@@ -71,7 +71,7 @@ pub enum InputDecryptionElementsError {
     #[error("Decryption failed: {0}")]
     DecryptionError(String),
     /// No elements were found
-    #[error("Expected Elemements but no elements found")]
+    #[error("Expected Elements but no elements found")]
     NoElements,
     /// A required field is missing
     #[error("Missing required field: {0}")]
