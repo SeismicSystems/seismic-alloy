@@ -12,7 +12,7 @@ use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
     Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
     SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
-    TxSeismicMetadata, TypedDataRequest,
+    TxSeismicMetadata, TypedDataRequest, SEISMIC_TX_TYPE_ID,
 };
 
 /// Builder for [`SeismicTypedTransaction`].
@@ -218,12 +218,11 @@ impl SeismicTransactionRequest {
         Self::from_transaction(tx).from(from)
     }
 
-    /// Decrypts the seismic elements and returns a [`TransactionRequest`].
-    pub fn to_transaction_request(
+    fn decrypt_to_tx_request(
         &self,
         secret_key: &seismic_enclave::secp256k1::SecretKey,
     ) -> Result<TransactionRequest, InputDecryptionElementsError> {
-        if let Some(seismic_elements) = &self.seismic_elements {
+        if self.seismic_elements.is_some() {
             let sender = match self.from {
                 Some(addr) => addr,
                 None => {
@@ -232,12 +231,42 @@ impl SeismicTransactionRequest {
             };
             let tx_metadata = self.metadata(sender)?;
             let ciphertext = self.inner.input.input().unwrap();
-            let plaintext = seismic_elements
-                .decrypt(secret_key, ciphertext, &tx_metadata)
+            let plaintext = tx_metadata
+                .decrypt(secret_key, ciphertext)
                 .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
             return Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()));
         }
-        Ok(self.inner.clone())
+        return Err(InputDecryptionElementsError::NoElements);
+    }
+
+    /// Decrypts the seismic elements and returns a [`TransactionRequest`].
+    pub fn to_transaction_request(
+        &self,
+        secret_key: &seismic_enclave::secp256k1::SecretKey,
+    ) -> Result<TransactionRequest, InputDecryptionElementsError> {
+        match self.transaction_type {
+            Some(SEISMIC_TX_TYPE_ID) => {
+                // if there are no elements, throw an error
+                self.decrypt_to_tx_request(secret_key)
+            }
+            None => {
+                match self.decrypt_to_tx_request(secret_key) {
+                    // if there's no type, return the decrypted request
+                    // if the decryption actually works
+                    Ok(tx_req) => Ok(tx_req),
+                    Err(InputDecryptionElementsError::NoElements) => {
+                        // if there are no elements and no type,
+                        // then return the original request,
+                        // bc then we hit the default type
+                        Ok(self.inner.clone())
+                    }
+                    // if there's no type but there are elements,
+                    // and the decryption fails, return an error
+                    Err(e) => Err(e),
+                }
+            }
+            _ => Ok(self.inner.clone()),
+        }
     }
 
     /// Check this builder's preferred type, based on the fields that are set.
