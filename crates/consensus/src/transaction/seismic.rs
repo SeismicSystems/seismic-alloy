@@ -48,9 +48,9 @@ pub trait InputDecryptionElements: Clone {
         decryption_key: &SecretKey,
         sender: Address,
     ) -> Result<Self, InputDecryptionElementsError> {
-        let tx_metadata = self.metadata(sender)?;
         let mut tx = self.clone();
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
+            let tx_metadata = self.metadata(sender)?;
             let ciphertext = tx.get_input();
             let decrypted_data = seismic_elements
                 .decrypt(decryption_key, &ciphertext, &tx_metadata)
