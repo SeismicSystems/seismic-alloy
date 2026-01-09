@@ -249,7 +249,7 @@ impl SeismicTransactionRequest {
                 // if there are no elements, throw an error
                 let tx_req = self.decrypt_to_tx_request(secret_key);
                 if tx_req.is_err() {
-                    println!("tx type but no elements");
+                    println!("tx type but no elements: {tx_req:?}");
                 }
                 tx_req
             }
