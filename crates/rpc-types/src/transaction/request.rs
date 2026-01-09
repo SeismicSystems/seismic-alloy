@@ -247,7 +247,11 @@ impl SeismicTransactionRequest {
         match self.transaction_type {
             Some(SEISMIC_TX_TYPE_ID) => {
                 // if there are no elements, throw an error
-                self.decrypt_to_tx_request(secret_key)
+                let tx_req = self.decrypt_to_tx_request(secret_key);
+                if tx_req.is_err() {
+                    println!("tx type but no elements");
+                }
+                tx_req
             }
             None => {
                 match self.decrypt_to_tx_request(secret_key) {
@@ -262,7 +266,10 @@ impl SeismicTransactionRequest {
                     }
                     // if there's no type but there are elements,
                     // and the decryption fails, return an error
-                    Err(e) => Err(e),
+                    Err(e) => {
+                        println!("No elements & no tx type");
+                        Err(e)
+                    },
                 }
             }
             _ => Ok(self.inner.clone()),
