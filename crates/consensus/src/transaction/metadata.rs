@@ -58,12 +58,20 @@ impl TxSeismicMetadata {
     }
 
     /// encrypt plaintext calldata using AEAD
-    pub fn encrypt(&self, secret_key: &SecretKey, plaintext: Bytes) -> Result<Bytes, anyhow::Error> {
+    pub fn encrypt(
+        &self,
+        secret_key: &SecretKey,
+        plaintext: Bytes,
+    ) -> Result<Bytes, anyhow::Error> {
         self.seismic_elements.encrypt(secret_key, &plaintext, self)
     }
 
     /// decrypt plaintext calldata using AEAD
-    pub fn decrypt(&self, secret_key: &SecretKey, ciphertext: Bytes) -> Result<Vec<u8>, anyhow::Error> {
+    pub fn decrypt(
+        &self,
+        secret_key: &SecretKey,
+        ciphertext: Bytes,
+    ) -> Result<Vec<u8>, anyhow::Error> {
         self.seismic_elements.decrypt(secret_key, &ciphertext, self)
     }
 

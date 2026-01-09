@@ -541,7 +541,7 @@ impl InputDecryptionElements for SeismicTransactionRequest {
                     .ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
                 nonce: self.nonce.ok_or(InputDecryptionElementsError::MissingField("nonce"))?,
                 to: self.to.ok_or(InputDecryptionElementsError::MissingField("to"))?,
-                value: self.value.ok_or(InputDecryptionElementsError::MissingField("value"))?,
+                value: self.value.unwrap_or_default(),
             },
             seismic_elements: self
                 .seismic_elements
