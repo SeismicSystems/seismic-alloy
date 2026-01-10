@@ -1,5 +1,6 @@
 //! Seismic provider for HTTP requests
 use alloy_network::TransactionBuilder;
+use alloy_primitives::Bytes;
 use alloy_provider::{
     fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
     Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider,
@@ -7,11 +8,10 @@ use alloy_provider::{
 };
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::{TxLegacyFields, TxSeismicElements, TxSeismicMetadata};
+use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
 };
-
 use std::ops::Deref;
 
 use crate::SeismicProviderExt;
@@ -34,88 +34,6 @@ where
     pub(crate) fn new(inner: P) -> Self {
         Self { inner, _network: std::marker::PhantomData }
     }
-
-    /// Extract legacy transaction fields from a transaction builder
-    /// All fields must be present (fillers should have run first)
-    fn legacy_fields_metadata<B>(
-        builder: &B,
-    ) -> TransportResult<seismic_alloy_consensus::TxLegacyFields>
-    where
-        B: TransactionBuilder<N>,
-    {
-        Ok(TxLegacyFields {
-            chain_id: builder
-                .chain_id()
-                .ok_or_else(|| TransportErrorKind::custom_str("Tx metadata missing 'chain_id'"))?,
-            nonce: builder
-                .nonce()
-                .ok_or_else(|| TransportErrorKind::custom_str("Tx metadata missing 'nonce'"))?,
-            to: builder
-                .kind()
-                .ok_or_else(|| TransportErrorKind::custom_str("Tx metadata missing 'to'"))?,
-            value: builder
-                .value()
-                .ok_or_else(|| TransportErrorKind::custom_str("Tx metadata missing 'value'"))?,
-        })
-    }
-
-    /// Helper to encrypt transaction input for seismic transactions
-    async fn encrypt_transaction_input(
-        &self,
-        builder: &mut N::TransactionRequest,
-    ) -> TransportResult<()> {
-        let network_pk = self.get_tee_pubkey().await.map_err(|e| {
-            TransportErrorKind::custom_str(&format!(
-                "Error getting tee pubkey from server: {:?}",
-                e
-            ))
-        })?;
-        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
-
-        // Check if elements are already set, if so use them and add encryption fields
-        let seismic_elements = N::get_seismic_elements(builder)
-            .unwrap_or_default()
-            .with_encryption_pubkey(encryption_keypair.public_key())
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
-        // Set seismic elements with encryption fields
-        N::set_seismic_elements(builder, seismic_elements);
-
-        // Get plaintext input before encrypting
-        let plaintext_input = N::get_request_input(builder).unwrap();
-
-        let sender = match builder.from() {
-            Some(address) => address,
-            None => {
-                return Err(TransportErrorKind::custom_str("Signed reads must set 'from'"));
-            }
-        };
-
-        // Build metadata manually from the builder's fields
-        let tx_metadata = TxSeismicMetadata {
-            sender,
-            legacy_fields: Self::legacy_fields_metadata(builder)?,
-            seismic_elements,
-        };
-
-        // Encrypt using the metadata
-        let encrypted_input = seismic_elements
-            .client_encrypt(
-                &plaintext_input,
-                &network_pk,
-                &encryption_keypair.secret_key(),
-                &tx_metadata,
-            )
-            .map_err(|e| {
-                TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
-            })?;
-
-        // Set the encrypted input
-        N::set_request_input(builder, encrypted_input)
-            .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
-
-        Ok(())
-    }
 }
 
 /// Implement the Provider trait for the SeismicProvider
@@ -137,7 +55,28 @@ where
     ) -> TransportResult<PendingTransactionBuilder<N>> {
         if let Some(mut builder) = tx.as_mut_builder() {
             if self.should_encrypt_input(builder) {
-                self.encrypt_transaction_input(&mut builder).await?;
+                let network_pk = self.get_tee_pubkey().await.map_err(|e| {
+                    TransportErrorKind::custom_str(&format!(
+                        "Error getting tee pubkey from server: {:?}",
+                        e
+                    ))
+                })?;
+                let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+                let seismic_elements = TxSeismicElements::default()
+                    .with_encryption_pubkey(encryption_keypair.public_key())
+                    .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+
+                // Encrypt using recipient's public key and generated private key
+                let plaintext_input = N::get_request_input(builder).unwrap();
+                let encrypted_input = seismic_elements
+                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
+                    .map_err(|e| {
+                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+                    })?;
+
+                N::set_request_input(builder, encrypted_input)
+                    .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
+                N::set_seismic_elements(&mut builder, seismic_elements);
             }
         }
         let res = self.inner.send_transaction_internal(tx).await;
@@ -153,104 +92,58 @@ where
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
-    /// Override call_conditionally_signed to encrypt/decrypt for seismic calls
-    /// This is called after FillProvider fills the transaction
-    async fn call_conditionally_signed(
-        &self,
-        mut tx: SendableTx<N>,
-    ) -> TransportResult<alloy_primitives::Bytes> {
-        // Check if this should be encrypted
-        if let Some(builder) = tx.as_builder() {
-            if self.should_encrypt_input(builder) {
-                let network_pk = self.get_tee_pubkey().await.map_err(|e| {
-                    TransportErrorKind::custom_str(&format!(
-                        "Error getting tee pubkey from server: {:?}",
-                        e
-                    ))
-                })?;
-                let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+    /// Encrypts the input data, runs self.call_conditionally_signed, and decrypts the output data
+    async fn seismic_call(&self, mut tx: SendableTx<N>) -> TransportResult<Bytes> {
+        // set up elements unrelated to the input tx
+        let network_pk = self.get_tee_pubkey().await.map_err(|e| {
+            TransportErrorKind::custom_str(&format!(
+                "Error getting tee pubkey from server: {:?}",
+                e
+            ))
+        })?;
+        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        let seismic_elements = TxSeismicElements::default()
+            .with_encryption_pubkey(encryption_keypair.public_key())
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
 
-                // Encrypt using recipient's public key and generated private key
-                let (new_tx, tx_metadata) = match tx {
-                    SendableTx::Builder(mut builder) => {
-                        let sender = match builder.from() {
-                            Some(address) => address,
-                            None => {
-                                return Err(TransportErrorKind::custom_str("Signed reads must set 'from'"));
-                            }
-                        };
-
-                        // Check if elements are already set, if so use them and add encryption fields
-                        let seismic_elements = N::get_seismic_elements(&builder)
-                            .unwrap_or_default()
-                            .with_encryption_pubkey(encryption_keypair.public_key())
-                            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
-                        // Set seismic elements with encryption fields
-                        N::set_seismic_elements(&mut builder, seismic_elements);
-
-                        let plaintext_input = N::get_request_input(&builder).unwrap();
-
-                        // Build metadata manually from builder's fields (must be filled by now)
-                        let metadata = TxSeismicMetadata {
-                            sender,
-                            legacy_fields: Self::legacy_fields_metadata(&builder)?,
-                            seismic_elements,
-                        };
-
-                        let encrypted_input = seismic_elements
-                            .client_encrypt(
-                                &plaintext_input,
-                                &network_pk,
-                                &encryption_keypair.secret_key(),
-                                &metadata,
-                            )
-                            .map_err(|e| {
-                                TransportErrorKind::custom_str(&format!(
-                                    "Error encrypting input: {:?}",
-                                    e
-                                ))
-                            })?;
-
-                        TransactionBuilder::<N>::set_input(&mut builder, encrypted_input);
-                        (SendableTx::Builder(builder), metadata)
-                    }
-                    SendableTx::Envelope(_) => {
-                        return TransportResult::Err(
-                            TransportErrorKind::custom_str(
-                                "SeismicProvider::call_conditionally_signed does not support envelope transactions",
-                            )
-                            .into(),
-                        )
-                    }
-                };
-                tx = new_tx;
-
-                // delegate to inner provider's call_conditionally_signed
-                let encrypted_output = self.inner.call_conditionally_signed(tx).await?;
-
-                // decrypt the output using elements from metadata
-                let decrypted_output = tx_metadata
-                    .seismic_elements
-                    .client_decrypt(
-                        &encrypted_output,
-                        &network_pk,
-                        &encryption_keypair.secret_key(),
-                        &tx_metadata,
-                    )
+        // Encrypt using recipient's public key and generated private key
+        tx = match tx {
+            SendableTx::Builder(mut builder) => {
+                let plaintext_input = N::get_request_input(&builder).unwrap();
+                let encrypted_input = seismic_elements
+                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
                     .map_err(|e| {
-                        TransportErrorKind::custom_str(&format!(
-                            "Provider decryption error during call: {:?}. ciphertext: {:?}",
-                            e, encrypted_output
-                        ))
+                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
                     })?;
 
-                return Ok(decrypted_output);
+                TransactionBuilder::<N>::set_input(&mut builder, encrypted_input);
+                N::set_seismic_elements(&mut builder, seismic_elements);
+                SendableTx::Builder(builder)
             }
-        }
+            SendableTx::Envelope(_) => {
+                return TransportResult::Err(
+                    TransportErrorKind::custom_str(
+                        "SeismicProvider::seismic_call does not support envelope transactions",
+                    )
+                    .into(),
+                )
+            }
+        };
 
-        // If not encrypting, just delegate to inner provider
-        self.inner.call_conditionally_signed(tx).await
+        // delegate to inner provider (e.g., FillProvider, RootProvider, etc.) and make rpc call
+        let encrypted_output = self.inner.seismic_call(tx).await?;
+
+        // decrypt the output
+        let decrypted_output = seismic_elements
+            .client_decrypt(&encrypted_output, &network_pk, &encryption_keypair.secret_key())
+            .map_err(|e| {
+                TransportErrorKind::custom_str(&format!(
+                    "Provider decryption error during seismic_call: {:?}. ciphertext: {:?}",
+                    e, encrypted_output
+                ))
+            })?;
+
+        return Ok(decrypted_output);
     }
 }
 
@@ -434,7 +327,7 @@ mod tests {
     use crate::test_utils::{ContractTestContext, ISeismicCounter};
     use alloy_network::{ReceiptResponse, TransactionBuilder};
     use alloy_node_bindings::{Anvil, AnvilInstance};
-    use alloy_primitives::{address, Address, Bytes, TxKind, B256};
+    use alloy_primitives::{address, Address, Bytes, TxKind};
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
     use alloy_rpc_types_eth::Filter;
     use alloy_signer_local::PrivateKeySigner;
@@ -514,16 +407,8 @@ mod tests {
         let provider =
             SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
-        let mut tx =
+        let tx =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
-
-        // Set valid seismic elements with security fields
-        let elements = TxSeismicElements::default()
-            .with_recent_block_hash(B256::from_slice(&[1u8; 32]))
-            .with_expires_at_block(1000000)
-            .with_signed_read(false);
-        tx.inner.transaction_type = Some(TxSeismic::TX_TYPE);
-        tx.seismic_elements = Some(elements);
 
         let res = provider.seismic_call(SendableTx::Builder(tx.into())).await;
         assert!(res.is_ok(), "seismic_call failed: {:?}", res.unwrap_err());
@@ -570,15 +455,19 @@ mod tests {
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());
 
-        // Set seismic elements with security fields (provider will add encryption fields)
+        let network_pk = provider.get_tee_pubkey().await.unwrap();
+        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
         let elements = TxSeismicElements::default()
-            .with_recent_block_hash(B256::from_slice(&[1u8; 32]))
-            .with_expires_at_block(1000000)
-            .with_signed_read(false);
+            .with_encryption_pubkey(encryption_keypair.public_key())
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
 
         let tx_input = ContractTestContext::get_set_number_input_plaintext();
+        let encrypted_input = elements
+            .client_encrypt(&tx_input, &network_pk, &encryption_keypair.secret_key())
+            .unwrap();
+
         let mut tx = seismic_foundry_tx_builder()
-            .with_input(tx_input)
+            .with_input(encrypted_input)
             .with_kind(TxKind::Call(contract_address))
             .into();
         tx.inner.transaction_type = Some(TxSeismic::TX_TYPE);
@@ -619,15 +508,19 @@ mod tests {
         let event_sub = ws_provider.subscribe_logs(&filter).await.unwrap();
 
         // set number
-        // Set seismic elements with security fields (provider will add encryption fields)
+        let network_pk = provider.get_tee_pubkey().await.unwrap();
+        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
         let elements = TxSeismicElements::default()
-            .with_recent_block_hash(B256::from_slice(&[1u8; 32]))
-            .with_expires_at_block(1000000)
-            .with_signed_read(false);
+            .with_encryption_pubkey(encryption_keypair.public_key())
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
 
         let tx_input_set_number = ContractTestContext::get_set_number_input_plaintext();
+        let encrypted_input = elements
+            .client_encrypt(&tx_input_set_number, &network_pk, &encryption_keypair.secret_key())
+            .unwrap();
+
         let mut tx_set_number = seismic_foundry_tx_builder()
-            .with_input(tx_input_set_number)
+            .with_input(encrypted_input)
             .with_kind(TxKind::Call(contract_address))
             .into();
         tx_set_number.inner.transaction_type = Some(TxSeismic::TX_TYPE);
@@ -640,8 +533,16 @@ mod tests {
 
         // increment number
         let tx_input_increment_number = ContractTestContext::get_increment_input_plaintext();
+        let encrypted_input = elements
+            .client_encrypt(
+                &tx_input_increment_number,
+                &network_pk,
+                &encryption_keypair.secret_key(),
+            )
+            .unwrap();
+
         let mut tx_increment_number = seismic_foundry_tx_builder()
-            .with_input(tx_input_increment_number)
+            .with_input(encrypted_input)
             .with_kind(TxKind::Call(contract_address))
             .into();
         tx_increment_number.inner.transaction_type = Some(TxSeismic::TX_TYPE);

@@ -77,16 +77,20 @@ impl<F, P, N> SeismicProviderExt<N> for FillProvider<F, P, N>
 where
     N: SeismicNetwork,
     F: TxFiller<N>,
-    P: Provider<N> + SeismicProviderExt<N>,
+    P: Provider<N>,
     N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>,
 {
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        // Fill the transaction first to ensure all fields are populated
+        // Fill the transaction
         let builder = tx.as_builder().unwrap().clone();
-        let filled_tx = self.fill(builder).await?;
 
-        // Use the default trait implementation which calls call_conditionally_signed
-        // This will flow through SeismicProvider if it's in the stack
-        SeismicProviderExt::call_conditionally_signed(self, filled_tx).await
+        let built_tx = self.fill(builder).await?;
+
+        // self.inner is not public for FillProvider.
+        // However, for our use cases, self.inner is the RootProvider,
+        // so we get it this hacky way
+        let inner = self.root();
+        SeismicProviderExt::seismic_call(inner, built_tx).await
     }
 }
