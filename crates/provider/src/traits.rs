@@ -8,9 +8,11 @@ use alloy_provider::{
 };
 use alloy_rpc_client::NoParams;
 use alloy_transport::{TransportErrorKind, TransportResult};
+use seismic_alloy_consensus::InputDecryptionElements;
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
 };
+use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use seismic_enclave::secp256k1::PublicKey;
 use std::str::FromStr;
 
@@ -56,7 +58,7 @@ where
     async fn call_conditionally_signed(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(builder) => {
-                let output = self.client().request("eth_call", (builder.clone(),)).await?;
+                let output: Bytes = self.client().request("eth_call", (builder.clone(),)).await?;
                 Ok(output)
             }
             SendableTx::Envelope(envelope) => {

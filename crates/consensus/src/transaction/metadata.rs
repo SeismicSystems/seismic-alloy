@@ -2,7 +2,7 @@
 
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_rlp::Encodable;
-use secp256k1::SecretKey;
+use seismic_enclave::secp256k1::{PublicKey, SecretKey};
 
 use super::seismic::TxSeismicElements;
 
@@ -73,6 +73,18 @@ impl TxSeismicMetadata {
         ciphertext: &Bytes,
     ) -> Result<Vec<u8>, anyhow::Error> {
         self.seismic_elements.decrypt(secret_key, ciphertext, self)
+    }
+
+    /// client-side encrypt: takes TEE public key and ephemeral secret key
+    /// This is the method that should be used when encrypting transaction calldata
+    /// from the client side (before sending to the network)
+    pub fn client_encrypt(
+        &self,
+        plaintext: &Bytes,
+        network_pk: &PublicKey,
+        client_sk: &SecretKey,
+    ) -> Result<Bytes, anyhow::Error> {
+        self.seismic_elements.client_encrypt(plaintext, network_pk, client_sk, self)
     }
 
     #[cfg(test)]
