@@ -18,7 +18,6 @@ use seismic_alloy_network::{
 };
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use std::ops::Deref;
-use std::str::FromStr;
 
 use crate::SeismicProviderExt;
 
@@ -202,22 +201,12 @@ where
 {
     /// Creates a new seismic signed provider and fetches the TEE pubkey
     /// This enables estimate_gas support for seismic transactions
-    pub async fn new(wallet: impl Into<SeismicWallet<N>> + Clone, url: reqwest::Url) -> TransportResult<Self> {
-        let wallet = wallet.into();
+    pub async fn new(wallet: impl Into<SeismicWallet<N>>, url: reqwest::Url) -> TransportResult<Self> {
+        // Use unsigned provider to fetch TEE pubkey (no wallet needed)
+        let temp_provider = SeismicUnsignedProvider::<N>::new_http(url.clone());
 
-        // Create temporary provider without TEE pubkey to fetch it
-        let temp_provider = Self::new_with_tee_pubkey(wallet.clone(), url.clone(), None);
-
-        let tee_pubkey = temp_provider.0.root().client()
-            .request_noparams("seismic_getTeePublicKey")
-            .await
-            .and_then(|resp: String| {
-                let stripped = resp.strip_prefix("0x").unwrap_or(&resp);
-                seismic_enclave::secp256k1::PublicKey::from_str(stripped)
-                    .map_err(|e| TransportErrorKind::custom_str(
-                        &format!("Error parsing TEE pubkey: {:?}", e)
-                    ).into())
-            })?;
+        // Use the existing get_tee_pubkey method which handles parsing
+        let tee_pubkey = temp_provider.get_tee_pubkey().await?;
 
         Ok(Self::new_with_tee_pubkey(wallet, url, Some(tee_pubkey)))
     }
@@ -387,7 +376,7 @@ where
 
 /// Create a new SeismicSignedProvider for the SeismicReth network
 pub async fn sreth_signed_provider(
-    wallet: impl Into<SeismicWallet<SeismicReth>> + Clone,
+    wallet: impl Into<SeismicWallet<SeismicReth>>,
     url: reqwest::Url,
 ) -> TransportResult<SeismicSignedProvider<SeismicReth>> {
     SeismicSignedProvider::new(wallet, url).await
@@ -400,7 +389,7 @@ pub fn sreth_unsigned_provider(url: reqwest::Url) -> SeismicUnsignedProvider<Sei
 
 /// Create a new SeismicSignedProvider for the SeismicFoundry network
 pub async fn sfoundry_signed_provider(
-    wallet: impl Into<SeismicWallet<SeismicFoundry>> + Clone,
+    wallet: impl Into<SeismicWallet<SeismicFoundry>>,
     url: reqwest::Url,
 ) -> TransportResult<SeismicSignedProvider<SeismicFoundry>> {
     SeismicSignedProvider::new(wallet, url).await
