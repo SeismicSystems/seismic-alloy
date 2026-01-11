@@ -161,6 +161,27 @@ where
     SeismicElementsFiller::new()
 }
 
+/// Helper function to build the unsigned provider filler chain
+/// SeismicElements -> (Nonce+ChainId) -> Gas
+fn build_unsigned_filler_chain<N: SeismicNetwork>() -> JoinFill<
+    JoinFill<SeismicElementsFiller, JoinFill<NonceFiller, ChainIdFiller>>,
+    SeismicGasFiller,
+>
+where
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
+    N::UnsignedTx: Send + Sync,
+{
+    JoinFill::new(
+        JoinFill::new(
+            build_seismic_filler_chain::<N>(),
+            JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
+        ),
+        SeismicGasFiller::default(),
+    )
+}
+
 /// Seismic provider type alias for signed provider
 /// Filler chain: SeismicElements (generates elements & encrypts) -> (Nonce+ChainId) -> Gas -> Wallet
 /// NOTE: GasFiller runs LAST (after encryption) because gas estimation needs encrypted input
@@ -290,20 +311,10 @@ where
     /// Creates a new Seismic unsigned provider with an HTTP connection
     /// Each transaction will generate a fresh ephemeral keypair for encryption
     pub fn new_http(url: reqwest::Url) -> Self {
-        // Build filler pipeline: seismic filler -> nonce+chain -> gas filler
-        // NOTE: GasFiller MUST run LAST (after encryption) because gas estimation needs encrypted input
-        let tx_filler_layer = JoinFill::new(
-            JoinFill::new(
-                build_seismic_filler_chain::<N>(),
-                JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
-            ),
-            SeismicGasFiller::default(),
-        );
-
         let inner = ProviderBuilder::<_, _, N>::default()
             .network::<N>()
             .layer(SeismicLayer {})
-            .layer(tx_filler_layer)
+            .layer(build_unsigned_filler_chain::<N>())
             .connect_client(RpcClient::new_http(url));
 
         Self(inner)
@@ -312,20 +323,10 @@ where
     /// Creates a new Seismic unsigned provider with a websocket connection
     /// Each transaction will generate a fresh ephemeral keypair for encryption
     pub async fn new_ws(url: reqwest::Url) -> Self {
-        // Build filler pipeline: seismic filler -> nonce+chain -> gas filler
-        // NOTE: GasFiller MUST run LAST (after encryption) because gas estimation needs encrypted input
-        let tx_filler_layer = JoinFill::new(
-            JoinFill::new(
-                build_seismic_filler_chain::<N>(),
-                JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
-            ),
-            SeismicGasFiller::default(),
-        );
-
         let inner = ProviderBuilder::<_, _, N>::default()
             .network::<N>()
             .layer(SeismicLayer {})
-            .layer(tx_filler_layer)
+            .layer(build_unsigned_filler_chain::<N>())
             .connect_ws(WsConnect::new(url))
             .await
             .unwrap();
