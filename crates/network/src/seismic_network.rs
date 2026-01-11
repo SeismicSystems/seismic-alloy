@@ -44,6 +44,12 @@ where
     ) -> Result<Self::TxEnvelope, alloy_signer::Error>;
     /// True if the transaction type is a seismic transaction.
     fn is_seismic_tx_type(ty: Self::TxType) -> bool;
+
+    /// Extract metadata from a seismic envelope for decryption.
+    /// Returns None if the envelope is not a seismic transaction.
+    fn extract_seismic_metadata(
+        envelope: &Self::TxEnvelope,
+    ) -> Option<seismic_alloy_consensus::TxSeismicMetadata>;
 }
 
 #[async_trait::async_trait]
@@ -115,6 +121,38 @@ impl SeismicNetwork for SeismicReth {
             _ => false,
         }
     }
+
+    fn extract_seismic_metadata(
+        envelope: &Self::TxEnvelope,
+    ) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
+        use alloy_consensus::transaction::SignableTransaction;
+        use alloy_primitives::Address;
+        use seismic_alloy_consensus::{SeismicTxEnvelope, TxLegacyFields, TxSeismicMetadata};
+
+        match envelope {
+            SeismicTxEnvelope::Seismic(signed_tx) => {
+                let tx_seismic = signed_tx.tx();
+                let signature = signed_tx.signature();
+
+                // Recover sender from signature
+                let signature_hash = tx_seismic.signature_hash();
+                let recovered_pubkey = signature.recover_from_prehash(&signature_hash).ok()?;
+                let sender = Address::from_public_key(&recovered_pubkey);
+
+                Some(TxSeismicMetadata {
+                    sender,
+                    legacy_fields: TxLegacyFields {
+                        chain_id: tx_seismic.chain_id,
+                        nonce: tx_seismic.nonce,
+                        to: tx_seismic.to,
+                        value: tx_seismic.value,
+                    },
+                    seismic_elements: tx_seismic.seismic_elements.clone(),
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -171,6 +209,39 @@ impl SeismicNetwork for SeismicFoundry {
         match ty.0 {
             SEISMIC_TX_TYPE_ID => true,
             _ => false,
+        }
+    }
+
+    fn extract_seismic_metadata(
+        envelope: &Self::TxEnvelope,
+    ) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
+        use crate::foundry::envelope::SeismicFoundryTxEnvelope;
+        use alloy_consensus::transaction::SignableTransaction;
+        use alloy_primitives::Address;
+        use seismic_alloy_consensus::{TxLegacyFields, TxSeismicMetadata};
+
+        match envelope {
+            SeismicFoundryTxEnvelope::Seismic(signed_tx) => {
+                let tx_seismic = signed_tx.tx();
+                let signature = signed_tx.signature();
+
+                // Recover sender from signature
+                let signature_hash = tx_seismic.signature_hash();
+                let recovered_pubkey = signature.recover_from_prehash(&signature_hash).ok()?;
+                let sender = Address::from_public_key(&recovered_pubkey);
+
+                Some(TxSeismicMetadata {
+                    sender,
+                    legacy_fields: TxLegacyFields {
+                        chain_id: tx_seismic.chain_id,
+                        nonce: tx_seismic.nonce,
+                        to: tx_seismic.to,
+                        value: tx_seismic.value,
+                    },
+                    seismic_elements: tx_seismic.seismic_elements.clone(),
+                })
+            }
+            _ => None,
         }
     }
 }

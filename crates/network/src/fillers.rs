@@ -4,22 +4,57 @@
 //! we need it to impl RecommendedFillers for the [`Seismic`] network.
 
 use crate::seismic_network::SeismicNetwork;
-use alloy_network::{Network, TransactionBuilder};
+use alloy_consensus::BlockHeader;
+use alloy_network::{BlockResponse, Network, TransactionBuilder};
+use alloy_network_primitives::HeaderResponse;
 use alloy_provider::{
     fillers::{FillerControlFlow, GasFillable, TxFiller},
-    Provider, SendableTx,
+    Provider, ProviderBuilder, SendableTx,
 };
+use alloy_rpc_client::RpcClient;
+use alloy_rpc_types_eth::BlockNumberOrTag;
+use alloy_signer::k256::Secp256k1;
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
+use seismic_enclave::secp256k1::PublicKey;
 use std::str::FromStr;
 
 pub use alloy_provider::fillers::GasFiller;
 
+/// Helper function to fetch TEE public key from a provider
+/// This is used when the filler doesn't have a cached TEE pubkey
+pub async fn fetch_tee_pubkey<N, P>(provider: &P) -> TransportResult<PublicKey>
+where
+    N: Network,
+    P: Provider<N> + ?Sized,
+{
+    let resp: String = provider.root().client().request_noparams("seismic_getTeePublicKey").await?;
+    let stripped = resp.strip_prefix("0x").unwrap_or(&resp);
+    PublicKey::from_str(stripped)
+        .map_err(|e| TransportErrorKind::custom_str(&format!("Error parsing TEE pubkey: {:?}", e)))
+}
+
 /// A wrapper for alloy_provider::fillers::GasFiller that handles gas for seismic transactions
-/// Seismic tx need to be treated like a legacy tx
-#[derive(Clone, Copy, Debug, Default)]
-pub struct SeismicGasFiller(GasFiller);
+/// Seismic tx are treated like legacy transactions
+#[derive(Clone, Debug)]
+pub struct SeismicGasFiller {
+    inner: GasFiller,
+    rpc_url: Option<reqwest::Url>,
+}
+
+impl Default for SeismicGasFiller {
+    fn default() -> Self {
+        Self { inner: GasFiller::default(), rpc_url: None }
+    }
+}
+
+impl SeismicGasFiller {
+    /// Create a new SeismicGasFiller with RPC URL for gas estimation in fill() phase
+    pub fn with_url(rpc_url: reqwest::Url) -> Self {
+        Self { inner: GasFiller::default(), rpc_url: Some(rpc_url) }
+    }
+}
 
 impl SeismicGasFiller {
     fn is_seismic_tx<N>(&self, tx: &N::TransactionRequest) -> bool
@@ -28,32 +63,34 @@ impl SeismicGasFiller {
         N::TransactionRequest: InputDecryptionElements,
         <N as Network>::UnsignedTx: Send + Sync,
     {
-        // TODO: it is probably more correct to check the tx type instead,
-        // but we probably will get an error anyway if we have either combo of:
-        // - a seismic tx with no decryption elements
-        // - a non-seismic tx with decryption elements
-
-        N::is_seismic_tx_type(tx.output_tx_type()) || tx.get_decryption_elements().is_ok()
+        // Only treat as seismic if elements are actually set
+        // This ensures estimate_gas is called on regular tx during prepare() phase
+        tx.get_decryption_elements().is_ok()
     }
 }
 
 impl<N: SeismicNetwork> TxFiller<N> for SeismicGasFiller
 where
-    <N as Network>::TransactionRequest: InputDecryptionElements,
+    <N as Network>::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + InputDecryptionElements,
     <N as Network>::UnsignedTx: Send + Sync,
 {
-    type Fillable = GasFillable;
+    // (Option<GasFillable>, Option<(u128, reqwest::Url)>)
+    // First: Gas values if already set
+    // Second: (gas_price, rpc_url) for deferred estimation in fill() for seismic tx
+    type Fillable = (Option<GasFillable>, Option<(u128, reqwest::Url)>);
 
     fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
         if self.is_seismic_tx::<N>(tx) {
-            // tx is a seismic transaction, repeat logic for legacy tx
+            // Seismic transaction - treat like legacy
             if tx.gas_price().is_some() && tx.gas_limit().is_some() {
                 return FillerControlFlow::Finished;
             } else {
                 return FillerControlFlow::Ready;
             }
         } else {
-            <GasFiller as TxFiller<N>>::status(&self.0, tx)
+            <GasFiller as TxFiller<N>>::status(&self.inner, tx)
         }
     }
 
@@ -67,23 +104,39 @@ where
     where
         P: Provider<N>,
     {
-        if self.is_seismic_tx::<N>(tx) {
-            // For seismic transactions, treat them like legacy transactions
-            // Encryption should have already happened in SeismicElementsFiller.fill_sync()
-            // so we can safely call estimate_gas
+        // Check if transaction is marked as seismic (by tx type or has elements)
+        let seismic_tx: &SeismicTransactionRequest = tx.as_ref();
+        if seismic_tx.is_seismic() {
+            // Seismic transactions cannot be CREATE transactions
+            if tx.to().is_none() {
+                return Err(TransportErrorKind::custom_str(
+                    "Seismic transactions cannot be CREATE transactions (no `to` address). Deploy contracts with regular transactions."
+                ).into());
+            }
+
+            // For seismic transactions, always defer gas estimation to fill() phase
+            // (after encryption is done by SeismicElementsFiller)
+
+            // Fetch gas_price if not set
             let gas_price = match tx.gas_price() {
                 Some(price) => price,
                 None => provider.get_gas_price().await?,
             };
 
-            let gas_limit = match tx.gas_limit() {
-                Some(limit) => limit,
-                None => provider.estimate_gas(tx.clone()).await?,
-            };
-
-            Ok(GasFillable::Legacy { gas_limit, gas_price })
+            // Check if gas_limit is already set
+            if let Some(limit) = tx.gas_limit() {
+                // Gas limit already set, no need to estimate
+                Ok((Some(GasFillable::Legacy { gas_limit: limit, gas_price }), None))
+            } else {
+                // Defer estimation to fill() - need RPC URL
+                let rpc_url = self.rpc_url.as_ref().ok_or_else(|| {
+                    TransportErrorKind::custom_str("RPC URL required for seismic gas estimation")
+                })?;
+                Ok((None, Some((gas_price, rpc_url.clone()))))
+            }
         } else {
-            GasFiller::prepare(&self.0, provider, tx).await
+            // For non-seismic transactions, use regular GasFiller logic
+            Ok((Some(GasFiller::prepare(&self.inner, provider, tx).await?), None))
         }
     }
 
@@ -92,46 +145,121 @@ where
         fillable: Self::Fillable,
         tx: SendableTx<N>,
     ) -> TransportResult<SendableTx<N>> {
-        GasFiller::fill(&self.0, fillable, tx).await
+        let (immediate_fill, deferred_estimate) = fillable;
+
+        if let Some(gas_fillable) = immediate_fill {
+            // Gas values already determined in prepare()
+            GasFiller::fill(&self.inner, gas_fillable, tx).await
+        } else if let Some((gas_price, rpc_url)) = deferred_estimate {
+            // Need to estimate gas now (after encryption)
+            let tx_for_estimate = match &tx {
+                SendableTx::Builder(builder) => {
+                    // Clone the builder's transaction for estimation
+                    builder.clone()
+                }
+                SendableTx::Envelope(_) => {
+                    // Already signed, can't estimate
+                    return Err(TransportErrorKind::custom_str(
+                        "Cannot estimate gas on already-signed transaction",
+                    )
+                    .into());
+                }
+            };
+
+            // Create temporary provider for estimate_gas call
+            let client = RpcClient::new_http(rpc_url);
+            let gas_estimate_provider =
+                ProviderBuilder::<_, _, N>::default().network::<N>().connect_client(client);
+
+            let gas_limit = gas_estimate_provider.estimate_gas(tx_for_estimate).await?;
+            let gas_fillable = GasFillable::Legacy { gas_limit, gas_price };
+
+            GasFiller::fill(&self.inner, gas_fillable, tx).await
+        } else {
+            Err(TransportErrorKind::custom_str(
+                "Invalid fillable state: neither immediate nor deferred gas estimation available",
+            )
+            .into())
+        }
     }
 }
 
+/// Default number of blocks to add to current block for transaction expiration
+pub const BLOCKS_WINDOW: u64 = 100;
 
 /// Generates seismic elements and encrypts transaction input.
-/// Each transaction gets a fresh ephemeral keypair for encryption.
+/// Generates one ephemeral keypair for the client that is reused for all transactions.
 /// This combines element generation and encryption into a single filler
 /// to avoid the complexity of sharing ephemeral state between separate fillers.
 #[derive(Clone, Debug)]
 pub struct SeismicElementsFiller {
-    /// Cached TEE public key (fetched once at provider creation)
-    tee_pubkey: Option<seismic_enclave::secp256k1::PublicKey>,
-}
-
-impl Default for SeismicElementsFiller {
-    fn default() -> Self {
-        Self { tee_pubkey: None }
-    }
+    /// Cached TEE public key (fetched once at provider creation, or provided directly)
+    tee_pubkey: Option<PublicKey>,
+    /// Custom blocks window for transaction expiration (overrides BLOCKS_WINDOW)
+    blocks_window: Option<u64>,
+    /// Client's ephemeral secret key for encryption/decryption (generated once at client creation)
+    ephemeral_secret_key: seismic_enclave::secp256k1::SecretKey,
+    /// Whether seismic calls should be marked as signed_read (true for signed providers)
+    signed_read: bool,
 }
 
 impl SeismicElementsFiller {
-    /// Create a new SeismicElementsFiller without TEE pubkey (will fetch lazily)
+    /// Create a new SeismicElementsFiller with RPC URL (signed_read defaults to false)
     pub fn new() -> Self {
-        Self::default()
+        let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        Self {
+            tee_pubkey: None,
+            blocks_window: None,
+            ephemeral_secret_key: ephemeral_keypair.secret_key().clone(),
+            signed_read: false,
+        }
     }
 
-    /// Create a new SeismicElementsFiller with a cached TEE pubkey
-    pub fn with_tee_pubkey(tee_pubkey: seismic_enclave::secp256k1::PublicKey) -> Self {
-        Self { tee_pubkey: Some(tee_pubkey) }
+    /// Create with a cached TEE pubkey and RPC URL (avoids fetching per-transaction, signed_read
+    /// defaults to false)
+    pub fn with_tee_pubkey_and_url(tee_pubkey: PublicKey) -> Self {
+        let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        Self {
+            tee_pubkey: Some(tee_pubkey),
+            blocks_window: None,
+            ephemeral_secret_key: ephemeral_keypair.secret_key().clone(),
+            signed_read: false,
+        }
+    }
+
+    /// Set whether seismic calls should be marked as signed_read
+    pub fn with_signed_read(mut self, signed_read: bool) -> Self {
+        self.signed_read = signed_read;
+        self
+    }
+
+    /// Set a custom blocks window for transaction expiration
+    pub fn with_blocks_window(mut self, blocks_window: u64) -> Self {
+        self.blocks_window = Some(blocks_window);
+        self
+    }
+
+    /// Get the ephemeral secret key for response decryption
+    pub fn ephemeral_secret_key(&self) -> &seismic_enclave::secp256k1::SecretKey {
+        &self.ephemeral_secret_key
     }
 }
 
 impl<N: SeismicNetwork> TxFiller<N> for SeismicElementsFiller
 where
-    N::TransactionRequest: AsRef<SeismicTransactionRequest> + AsMut<SeismicTransactionRequest> + InputDecryptionElements,
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
 {
-    // Fillable contains: Some((TEE public key, ephemeral keypair)) if encryption needed, None if already done
-    type Fillable = Option<(seismic_enclave::secp256k1::PublicKey, seismic_enclave::secp256k1::Keypair)>;
+    // Fillable contains: Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)) for fill()
+    // to encrypt
+    type Fillable = Option<(
+        PublicKey,
+        seismic_enclave::secp256k1::SecretKey,
+        TxSeismicElements,
+        alloy_primitives::Bytes,
+    )>;
 
     fn status(&self, tx: &N::TransactionRequest) -> FillerControlFlow {
         let seismic_tx: &SeismicTransactionRequest = tx.as_ref();
@@ -144,14 +272,20 @@ where
 
         // Check if this is a seismic transaction that needs encryption
         if seismic_tx.is_seismic() {
+            // Seismic transactions cannot be CREATE transactions
+            if tx.to().is_none() {
+                // Return ready so we can error in prepare()
+                return FillerControlFlow::Ready;
+            }
+
             let has_input = N::get_request_input(tx).map_or(false, |i| !i.is_empty());
 
             if has_input {
-                // If elements are set, encryption is complete
-                if seismic_tx.seismic_elements.is_some() {
+                // If elements are set AND encryption_nonce is non-zero, encryption is complete
+                if seismic_tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_nonce != 0) {
                     FillerControlFlow::Finished
                 } else {
-                    // No elements yet - needs encryption
+                    // No elements yet or incomplete elements - needs encryption
                     FillerControlFlow::Ready
                 }
             } else {
@@ -163,112 +297,142 @@ where
         }
     }
 
-    fn fill_sync(&self, tx: &mut SendableTx<N>) {
-        // If we have a cached TEE pubkey, encrypt synchronously here
-        // This ensures encryption happens before GasFiller.prepare() runs
-        if let Some(tee_pubkey) = &self.tee_pubkey {
-            if let Some(builder) = tx.as_mut_builder() {
-                let seismic_builder: &mut SeismicTransactionRequest = builder.as_mut();
-
-                // Only process if this is a seismic transaction without elements yet
-                if seismic_builder.is_seismic() && seismic_builder.seismic_elements.is_none() {
-                    // Generate fresh ephemeral keypair for this transaction
-                    let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
-
-                    // Set seismic elements
-                    let elements = TxSeismicElements::default()
-                        .with_encryption_pubkey(ephemeral_keypair.public_key())
-                        .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
-                        .with_message_version(0);
-
-                    seismic_builder.set_seismic_elements(elements.clone());
-
-                    // Encrypt the input (always assume plaintext)
-                    if let Some(plaintext) = N::get_request_input(builder) {
-                        if !plaintext.is_empty() {
-                            if let Ok(encrypted) = elements.client_encrypt(
-                                plaintext,
-                                tee_pubkey,
-                                &ephemeral_keypair.secret_key(),
-                            ) {
-                                let _ = N::set_request_input(builder, encrypted);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    fn fill_sync(&self, _tx: &mut SendableTx<N>) {
+        // All seismic element generation and encryption happens in prepare()
     }
 
-    async fn prepare<P>(&self, provider: &P, tx: &N::TransactionRequest)
-        -> TransportResult<Self::Fillable>
+    async fn prepare<P>(
+        &self,
+        provider: &P,
+        tx: &N::TransactionRequest,
+    ) -> TransportResult<Self::Fillable>
     where
         P: Provider<N>,
     {
         let seismic_tx: &SeismicTransactionRequest = tx.as_ref();
 
         // Validate consistency
-        seismic_tx.validate_seismic_consistency()
-            .map_err(|e| TransportErrorKind::custom_str(e))?;
+        seismic_tx.validate_seismic_consistency().map_err(|e| TransportErrorKind::custom_str(e))?;
 
-        // If encryption already happened in fill_sync(), we're done
-        if seismic_tx.is_seismic() && seismic_tx.seismic_elements.is_some() {
+        // If encryption already happened (encryption_nonce is non-zero), we're done
+        if seismic_tx.is_seismic() &&
+            seismic_tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_nonce != 0)
+        {
             return Ok(None);
         }
 
-        // Generate fresh ephemeral keypair for this transaction
-        let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        // If this is not a seismic tx or has no input, skip
+        if !seismic_tx.is_seismic() {
+            return Ok(None);
+        }
 
-        // Get TEE public key from RPC (only if we didn't cache it)
-        let tee_pubkey = provider.root().client()
-            .request_noparams("seismic_getTeePublicKey")
+        // Seismic transactions cannot be CREATE transactions
+        if tx.to().is_none() {
+            return Err(TransportErrorKind::custom_str(
+                "Cannot encrypt calldata for CREATE transactions. Seismic transactions must have a `to` address."
+            ).into());
+        }
+
+        // Get plaintext input - if empty, no encryption needed
+        let Some(plaintext) = N::get_request_input(tx) else {
+            return Ok(None);
+        };
+        if plaintext.is_empty() {
+            return Ok(None);
+        }
+        let plaintext = plaintext.clone();
+
+        // Use the client's ephemeral secret key (generated once at client creation)
+        let ephemeral_secret_key = self.ephemeral_secret_key.clone();
+
+        // Derive public key from secret key
+        let ephemeral_pubkey = ephemeral_secret_key.public_key(&Secp256k1::new());
+
+        // Get TEE public key (use cached if available, otherwise fetch via RPC)
+        let tee_pubkey = if let Some(cached) = &self.tee_pubkey {
+            *cached
+        } else {
+            fetch_tee_pubkey(provider).await?
+        };
+
+        // Get latest block number for expiration calculation
+
+        // Get recent block hash (one block behind for finalization)
+        let block = provider
+            .get_block_by_number(BlockNumberOrTag::Latest)
             .await
-            .and_then(|resp: String| {
-                let stripped = resp.strip_prefix("0x").unwrap_or(&resp);
-                seismic_enclave::secp256k1::PublicKey::from_str(stripped)
-                    .map_err(|e| TransportErrorKind::custom_str(
-                        &format!("Error parsing TEE pubkey: {:?}", e)
-                    ).into())
-            })?;
+            .map_err(|_| TransportErrorKind::custom_str("Failed to fetch recent block"))?
+            .ok_or_else(|| TransportErrorKind::custom_str("Block not found"))?;
+        let block_header = block.header();
+        let recent_block_hash = block_header.hash();
+        let latest_block = block_header.number();
 
-        Ok(Some((tee_pubkey, ephemeral_keypair)))
+        // Calculate expires_at_block and get signed_read from existing partial elements if present
+        let (expires_at_block, signed_read) = if let Some(elements) = &seismic_tx.seismic_elements {
+            let expires = if elements.expires_at_block > 0 {
+                elements.expires_at_block // User manually set it
+            } else {
+                let window = self.blocks_window.unwrap_or(BLOCKS_WINDOW);
+                latest_block + window
+            };
+            (expires, elements.signed_read) // Preserve signed_read from partial elements
+        } else {
+            let window = self.blocks_window.unwrap_or(BLOCKS_WINDOW);
+            (latest_block + window, self.signed_read) // Use filler default
+        };
+
+        // Create seismic elements (without full metadata yet, will encrypt in fill())
+        let elements = TxSeismicElements::default()
+            .with_encryption_pubkey(ephemeral_pubkey)
+            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
+            // message version != 0 is for typescript / Eip712 signed transactions
+            .with_message_version(0)
+            .with_recent_block_hash(recent_block_hash)
+            .with_expires_at_block(expires_at_block)
+            .with_signed_read(signed_read);
+
+        // Return data needed for encryption in fill() (when nonce will be available)
+        Ok(Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)))
     }
 
-    async fn fill(&self, fillable: Self::Fillable, mut tx: SendableTx<N>)
-        -> TransportResult<SendableTx<N>>
-    {
-        // If None, encryption already happened in fill_sync()
-        let Some((tee_pubkey, ephemeral_keypair)) = fillable else {
+    async fn fill(
+        &self,
+        fillable: Self::Fillable,
+        mut tx: SendableTx<N>,
+    ) -> TransportResult<SendableTx<N>> {
+        // If None, no encryption needed
+        let Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)) = fillable else {
             return Ok(tx);
         };
 
+        // Apply the elements and encrypt with metadata (nonce is now available)
         if let Some(builder) = tx.as_mut_builder() {
             let seismic_builder: &mut SeismicTransactionRequest = builder.as_mut();
 
-            // Set seismic elements using the real ephemeral keypair's public key
-            let elements = TxSeismicElements::default()
-                .with_encryption_pubkey(ephemeral_keypair.public_key())
-                .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
-                .with_message_version(0);
+            // Set seismic elements first
+            seismic_builder.set_seismic_elements(elements);
 
-            seismic_builder.set_seismic_elements(elements.clone());
+            // Now create metadata with sender (nonce and chain_id are now set by other fillers)
+            let sender = builder.from().ok_or_else(|| {
+                TransportErrorKind::custom_str(
+                    "Sender address required for seismic transaction encryption",
+                )
+            })?;
 
-            // Encrypt the input using the ephemeral keypair's secret key
-            // We always assume the input is plaintext (no heuristics)
-            if let Some(plaintext) = N::get_request_input(builder) {
-                if !plaintext.is_empty() {
-                    let encrypted = elements
-                        .client_encrypt(plaintext, &tee_pubkey, &ephemeral_keypair.secret_key())
-                        .map_err(|e| TransportErrorKind::custom_str(
-                            &format!("Error encrypting input: {:?}", e)
-                        ))?;
+            let metadata = builder.metadata(sender).map_err(|e| {
+                TransportErrorKind::custom_str(&format!("Error creating metadata: {:?}", e))
+            })?;
 
-                    N::set_request_input(builder, encrypted)
-                        .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
-                }
-            }
+            // Encrypt using metadata.client_encrypt()
+            let encrypted =
+                metadata.client_encrypt(&plaintext, &tee_pubkey, &ephemeral_secret_key).map_err(
+                    |e| TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e)),
+                )?;
+
+            // Set encrypted input
+            N::set_request_input(builder, encrypted)
+                .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
         }
         Ok(tx)
     }
 }
-
