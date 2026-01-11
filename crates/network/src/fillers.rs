@@ -130,8 +130,8 @@ where
     N::TransactionRequest: AsRef<SeismicTransactionRequest> + AsMut<SeismicTransactionRequest> + InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
 {
-    // Fillable contains: (TEE public key, ephemeral keypair for this transaction)
-    type Fillable = (seismic_enclave::secp256k1::PublicKey, seismic_enclave::secp256k1::Keypair);
+    // Fillable contains: Some((TEE public key, ephemeral keypair)) if encryption needed, None if already done
+    type Fillable = Option<(seismic_enclave::secp256k1::PublicKey, seismic_enclave::secp256k1::Keypair)>;
 
     fn status(&self, tx: &N::TransactionRequest) -> FillerControlFlow {
         let seismic_tx: &SeismicTransactionRequest = tx.as_ref();
@@ -213,10 +213,7 @@ where
 
         // If encryption already happened in fill_sync(), we're done
         if seismic_tx.is_seismic() && seismic_tx.seismic_elements.is_some() {
-            // Return dummy values since encryption is already complete
-            let dummy_keypair = TxSeismicElements::get_rand_encryption_keypair();
-            let dummy_pubkey = seismic_enclave::get_unsecure_sample_secp256k1_pk();
-            return Ok((dummy_pubkey, dummy_keypair));
+            return Ok(None);
         }
 
         // Generate fresh ephemeral keypair for this transaction
@@ -234,21 +231,19 @@ where
                     ).into())
             })?;
 
-        Ok((tee_pubkey, ephemeral_keypair))
+        Ok(Some((tee_pubkey, ephemeral_keypair)))
     }
 
     async fn fill(&self, fillable: Self::Fillable, mut tx: SendableTx<N>)
         -> TransportResult<SendableTx<N>>
     {
-        let (tee_pubkey, ephemeral_keypair) = fillable;
+        // If None, encryption already happened in fill_sync()
+        let Some((tee_pubkey, ephemeral_keypair)) = fillable else {
+            return Ok(tx);
+        };
 
         if let Some(builder) = tx.as_mut_builder() {
             let seismic_builder: &mut SeismicTransactionRequest = builder.as_mut();
-
-            // If elements are already set (from fill_sync), skip encryption
-            if seismic_builder.seismic_elements.is_some() {
-                return Ok(tx);
-            }
 
             // Set seismic elements using the real ephemeral keypair's public key
             let elements = TxSeismicElements::default()
