@@ -541,8 +541,17 @@ impl SeismicTransactionRequest {
 
     /// Check if this transaction is marked as seismic
     pub fn is_seismic(&self) -> bool {
-        self.inner.transaction_type == Some(TxSeismic::TX_TYPE)
-            || self.seismic_elements.is_some()
+        // First check if explicitly marked as seismic type
+        if self.inner.transaction_type == Some(TxSeismic::TX_TYPE) {
+            return true;
+        }
+
+        // Only infer from seismic_elements if transaction_type is None
+        if self.inner.transaction_type.is_none() && self.seismic_elements.is_some() {
+            return true;
+        }
+
+        false
     }
 
     /// Check if this transaction needs seismic elements to be filled

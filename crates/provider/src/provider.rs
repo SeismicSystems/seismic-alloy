@@ -448,11 +448,12 @@ mod tests {
         let unsigned_provider =
             SeismicUnsignedProvider::<SeismicFoundry>::new_http(anvil.endpoint_url());
 
+        // Make a regular (non-seismic) eth_call
         let tx = seismic_foundry_tx_builder()
             .with_input(plaintext)
             .with_kind(TxKind::Create)
             .with_from(from)
-            .seismic();
+            .into();
 
         let res = unsigned_provider.seismic_call(SendableTx::Builder(tx.into())).await.unwrap();
         assert_eq!(res, ContractTestContext::get_code());
