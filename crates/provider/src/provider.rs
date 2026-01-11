@@ -2,14 +2,15 @@
 use alloy_network::TransactionBuilder;
 use alloy_primitives::Bytes;
 use alloy_provider::{
-    fillers::{FillProvider, JoinFill, RecommendedFillers, WalletFiller},
-    Identity, PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider,
+    fillers::{FillProvider, JoinFill, WalletFiller},
+    PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider,
     SendableTx, WsConnect,
 };
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::{
+    fillers::SeismicElementsFiller,
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, wallet::SeismicWallet, SeismicReth,
 };
 use std::ops::Deref;
@@ -51,36 +52,13 @@ where
 
     async fn send_transaction_internal(
         &self,
-        mut tx: SendableTx<N>,
+        tx: SendableTx<N>,
     ) -> TransportResult<PendingTransactionBuilder<N>> {
-        if let Some(mut builder) = tx.as_mut_builder() {
-            if self.should_encrypt_input(builder) {
-                let network_pk = self.get_tee_pubkey().await.map_err(|e| {
-                    TransportErrorKind::custom_str(&format!(
-                        "Error getting tee pubkey from server: {:?}",
-                        e
-                    ))
-                })?;
-                let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
-                let seismic_elements = TxSeismicElements::default()
-                    .with_encryption_pubkey(encryption_keypair.public_key())
-                    .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
-                // Encrypt using recipient's public key and generated private key
-                let plaintext_input = N::get_request_input(builder).unwrap();
-                let encrypted_input = seismic_elements
-                    .client_encrypt(&plaintext_input, &network_pk, &encryption_keypair.secret_key())
-                    .map_err(|e| {
-                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
-                    })?;
-
-                N::set_request_input(builder, encrypted_input)
-                    .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
-                N::set_seismic_elements(&mut builder, seismic_elements);
-            }
-        }
-        let res = self.inner.send_transaction_internal(tx).await;
-        res
+        // Fillers have already:
+        // 1. Generated seismic elements if needed (SeismicElementsFiller)
+        // 2. Encrypted the input if needed (SeismicEncryptionFiller)
+        // Just pass through to inner provider
+        self.inner.send_transaction_internal(tx).await
     }
 }
 
@@ -165,15 +143,36 @@ where
     }
 }
 
-/// Type alias for the recommended fillers for the seismic network
-/// Defined for code clarity
-type SeismicRecFillers<N> = <N as RecommendedFillers>::RecommendedFillers;
+
+/// Helper function to build the core seismic filler chain (elements + encryption)
+/// Returns a JoinFill that can be combined with other fillers
+/// Note: SeismicGasFiller is not included here as it's already part of RecommendedFillers
+fn build_seismic_filler_chain<N: SeismicNetwork>() -> SeismicElementsFiller
+where
+    N::TransactionRequest: AsRef<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + AsMut<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
+    N::UnsignedTx: Send + Sync,
+{
+    SeismicElementsFiller::new()
+}
 
 /// Seismic provider type alias for signed provider
+/// Filler chain: SeismicElements (generates elements & encrypts) -> (Nonce+ChainId) -> Gas -> Wallet
+/// NOTE: GasFiller runs LAST (after encryption) because gas estimation needs encrypted input
 pub type SeismicSignedProviderInner<N> = SeismicProvider<
     N,
     FillProvider<
-        JoinFill<SeismicRecFillers<N>, WalletFiller<SeismicWallet<N>>>,
+        JoinFill<
+            JoinFill<
+                JoinFill<
+                    SeismicElementsFiller,
+                    JoinFill<alloy_provider::fillers::NonceFiller, alloy_provider::fillers::ChainIdFiller>,
+                >,
+                seismic_alloy_network::fillers::SeismicGasFiller,
+            >,
+            WalletFiller<SeismicWallet<N>>,
+        >,
         RootProvider<N>,
         N,
     >,
@@ -183,17 +182,35 @@ pub type SeismicSignedProviderInner<N> = SeismicProvider<
 #[derive(Debug, Clone)]
 pub struct SeismicSignedProvider<N: SeismicNetwork>(SeismicSignedProviderInner<N>)
 where
+    N::TransactionRequest: AsRef<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + AsMut<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync;
 
 impl<N: SeismicNetwork> SeismicSignedProvider<N>
 where
+    N::TransactionRequest: AsRef<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + AsMut<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
     /// Creates a new seismic signed provider
+    /// Each transaction will generate a fresh ephemeral keypair for encryption
     pub fn new(wallet: impl Into<SeismicWallet<N>>, url: reqwest::Url) -> Self {
+        // Build filler pipeline: seismic filler -> nonce+chain -> gas filler -> wallet
+        // NOTE: GasFiller MUST run LAST (after encryption) because gas estimation needs encrypted input
+        use alloy_provider::fillers::{NonceFiller, ChainIdFiller};
+        use seismic_alloy_network::fillers::SeismicGasFiller;
+
         let tx_filler_layer = JoinFill::new(
-            <N as RecommendedFillers>::recommended_fillers(),
+            JoinFill::new(
+                JoinFill::new(
+                    build_seismic_filler_chain::<N>(),
+                    JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
+                ),
+                SeismicGasFiller::default(),
+            ),
             WalletFiller::new(wallet.into()),
         );
 
@@ -209,17 +226,37 @@ where
 }
 
 /// Seismic unsigned provider type alias
-pub type SeismicUnsignedProviderInner<N> =
-    SeismicProvider<N, FillProvider<JoinFill<Identity, SeismicRecFillers<N>>, RootProvider<N>, N>>;
+/// Filler chain: SeismicElements (generates elements & encrypts) -> (Nonce+ChainId) -> Gas
+/// NOTE: GasFiller runs LAST (after encryption) because gas estimation needs encrypted input
+pub type SeismicUnsignedProviderInner<N> = SeismicProvider<
+    N,
+    FillProvider<
+        JoinFill<
+            JoinFill<
+                SeismicElementsFiller,
+                JoinFill<alloy_provider::fillers::NonceFiller, alloy_provider::fillers::ChainIdFiller>,
+            >,
+            seismic_alloy_network::fillers::SeismicGasFiller,
+        >,
+        RootProvider<N>,
+        N,
+    >,
+>;
 
 /// Seismic unsigned provider
 #[derive(Debug, Clone)]
 pub struct SeismicUnsignedProvider<N: SeismicNetwork>(SeismicUnsignedProviderInner<N>)
 where
+    N::TransactionRequest: AsRef<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + AsMut<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync;
 
 impl<N: SeismicNetwork> SeismicUnsignedProvider<N>
 where
+    N::TransactionRequest: AsRef<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + AsMut<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -230,10 +267,20 @@ where
     }
 
     /// Creates a new Seismic unsigned provider with an HTTP connection
+    /// Each transaction will generate a fresh ephemeral keypair for encryption
     pub fn new_http(url: reqwest::Url) -> Self {
-        // Create layer with recommended fillers and Identity
-        let tx_filler_layer =
-            JoinFill::new(Identity, <N as RecommendedFillers>::recommended_fillers());
+        // Build filler pipeline: seismic filler -> nonce+chain -> gas filler
+        // NOTE: GasFiller MUST run LAST (after encryption) because gas estimation needs encrypted input
+        use alloy_provider::fillers::{NonceFiller, ChainIdFiller};
+        use seismic_alloy_network::fillers::SeismicGasFiller;
+
+        let tx_filler_layer = JoinFill::new(
+            JoinFill::new(
+                build_seismic_filler_chain::<N>(),
+                JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
+            ),
+            SeismicGasFiller::default(),
+        );
 
         let inner = ProviderBuilder::<_, _, N>::default()
             .network::<N>()
@@ -245,9 +292,20 @@ where
     }
 
     /// Creates a new Seismic unsigned provider with a websocket connection
+    /// Each transaction will generate a fresh ephemeral keypair for encryption
     pub async fn new_ws(url: reqwest::Url) -> Self {
-        let tx_filler_layer =
-            JoinFill::new(Identity, <N as RecommendedFillers>::recommended_fillers());
+        // Build filler pipeline: seismic filler -> nonce+chain -> gas filler
+        // NOTE: GasFiller MUST run LAST (after encryption) because gas estimation needs encrypted input
+        use alloy_provider::fillers::{NonceFiller, ChainIdFiller};
+        use seismic_alloy_network::fillers::SeismicGasFiller;
+
+        let tx_filler_layer = JoinFill::new(
+            JoinFill::new(
+                build_seismic_filler_chain::<N>(),
+                JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
+            ),
+            SeismicGasFiller::default(),
+        );
 
         let inner = ProviderBuilder::<_, _, N>::default()
             .network::<N>()
@@ -275,6 +333,9 @@ where
 
 impl<N: SeismicNetwork> Deref for SeismicSignedProvider<N>
 where
+    N::TransactionRequest: AsRef<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + AsMut<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
 {
     type Target = SeismicSignedProviderInner<N>;
@@ -286,6 +347,9 @@ where
 
 impl<N: SeismicNetwork> Deref for SeismicUnsignedProvider<N>
 where
+    N::TransactionRequest: AsRef<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + AsMut<seismic_alloy_rpc_types::SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
 {
     type Target = SeismicUnsignedProviderInner<N>;
@@ -333,8 +397,8 @@ mod tests {
     use alloy_signer_local::PrivateKeySigner;
     use alloy_sol_types::SolEvent;
     use futures_util::StreamExt;
-    use seismic_alloy_consensus::{SeismicReceiptEnvelope, TxSeismic};
-    use seismic_alloy_network::foundry::builder::seismic_foundry_tx_builder;
+    use seismic_alloy_consensus::SeismicReceiptEnvelope;
+    use seismic_alloy_network::foundry::builder::{seismic_foundry_tx_builder, SeismicTransactionBuilderExt};
 
     /// Path to local sanvil binary for local testing
     const SANVIL_PATH: &str = "sanvil";
@@ -393,7 +457,7 @@ mod tests {
             .with_input(plaintext)
             .with_kind(TxKind::Create)
             .with_from(from)
-            .into();
+            .seismic();
 
         let res = unsigned_provider.seismic_call(SendableTx::Builder(tx.into())).await.unwrap();
         assert_eq!(res, ContractTestContext::get_code());
@@ -408,7 +472,7 @@ mod tests {
             SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
         let tx =
-            seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
+            seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).seismic();
 
         let res = provider.seismic_call(SendableTx::Builder(tx.into())).await;
         assert!(res.is_ok(), "seismic_call failed: {:?}", res.unwrap_err());
@@ -425,8 +489,8 @@ mod tests {
         let provider =
             SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
-        // testing send transaction
-        let tx =
+        // Test sending a regular (non-seismic) Create transaction
+        let tx: seismic_alloy_rpc_types::SeismicTransactionRequest =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
 
         let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
@@ -445,8 +509,9 @@ mod tests {
         let provider =
             SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
 
-        // testing send transaction
-        let tx =
+        // Deploy contract with a regular (non-seismic) transaction
+        // Note: Create transactions should never be seismic
+        let tx: seismic_alloy_rpc_types::SeismicTransactionRequest =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
 
         let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
@@ -455,23 +520,13 @@ mod tests {
         let code = provider.get_code_at(contract_address).await.unwrap();
         assert_eq!(code, ContractTestContext::get_code());
 
-        let network_pk = provider.get_tee_pubkey().await.unwrap();
-        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
-        let elements = TxSeismicElements::default()
-            .with_encryption_pubkey(encryption_keypair.public_key())
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
+        // Use new .seismic() API - fillers handle encryption automatically
         let tx_input = ContractTestContext::get_set_number_input_plaintext();
-        let encrypted_input = elements
-            .client_encrypt(&tx_input, &network_pk, &encryption_keypair.secret_key())
-            .unwrap();
-
-        let mut tx = seismic_foundry_tx_builder()
-            .with_input(encrypted_input)
+        let tx: seismic_alloy_rpc_types::SeismicTransactionRequest = seismic_foundry_tx_builder()
+            .with_input(tx_input)  // Pass plaintext directly
             .with_kind(TxKind::Call(contract_address))
-            .into();
-        tx.inner.transaction_type = Some(TxSeismic::TX_TYPE);
-        tx.seismic_elements = Some(elements);
+            .into()
+            .seismic();
 
         let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
         let receipt = pending_tx.get_receipt().await.unwrap();
@@ -494,8 +549,9 @@ mod tests {
         let ws_provider =
             SeismicUnsignedProvider::<SeismicFoundry>::new_ws(anvil.ws_endpoint_url()).await;
 
-        // deploy contract
-        let tx =
+        // Deploy contract with a regular (non-seismic) transaction
+        // Note: Create transactions should never be seismic
+        let tx: seismic_alloy_rpc_types::SeismicTransactionRequest =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
         let pending_tx = provider.send_transaction(tx.into()).await.unwrap();
         let receipt = pending_tx.get_receipt().await.unwrap();
@@ -507,46 +563,26 @@ mod tests {
         // subscribe to events
         let event_sub = ws_provider.subscribe_logs(&filter).await.unwrap();
 
-        // set number
-        let network_pk = provider.get_tee_pubkey().await.unwrap();
-        let encryption_keypair = TxSeismicElements::get_rand_encryption_keypair();
-        let elements = TxSeismicElements::default()
-            .with_encryption_pubkey(encryption_keypair.public_key())
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
-
+        // set number - use new .seismic() API
         let tx_input_set_number = ContractTestContext::get_set_number_input_plaintext();
-        let encrypted_input = elements
-            .client_encrypt(&tx_input_set_number, &network_pk, &encryption_keypair.secret_key())
-            .unwrap();
-
-        let mut tx_set_number = seismic_foundry_tx_builder()
-            .with_input(encrypted_input)
+        let tx_set_number: seismic_alloy_rpc_types::SeismicTransactionRequest = seismic_foundry_tx_builder()
+            .with_input(tx_input_set_number)  // Pass plaintext directly
             .with_kind(TxKind::Call(contract_address))
             .into();
-        tx_set_number.inner.transaction_type = Some(TxSeismic::TX_TYPE);
-        tx_set_number.seismic_elements = Some(elements);
+        let tx_set_number = tx_set_number.seismic();  // Mark as seismic
 
         let pending_tx_set_number = provider.send_transaction(tx_set_number.into()).await.unwrap();
         let receipt_set_number = pending_tx_set_number.get_receipt().await.unwrap();
 
         assert!(receipt_set_number.status());
 
-        // increment number
+        // increment number - use new .seismic() API
         let tx_input_increment_number = ContractTestContext::get_increment_input_plaintext();
-        let encrypted_input = elements
-            .client_encrypt(
-                &tx_input_increment_number,
-                &network_pk,
-                &encryption_keypair.secret_key(),
-            )
-            .unwrap();
-
-        let mut tx_increment_number = seismic_foundry_tx_builder()
-            .with_input(encrypted_input)
+        let tx_increment_number: seismic_alloy_rpc_types::SeismicTransactionRequest = seismic_foundry_tx_builder()
+            .with_input(tx_input_increment_number)  // Pass plaintext directly
             .with_kind(TxKind::Call(contract_address))
             .into();
-        tx_increment_number.inner.transaction_type = Some(TxSeismic::TX_TYPE);
-        tx_increment_number.seismic_elements = Some(elements);
+        let tx_increment_number = tx_increment_number.seismic();  // Mark as seismic
 
         let pending_tx_increment_number =
             provider.send_transaction(tx_increment_number.into()).await.unwrap();

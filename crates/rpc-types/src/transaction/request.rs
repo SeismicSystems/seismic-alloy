@@ -526,6 +526,71 @@ impl InputDecryptionElements for SeismicTransactionRequest {
     }
 }
 
+// ============================================================================
+// NEW: Seismic transaction builder helpers and validation
+// Added for filler-based seismic transaction handling
+// ============================================================================
+
+impl SeismicTransactionRequest {
+    /// Mark this transaction as a seismic transaction.
+    /// Fillers will generate seismic elements and encrypt the input.
+    pub fn seismic(mut self) -> Self {
+        self.inner.transaction_type = Some(TxSeismic::TX_TYPE);
+        self
+    }
+
+    /// Check if this transaction is marked as seismic
+    pub fn is_seismic(&self) -> bool {
+        self.inner.transaction_type == Some(TxSeismic::TX_TYPE)
+            || self.seismic_elements.is_some()
+    }
+
+    /// Check if this transaction needs seismic elements to be filled
+    pub fn needs_seismic_elements(&self) -> bool {
+        self.is_seismic() && self.seismic_elements.is_none()
+    }
+
+    /// Validate that transaction type and seismic elements are compatible.
+    /// Returns an error if non-seismic type is set with seismic elements.
+    pub fn validate_seismic_consistency(&self) -> Result<(), &'static str> {
+        if let Some(tx_type) = self.inner.transaction_type {
+            if tx_type != TxSeismic::TX_TYPE && self.seismic_elements.is_some() {
+                return Err(
+                    "Invalid transaction: non-seismic transaction type set with seismic elements. \
+                     Either call .seismic() or remove seismic_elements."
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+// ============================================================================
+// AsRef/AsMut implementations for better trait bound compatibility
+// ============================================================================
+
+impl AsRef<SeismicTransactionRequest> for SeismicTransactionRequest {
+    fn as_ref(&self) -> &SeismicTransactionRequest {
+        self
+    }
+}
+
+impl AsMut<SeismicTransactionRequest> for SeismicTransactionRequest {
+    fn as_mut(&mut self) -> &mut SeismicTransactionRequest {
+        self
+    }
+}
+
+// Note: AsRef<SeismicTransactionRequest> for WithOtherFields<SeismicTransactionRequest>
+// is automatically provided by alloy_serde's blanket impl:
+// impl<T, U> AsRef<U> for WithOtherFields<T> where T: AsRef<U>
+
+impl AsMut<SeismicTransactionRequest> for WithOtherFields<SeismicTransactionRequest> {
+    fn as_mut(&mut self) -> &mut SeismicTransactionRequest {
+        &mut self.inner
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloy_primitives::Bytes;
