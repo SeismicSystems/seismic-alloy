@@ -202,10 +202,11 @@ impl SeismicTransactionRequest {
             return Ok(SeismicTypedTransaction::Seismic(tx));
         }
 
-        let tx = self
-            .inner
-            .build_typed_tx()
-            .map_err(|orig_tx| Self { inner: orig_tx, seismic_elements: self.seismic_elements, pending_signed_read: self.pending_signed_read })?;
+        let tx = self.inner.build_typed_tx().map_err(|orig_tx| Self {
+            inner: orig_tx,
+            seismic_elements: self.seismic_elements,
+            pending_signed_read: self.pending_signed_read,
+        })?;
 
         match tx {
             TypedTransaction::Legacy(tx) => Ok(SeismicTypedTransaction::Legacy(tx)),
@@ -457,9 +458,11 @@ where
             SeismicTypedTransaction::Eip1559(tx) => {
                 Self { inner: tx.into(), seismic_elements: None, pending_signed_read: None }
             }
-            SeismicTypedTransaction::Eip4844(tx) => {
-                Self { inner: TransactionRequest::from_transaction(tx), seismic_elements: None, pending_signed_read: None }
-            }
+            SeismicTypedTransaction::Eip4844(tx) => Self {
+                inner: TransactionRequest::from_transaction(tx),
+                seismic_elements: None,
+                pending_signed_read: None,
+            },
             SeismicTypedTransaction::Eip7702(tx) => {
                 Self { inner: tx.into(), seismic_elements: None, pending_signed_read: None }
             }
@@ -647,7 +650,7 @@ impl SeismicTransactionRequest {
             if tx_type != TxSeismic::TX_TYPE && self.seismic_elements.is_some() {
                 return Err(
                     "Invalid transaction: non-seismic transaction type set with seismic elements. \
-                     Either call .seismic() or remove seismic_elements."
+                     Either call .seismic() or remove seismic_elements.",
                 );
             }
         }

@@ -4,17 +4,13 @@ use alloy_network::{eip2718::Encodable2718, TransactionBuilder};
 use alloy_primitives::Bytes;
 use alloy_provider::{
     fillers::{FillProvider, TxFiller},
-    Provider, ProviderCall, RootProvider, SendableTx,
+    Provider, RootProvider, SendableTx,
 };
-use alloy_rpc_client::NoParams;
-use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::InputDecryptionElements;
+use alloy_transport::TransportResult;
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
 };
-use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use seismic_enclave::secp256k1::PublicKey;
-use std::str::FromStr;
 
 /// Extends the alloy_provider::Provider with Seismic specific functionality
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -41,17 +37,7 @@ where
 
     /// Get the PublicKey of the enclave
     async fn get_tee_pubkey(&self) -> TransportResult<PublicKey> {
-        let call: ProviderCall<NoParams, String> =
-            self.client().request_noparams("seismic_getTeePublicKey").into();
-        let resp = call.await?;
-        let stripped = resp.strip_prefix("0x").unwrap_or(&resp);
-        match PublicKey::from_str(stripped) {
-            Ok(pk) => Ok(pk),
-            Err(e) => Err(TransportErrorKind::custom_str(&format!(
-                "Error getting tee pubkey from server: {:?}",
-                e
-            ))),
-        }
+        seismic_alloy_network::fetch_tee_pubkey(self).await
     }
 
     /// Makes a call request, perhaps making the call signed depinding on the input type

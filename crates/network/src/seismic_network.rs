@@ -47,7 +47,9 @@ where
 
     /// Extract metadata from a seismic envelope for decryption.
     /// Returns None if the envelope is not a seismic transaction.
-    fn extract_seismic_metadata(envelope: &Self::TxEnvelope) -> Option<seismic_alloy_consensus::TxSeismicMetadata>;
+    fn extract_seismic_metadata(
+        envelope: &Self::TxEnvelope,
+    ) -> Option<seismic_alloy_consensus::TxSeismicMetadata>;
 }
 
 #[async_trait::async_trait]
@@ -120,10 +122,12 @@ impl SeismicNetwork for SeismicReth {
         }
     }
 
-    fn extract_seismic_metadata(envelope: &Self::TxEnvelope) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
+    fn extract_seismic_metadata(
+        envelope: &Self::TxEnvelope,
+    ) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
         use alloy_consensus::transaction::SignableTransaction;
-        use seismic_alloy_consensus::{SeismicTxEnvelope, TxLegacyFields, TxSeismicMetadata};
         use alloy_primitives::Address;
+        use seismic_alloy_consensus::{SeismicTxEnvelope, TxLegacyFields, TxSeismicMetadata};
 
         match envelope {
             SeismicTxEnvelope::Seismic(signed_tx) => {
@@ -208,11 +212,13 @@ impl SeismicNetwork for SeismicFoundry {
         }
     }
 
-    fn extract_seismic_metadata(envelope: &Self::TxEnvelope) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
-        use alloy_consensus::transaction::SignableTransaction;
-        use seismic_alloy_consensus::{TxLegacyFields, TxSeismicMetadata};
-        use alloy_primitives::Address;
+    fn extract_seismic_metadata(
+        envelope: &Self::TxEnvelope,
+    ) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
         use crate::foundry::envelope::SeismicFoundryTxEnvelope;
+        use alloy_consensus::transaction::SignableTransaction;
+        use alloy_primitives::Address;
+        use seismic_alloy_consensus::{TxLegacyFields, TxSeismicMetadata};
 
         match envelope {
             SeismicFoundryTxEnvelope::Seismic(signed_tx) => {
