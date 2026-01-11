@@ -18,6 +18,7 @@ use seismic_alloy_network::{
 };
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use std::ops::Deref;
+use std::str::FromStr;
 
 use crate::SeismicProviderExt;
 
@@ -199,15 +200,45 @@ where
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
-    /// Creates a new seismic signed provider
-    /// Each transaction will generate a fresh ephemeral keypair for encryption
-    pub fn new(wallet: impl Into<SeismicWallet<N>>, url: reqwest::Url) -> Self {
+    /// Creates a new seismic signed provider and fetches the TEE pubkey
+    /// This enables estimate_gas support for seismic transactions
+    pub async fn new(wallet: impl Into<SeismicWallet<N>> + Clone, url: reqwest::Url) -> TransportResult<Self> {
+        let wallet = wallet.into();
+
+        // Create temporary provider without TEE pubkey to fetch it
+        let temp_provider = Self::new_with_tee_pubkey(wallet.clone(), url.clone(), None);
+
+        let tee_pubkey = temp_provider.0.root().client()
+            .request_noparams("seismic_getTeePublicKey")
+            .await
+            .and_then(|resp: String| {
+                let stripped = resp.strip_prefix("0x").unwrap_or(&resp);
+                seismic_enclave::secp256k1::PublicKey::from_str(stripped)
+                    .map_err(|e| TransportErrorKind::custom_str(
+                        &format!("Error parsing TEE pubkey: {:?}", e)
+                    ).into())
+            })?;
+
+        Ok(Self::new_with_tee_pubkey(wallet, url, Some(tee_pubkey)))
+    }
+
+    /// Internal constructor with optional TEE pubkey
+    fn new_with_tee_pubkey(
+        wallet: impl Into<SeismicWallet<N>>,
+        url: reqwest::Url,
+        tee_pubkey: Option<seismic_enclave::secp256k1::PublicKey>,
+    ) -> Self {
         // Build filler pipeline: seismic filler -> nonce+chain -> gas filler -> wallet
-        // NOTE: GasFiller MUST run LAST (after encryption) because gas estimation needs encrypted input
+        // NOTE: SeismicElementsFiller runs first to encrypt, then GasFiller can estimate gas
+        let seismic_filler = match tee_pubkey {
+            Some(pk) => SeismicElementsFiller::with_tee_pubkey(pk),
+            None => SeismicElementsFiller::new(),
+        };
+
         let tx_filler_layer = JoinFill::new(
             JoinFill::new(
                 JoinFill::new(
-                    build_seismic_filler_chain::<N>(),
+                    seismic_filler,
                     JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
                 ),
                 SeismicGasFiller::default(),
@@ -355,11 +386,11 @@ where
 }
 
 /// Create a new SeismicSignedProvider for the SeismicReth network
-pub fn sreth_signed_provider(
-    wallet: impl Into<SeismicWallet<SeismicReth>>,
+pub async fn sreth_signed_provider(
+    wallet: impl Into<SeismicWallet<SeismicReth>> + Clone,
     url: reqwest::Url,
-) -> SeismicSignedProvider<SeismicReth> {
-    SeismicSignedProvider::new(wallet, url)
+) -> TransportResult<SeismicSignedProvider<SeismicReth>> {
+    SeismicSignedProvider::new(wallet, url).await
 }
 
 /// Create a new SeismicUnsignedProvider for the SeismicReth network
@@ -368,11 +399,11 @@ pub fn sreth_unsigned_provider(url: reqwest::Url) -> SeismicUnsignedProvider<Sei
 }
 
 /// Create a new SeismicSignedProvider for the SeismicFoundry network
-pub fn sfoundry_signed_provider(
-    wallet: impl Into<SeismicWallet<SeismicFoundry>>,
+pub async fn sfoundry_signed_provider(
+    wallet: impl Into<SeismicWallet<SeismicFoundry>> + Clone,
     url: reqwest::Url,
-) -> SeismicSignedProvider<SeismicFoundry> {
-    SeismicSignedProvider::new(wallet, url)
+) -> TransportResult<SeismicSignedProvider<SeismicFoundry>> {
+    SeismicSignedProvider::new(wallet, url).await
 }
 
 /// Create a new SeismicUnsignedProvider for the SeismicFoundry network
@@ -403,7 +434,9 @@ mod tests {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider =
-            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url())
+                .await
+                .unwrap();
 
         // If this fails with a message like "Method Not Found", then you may be using anvil instead
         // of sanvil
@@ -418,7 +451,9 @@ mod tests {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider =
-            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url())
+                .await
+                .unwrap();
 
         let tx = seismic_foundry_tx_builder().with_input(plaintext).with_to(Address::ZERO).into();
         let res = provider.send_transaction(tx.into()).await.unwrap();
@@ -465,7 +500,9 @@ mod tests {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider =
-            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url())
+                .await
+                .unwrap();
 
         let tx =
             seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).seismic();
@@ -483,7 +520,9 @@ mod tests {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider =
-            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url())
+                .await
+                .unwrap();
 
         // Test sending a regular (non-seismic) Create transaction
         let tx: SeismicTransactionRequest =
@@ -503,7 +542,9 @@ mod tests {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
         let wallet = get_wallet(&anvil);
         let provider =
-            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url());
+            SeismicSignedProvider::<SeismicFoundry>::new(wallet.clone(), anvil.endpoint_url())
+                .await
+                .unwrap();
 
         // Deploy contract with a regular (non-seismic) transaction
         // Note: Create transactions should never be seismic
@@ -541,7 +582,9 @@ mod tests {
         let plaintext = ContractTestContext::get_deploy_input_plaintext();
         let anvil = Anvil::at(SANVIL_PATH).block_time(2).spawn();
         let wallet = get_wallet(&anvil);
-        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet, anvil.endpoint_url());
+        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet, anvil.endpoint_url())
+            .await
+            .unwrap();
         let ws_provider =
             SeismicUnsignedProvider::<SeismicFoundry>::new_ws(anvil.ws_endpoint_url()).await;
 

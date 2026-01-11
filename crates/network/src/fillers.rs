@@ -10,7 +10,6 @@ use alloy_provider::{
     Provider, SendableTx,
 };
 use alloy_transport::{TransportErrorKind, TransportResult};
-use futures::FutureExt;
 use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use std::str::FromStr;
@@ -69,16 +68,18 @@ where
         P: Provider<N>,
     {
         if self.is_seismic_tx::<N>(tx) {
-            // For seismic transactions, we cannot call estimate_gas during prepare()
-            // because the input is not encrypted yet. Use default gas values instead.
-            // Users should manually set gas if they need specific limits.
-            let gas_price_fut = tx.gas_price().map_or_else(
-                || provider.get_gas_price().right_future(),
-                |gas_price| async move { Ok(gas_price) }.left_future(),
-            );
+            // For seismic transactions, treat them like legacy transactions
+            // Encryption should have already happened in SeismicElementsFiller.fill_sync()
+            // so we can safely call estimate_gas
+            let gas_price = match tx.gas_price() {
+                Some(price) => price,
+                None => provider.get_gas_price().await?,
+            };
 
-            let gas_limit = tx.gas_limit().unwrap_or(30_000_000); // Default 30M gas for seismic txs
-            let gas_price = gas_price_fut.await?;
+            let gas_limit = match tx.gas_limit() {
+                Some(limit) => limit,
+                None => provider.estimate_gas(tx.clone()).await?,
+            };
 
             Ok(GasFillable::Legacy { gas_limit, gas_price })
         } else {
@@ -100,13 +101,27 @@ where
 /// Each transaction gets a fresh ephemeral keypair for encryption.
 /// This combines element generation and encryption into a single filler
 /// to avoid the complexity of sharing ephemeral state between separate fillers.
-#[derive(Clone, Debug, Default)]
-pub struct SeismicElementsFiller;
+#[derive(Clone, Debug)]
+pub struct SeismicElementsFiller {
+    /// Cached TEE public key (fetched once at provider creation)
+    tee_pubkey: Option<seismic_enclave::secp256k1::PublicKey>,
+}
+
+impl Default for SeismicElementsFiller {
+    fn default() -> Self {
+        Self { tee_pubkey: None }
+    }
+}
 
 impl SeismicElementsFiller {
-    /// Create a new SeismicElementsFiller
+    /// Create a new SeismicElementsFiller without TEE pubkey (will fetch lazily)
     pub fn new() -> Self {
-        Self
+        Self::default()
+    }
+
+    /// Create a new SeismicElementsFiller with a cached TEE pubkey
+    pub fn with_tee_pubkey(tee_pubkey: seismic_enclave::secp256k1::PublicKey) -> Self {
+        Self { tee_pubkey: Some(tee_pubkey) }
     }
 }
 
@@ -148,8 +163,41 @@ where
         }
     }
 
-    fn fill_sync(&self, _tx: &mut SendableTx<N>) {
-        // No-op: we set elements and encrypt in fill()
+    fn fill_sync(&self, tx: &mut SendableTx<N>) {
+        // If we have a cached TEE pubkey, encrypt synchronously here
+        // This ensures encryption happens before GasFiller.prepare() runs
+        if let Some(tee_pubkey) = &self.tee_pubkey {
+            if let Some(builder) = tx.as_mut_builder() {
+                let seismic_builder: &mut SeismicTransactionRequest = builder.as_mut();
+
+                // Only process if this is a seismic transaction without elements yet
+                if seismic_builder.is_seismic() && seismic_builder.seismic_elements.is_none() {
+                    // Generate fresh ephemeral keypair for this transaction
+                    let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
+
+                    // Set seismic elements
+                    let elements = TxSeismicElements::default()
+                        .with_encryption_pubkey(ephemeral_keypair.public_key())
+                        .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
+                        .with_message_version(0);
+
+                    seismic_builder.set_seismic_elements(elements.clone());
+
+                    // Encrypt the input (always assume plaintext)
+                    if let Some(plaintext) = N::get_request_input(builder) {
+                        if !plaintext.is_empty() {
+                            if let Ok(encrypted) = elements.client_encrypt(
+                                plaintext,
+                                tee_pubkey,
+                                &ephemeral_keypair.secret_key(),
+                            ) {
+                                let _ = N::set_request_input(builder, encrypted);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     async fn prepare<P>(&self, provider: &P, tx: &N::TransactionRequest)
@@ -163,10 +211,18 @@ where
         seismic_tx.validate_seismic_consistency()
             .map_err(|e| TransportErrorKind::custom_str(e))?;
 
+        // If encryption already happened in fill_sync(), we're done
+        if seismic_tx.is_seismic() && seismic_tx.seismic_elements.is_some() {
+            // Return dummy values since encryption is already complete
+            let dummy_keypair = TxSeismicElements::get_rand_encryption_keypair();
+            let dummy_pubkey = seismic_enclave::get_unsecure_sample_secp256k1_pk();
+            return Ok((dummy_pubkey, dummy_keypair));
+        }
+
         // Generate fresh ephemeral keypair for this transaction
         let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
 
-        // Get TEE public key from RPC
+        // Get TEE public key from RPC (only if we didn't cache it)
         let tee_pubkey = provider.root().client()
             .request_noparams("seismic_getTeePublicKey")
             .await
@@ -188,6 +244,11 @@ where
 
         if let Some(builder) = tx.as_mut_builder() {
             let seismic_builder: &mut SeismicTransactionRequest = builder.as_mut();
+
+            // If elements are already set (from fill_sync), skip encryption
+            if seismic_builder.seismic_elements.is_some() {
+                return Ok(tx);
+            }
 
             // Set seismic elements using the real ephemeral keypair's public key
             let elements = TxSeismicElements::default()
