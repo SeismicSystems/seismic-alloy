@@ -23,7 +23,7 @@ use alloy_rpc_types_eth::AccessList;
 use alloy_serde::WithOtherFields;
 use envelope::SeismicFoundryTxEnvelope;
 use seismic_alloy_consensus::{
-    SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic,
+    SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, SEISMIC_TX_TYPE_ID,
 };
 use seismic_alloy_rpc_types::{SeismicTransactionReceipt, SeismicTransactionRequest};
 use typed_tx::SeismicFoundryTypedTransaction;
@@ -196,6 +196,13 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
 
     #[doc(alias = "output_transaction_type")]
     fn output_tx_type(&self) -> AnyTxType {
+        // Check if explicit transaction_type is set to seismic
+        if let Some(tx_type) = self.inner.transaction_type {
+            if tx_type == SEISMIC_TX_TYPE_ID {
+                return AnyTxType(SEISMIC_TX_TYPE_ID);
+            }
+        }
+
         match self.inner.preferred_type() {
             TxType::Legacy => AnyTxType(LEGACY_TX_TYPE_ID),
             TxType::Eip1559 => AnyTxType(EIP1559_TX_TYPE_ID),
