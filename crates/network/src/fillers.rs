@@ -13,6 +13,7 @@ use alloy_provider::{
 };
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_eth::BlockNumberOrTag;
+use alloy_signer::k256::Secp256k1;
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
@@ -105,9 +106,7 @@ where
     {
         // Check if transaction is marked as seismic (by tx type or has elements)
         let seismic_tx: &SeismicTransactionRequest = tx.as_ref();
-        let is_marked_seismic = seismic_tx.is_seismic();
-
-        if is_marked_seismic {
+        if seismic_tx.is_seismic() {
             // Seismic transactions cannot be CREATE transactions
             if tx.to().is_none() {
                 return Err(TransportErrorKind::custom_str(
@@ -169,10 +168,10 @@ where
 
             // Create temporary provider for estimate_gas call
             let client = RpcClient::new_http(rpc_url);
-            let temp_provider =
+            let gas_estimate_provider =
                 ProviderBuilder::<_, _, N>::default().network::<N>().connect_client(client);
 
-            let gas_limit = temp_provider.estimate_gas(tx_for_estimate).await?;
+            let gas_limit = gas_estimate_provider.estimate_gas(tx_for_estimate).await?;
             let gas_fillable = GasFillable::Legacy { gas_limit, gas_price };
 
             GasFiller::fill(&self.inner, gas_fillable, tx).await
@@ -347,8 +346,7 @@ where
         let ephemeral_secret_key = self.ephemeral_secret_key.clone();
 
         // Derive public key from secret key
-        let secp = seismic_enclave::secp256k1::Secp256k1::new();
-        let ephemeral_pubkey = ephemeral_secret_key.public_key(&secp);
+        let ephemeral_pubkey = ephemeral_secret_key.public_key(&Secp256k1::new());
 
         // Get TEE public key (use cached if available, otherwise fetch via RPC)
         let tee_pubkey = if let Some(cached) = &self.tee_pubkey {
@@ -387,6 +385,7 @@ where
         let elements = TxSeismicElements::default()
             .with_encryption_pubkey(ephemeral_pubkey)
             .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
+            // message version != 0 is for typescript / Eip712 signed transactions
             .with_message_version(0)
             .with_recent_block_hash(recent_block_hash)
             .with_expires_at_block(expires_at_block)
