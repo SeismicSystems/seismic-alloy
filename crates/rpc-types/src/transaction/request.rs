@@ -39,12 +39,6 @@ pub struct SeismicTransactionRequest {
     /// For now just encrypted call data
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub seismic_elements: Option<TxSeismicElements>,
-
-    /// Pending signed_read value to be applied when elements are generated.
-    /// This is NOT serialized - it's only used to communicate with the filler.
-    /// The filler will check this and use it when creating elements.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub pending_signed_read: Option<bool>,
 }
 
 impl SeismicTransactionRequest {
@@ -60,7 +54,7 @@ impl SeismicTransactionRequest {
     /// Note: This leaves the `from` field empty.
     pub fn from_transaction<T: alloy_consensus::Transaction>(tx: T) -> Self {
         let inner = TransactionRequest::from_transaction(tx);
-        Self { inner, seismic_elements: None, pending_signed_read: None }
+        Self { inner, seismic_elements: None }
     }
 
     /// Sets the transactions type for the transactions.
@@ -205,7 +199,6 @@ impl SeismicTransactionRequest {
         let tx = self.inner.build_typed_tx().map_err(|orig_tx| Self {
             inner: orig_tx,
             seismic_elements: self.seismic_elements,
-            pending_signed_read: self.pending_signed_read,
         })?;
 
         match tx {
@@ -353,49 +346,49 @@ impl core::ops::DerefMut for SeismicTransactionRequest {
 
 impl From<TransactionRequest> for SeismicTransactionRequest {
     fn from(tx: TransactionRequest) -> Self {
-        Self { inner: tx, seismic_elements: None, pending_signed_read: None }
+        Self { inner: tx, seismic_elements: None }
     }
 }
 
 impl From<TxLegacy> for SeismicTransactionRequest {
     fn from(tx: TxLegacy) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None, pending_signed_read: None }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxEip2930> for SeismicTransactionRequest {
     fn from(tx: TxEip2930) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None, pending_signed_read: None }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxEip1559> for SeismicTransactionRequest {
     fn from(tx: TxEip1559) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None, pending_signed_read: None }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxEip7702> for SeismicTransactionRequest {
     fn from(tx: TxEip7702) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None, pending_signed_read: None }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxEip4844Variant> for SeismicTransactionRequest {
     fn from(tx: TxEip4844Variant) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None, pending_signed_read: None }
+        Self { inner, seismic_elements: None }
     }
 }
 
 impl From<TxEip4844> for SeismicTransactionRequest {
     fn from(tx: TxEip4844) -> Self {
         let inner = TransactionRequest::from_transaction(tx);
-        Self { inner, seismic_elements: None, pending_signed_read: None }
+        Self { inner, seismic_elements: None }
     }
 }
 
@@ -417,7 +410,7 @@ impl From<TxSeismic> for SeismicTransactionRequest {
             ..Default::default()
         };
 
-        Self { inner, seismic_elements: Some(seismic_elements), pending_signed_read: None }
+        Self { inner, seismic_elements: Some(seismic_elements) }
     }
 }
 
@@ -450,21 +443,20 @@ where
     fn from(tx: SeismicTypedTransaction<Eip4844>) -> Self {
         match tx {
             SeismicTypedTransaction::Legacy(tx) => {
-                Self { inner: tx.into(), seismic_elements: None, pending_signed_read: None }
+                Self { inner: tx.into(), seismic_elements: None }
             }
             SeismicTypedTransaction::Eip2930(tx) => {
-                Self { inner: tx.into(), seismic_elements: None, pending_signed_read: None }
+                Self { inner: tx.into(), seismic_elements: None }
             }
             SeismicTypedTransaction::Eip1559(tx) => {
-                Self { inner: tx.into(), seismic_elements: None, pending_signed_read: None }
+                Self { inner: tx.into(), seismic_elements: None }
             }
             SeismicTypedTransaction::Eip4844(tx) => Self {
                 inner: TransactionRequest::from_transaction(tx),
                 seismic_elements: None,
-                pending_signed_read: None,
             },
             SeismicTypedTransaction::Eip7702(tx) => {
-                Self { inner: tx.into(), seismic_elements: None, pending_signed_read: None }
+                Self { inner: tx.into(), seismic_elements: None }
             }
             SeismicTypedTransaction::Seismic(tx) => tx.into(),
         }

@@ -234,7 +234,6 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
                 .into_unbuilt(WithOtherFields::new(SeismicTransactionRequest {
                     inner: self.inner,
                     seismic_elements: self.seismic_elements,
-                    pending_signed_read: None,
                 })));
         }
         let typed_tx = self.build_typed_tx().expect("checked by missing_keys");
