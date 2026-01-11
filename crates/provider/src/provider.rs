@@ -229,21 +229,20 @@ where
         // Use the existing get_tee_pubkey method which handles parsing
         let tee_pubkey = temp_provider.get_tee_pubkey().await?;
 
-        Ok(Self::new_with_tee_pubkey(wallet, url, Some(tee_pubkey)))
+        Ok(Self::new_with_tee_pubkey(wallet, url, tee_pubkey))
     }
 
-    /// Internal constructor with optional TEE pubkey
-    fn new_with_tee_pubkey(
+    /// Creates a new seismic signed provider with a pre-fetched TEE pubkey
+    /// This allows synchronous construction if you already have the TEE pubkey
+    /// This enables estimate_gas support for seismic transactions
+    pub fn new_with_tee_pubkey(
         wallet: impl Into<SeismicWallet<N>>,
         url: reqwest::Url,
-        tee_pubkey: Option<seismic_enclave::secp256k1::PublicKey>,
+        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
     ) -> Self {
         // Build filler pipeline: seismic filler -> nonce+chain -> gas filler -> wallet
         // NOTE: SeismicElementsFiller runs first to encrypt, then GasFiller can estimate gas
-        let seismic_filler = match tee_pubkey {
-            Some(pk) => SeismicElementsFiller::with_tee_pubkey(pk),
-            None => SeismicElementsFiller::new(),
-        };
+        let seismic_filler = SeismicElementsFiller::with_tee_pubkey(tee_pubkey);
 
         let tx_filler_layer = JoinFill::new(
             JoinFill::new(
@@ -428,8 +427,8 @@ mod tests {
                 .await
                 .unwrap();
 
-        // If this fails with a message like "Method Not Found", then you may be using anvil instead
-        // of sanvil
+        // If this fails with a message like "Method Not Found",
+        // then you may be using stock anvil instead of sanvil (seismic anvil)
         let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
 
         assert_eq!(tee_pubkey, seismic_enclave::get_unsecure_sample_secp256k1_pk());
@@ -451,8 +450,7 @@ mod tests {
         assert_eq!(receipt.inner.inner.status(), true);
     }
 
-    /// Check that SeismicUnsignedProvider can inherit alloy_provider ext traits (and that they
-    /// work)
+    /// Check that SeismicUnsignedProvider correctly inherits alloy_provider ext traits
     #[tokio::test]
     async fn test_anvil_set_code() {
         let anvil = Anvil::at(SANVIL_PATH).spawn();
