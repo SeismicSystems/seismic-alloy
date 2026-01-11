@@ -379,8 +379,7 @@ where
         // NOTE: WalletFiller sets from, Nonce+ChainId set legacy fields, then SeismicElementsFiller
         // can create metadata and encrypt, then GasFiller can estimate gas.
         // Note: signed_read is false by default; it will be set to true specifically for calls
-        let seismic_filler =
-            SeismicElementsFiller::with_tee_pubkey_and_url(tee_pubkey);
+        let seismic_filler = SeismicElementsFiller::with_tee_pubkey_and_url(tee_pubkey);
 
         // Extract the ephemeral secret key for response decryption
         let ephemeral_secret_key = seismic_filler.ephemeral_secret_key().clone();

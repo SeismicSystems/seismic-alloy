@@ -28,15 +28,10 @@ where
     N: Network,
     P: Provider<N> + ?Sized,
 {
-    let resp: String = provider
-        .root()
-        .client()
-        .request_noparams("seismic_getTeePublicKey")
-        .await?;
+    let resp: String = provider.root().client().request_noparams("seismic_getTeePublicKey").await?;
     let stripped = resp.strip_prefix("0x").unwrap_or(&resp);
-    PublicKey::from_str(stripped).map_err(|e| {
-        TransportErrorKind::custom_str(&format!("Error parsing TEE pubkey: {:?}", e))
-    })
+    PublicKey::from_str(stripped)
+        .map_err(|e| TransportErrorKind::custom_str(&format!("Error parsing TEE pubkey: {:?}", e)))
 }
 
 /// A wrapper for alloy_provider::fillers::GasFiller that handles gas for seismic transactions
