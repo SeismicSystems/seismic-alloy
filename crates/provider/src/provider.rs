@@ -564,8 +564,8 @@ mod tests {
         let tx_set_number: SeismicTransactionRequest = seismic_foundry_tx_builder()
             .with_input(tx_input_set_number)  // Pass plaintext directly
             .with_kind(TxKind::Call(contract_address))
-            .into();
-        let tx_set_number = tx_set_number.seismic();  // Mark as seismic
+            .into()
+            .seismic();
 
         let pending_tx_set_number = provider.send_transaction(tx_set_number.into()).await.unwrap();
         let receipt_set_number = pending_tx_set_number.get_receipt().await.unwrap();
@@ -577,8 +577,8 @@ mod tests {
         let tx_increment_number: SeismicTransactionRequest = seismic_foundry_tx_builder()
             .with_input(tx_input_increment_number)  // Pass plaintext directly
             .with_kind(TxKind::Call(contract_address))
-            .into();
-        let tx_increment_number = tx_increment_number.seismic();  // Mark as seismic
+            .into()
+            .seismic();
 
         let pending_tx_increment_number =
             provider.send_transaction(tx_increment_number.into()).await.unwrap();
