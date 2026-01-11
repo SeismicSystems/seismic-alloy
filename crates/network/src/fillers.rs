@@ -13,11 +13,10 @@ use alloy_provider::{
 };
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_eth::BlockNumberOrTag;
-use alloy_signer::k256::Secp256k1;
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
-use seismic_enclave::secp256k1::PublicKey;
+use seismic_enclave::secp256k1::{PublicKey, Secp256k1};
 use std::str::FromStr;
 
 pub use alloy_provider::fillers::GasFiller;
