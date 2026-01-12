@@ -87,6 +87,18 @@ impl TxSeismicMetadata {
         self.seismic_elements.client_encrypt(plaintext, network_pk, client_sk, self)
     }
 
+    /// client-side decrypt: takes TEE public key and ephemeral secret key
+    /// This is the method that should be used when decrypting transaction calldata
+    /// from the client side (after receiving from thenetwork)
+    pub fn client_decrypt(
+        &self,
+        ciphertext: &Bytes,
+        network_pk: &PublicKey,
+        client_sk: &SecretKey,
+    ) -> Result<Bytes, anyhow::Error> {
+        self.seismic_elements.client_decrypt(ciphertext, network_pk, client_sk, self)
+    }
+
     #[cfg(test)]
     /// Metadata for testing
     pub fn example(seismic_elements: TxSeismicElements, sender: Address) -> TxSeismicMetadata {

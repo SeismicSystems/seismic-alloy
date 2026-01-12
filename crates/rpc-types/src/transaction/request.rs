@@ -196,10 +196,10 @@ impl SeismicTransactionRequest {
             return Ok(SeismicTypedTransaction::Seismic(tx));
         }
 
-        let tx = self.inner.build_typed_tx().map_err(|orig_tx| Self {
-            inner: orig_tx,
-            seismic_elements: self.seismic_elements,
-        })?;
+        let tx = self
+            .inner
+            .build_typed_tx()
+            .map_err(|orig_tx| Self { inner: orig_tx, seismic_elements: self.seismic_elements })?;
 
         match tx {
             TypedTransaction::Legacy(tx) => Ok(SeismicTypedTransaction::Legacy(tx)),
@@ -451,10 +451,9 @@ where
             SeismicTypedTransaction::Eip1559(tx) => {
                 Self { inner: tx.into(), seismic_elements: None }
             }
-            SeismicTypedTransaction::Eip4844(tx) => Self {
-                inner: TransactionRequest::from_transaction(tx),
-                seismic_elements: None,
-            },
+            SeismicTypedTransaction::Eip4844(tx) => {
+                Self { inner: TransactionRequest::from_transaction(tx), seismic_elements: None }
+            }
             SeismicTypedTransaction::Eip7702(tx) => {
                 Self { inner: tx.into(), seismic_elements: None }
             }

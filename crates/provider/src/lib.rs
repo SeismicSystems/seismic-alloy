@@ -6,7 +6,6 @@ mod traits;
 pub use traits::SeismicProviderExt;
 
 pub mod provider;
-pub use provider::SeismicSignedProvider;
-pub use provider::SeismicUnsignedProvider;
+pub use provider::{SeismicSignedProvider, SeismicUnsignedProvider};
 
 pub mod test_utils;
