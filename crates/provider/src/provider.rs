@@ -143,7 +143,7 @@ where
                 let seismic_tx: &SeismicTransactionRequest = builder.as_ref();
                 if !seismic_tx.is_seismic() {
                     // Not seismic, just pass through
-                    return self.inner.seismic_call(SendableTx::Builder(builder)).await;
+                    return self.call(builder).await;
                 }
 
                 // For seismic calls, mark as signed_read before filling
