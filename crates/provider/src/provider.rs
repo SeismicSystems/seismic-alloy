@@ -2,7 +2,10 @@
 use alloy_network::TransactionBuilder;
 use alloy_primitives::Bytes;
 use alloy_provider::{
-    fillers::{ChainIdFiller, FillProvider, JoinFill, NonceFiller, TxFiller, WalletFiller},
+    fillers::{
+        ChainIdFiller, FillProvider, JoinFill, NonceFiller, SimpleNonceManager, TxFiller,
+        WalletFiller,
+    },
     PendingTransactionBuilder, Provider, ProviderBuilder, ProviderLayer, RootProvider, SendableTx,
     WsConnect,
 };
@@ -322,10 +325,7 @@ pub type SeismicSignedProviderInner<N> = SeismicSignedProviderLayer<
             JoinFill<
                 JoinFill<
                     WalletFiller<SeismicWallet<N>>,
-                    JoinFill<
-                        alloy_provider::fillers::NonceFiller,
-                        alloy_provider::fillers::ChainIdFiller,
-                    >,
+                    JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>,
                 >,
                 SeismicElementsFiller,
             >,
@@ -384,11 +384,22 @@ where
         // Extract the ephemeral secret key for response decryption
         let ephemeral_secret_key = seismic_filler.ephemeral_secret_key().clone();
 
+        // TODO: Create a custom nonce manager that distinguishes between calls and transactions.
+        // Currently using SimpleNonceManager which fetches nonces fresh from the network
+        // each time, avoiding the issue where signed calls (which go through the filler
+        // pipeline and require signing) would incorrectly increment a cached nonce counter.
+        // A custom manager could be smarter: only increment for send_transaction, not for
+        // eth_call operations that happen to be signed (seismic_call).
         let tx_filler_layer = JoinFill::new(
             JoinFill::new(
                 JoinFill::new(
                     WalletFiller::new(wallet.into()),
-                    JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
+                    // Using SimpleNonceManager instead of cached to avoid nonce gaps when
+                    // signed calls are made between transactions
+                    JoinFill::new(
+                        NonceFiller::<SimpleNonceManager>::simple(),
+                        ChainIdFiller::default(),
+                    ),
                 ),
                 seismic_filler,
             ),
@@ -415,10 +426,7 @@ pub type SeismicUnsignedProviderInner<N> = SeismicUnsignedProviderLayer<
         JoinFill<
             JoinFill<
                 SeismicElementsFiller,
-                JoinFill<
-                    alloy_provider::fillers::NonceFiller,
-                    alloy_provider::fillers::ChainIdFiller,
-                >,
+                JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>,
             >,
             seismic_alloy_network::fillers::SeismicGasFiller,
         >,
@@ -452,10 +460,18 @@ where
         // encryption
         let seismic_filler = SeismicElementsFiller::new();
 
+        // TODO: Create a custom nonce manager that distinguishes between calls and transactions.
+        // Using SimpleNonceManager which fetches nonces fresh each time to avoid nonce gaps
+        // when signed calls (which require signing even though they're just eth_call) are
+        // made between transactions.
         let filler_chain = JoinFill::new(
             JoinFill::new(
                 seismic_filler,
-                JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
+                // Using SimpleNonceManager instead of cached to avoid nonce gaps
+                JoinFill::new(
+                    NonceFiller::<SimpleNonceManager>::simple(),
+                    ChainIdFiller::default(),
+                ),
             ),
             SeismicGasFiller::with_url(url.clone()),
         );
@@ -477,10 +493,18 @@ where
         // encryption
         let seismic_filler = SeismicElementsFiller::new();
 
+        // TODO: Create a custom nonce manager that distinguishes between calls and transactions.
+        // Using SimpleNonceManager which fetches nonces fresh each time to avoid nonce gaps
+        // when signed calls (which require signing even though they're just eth_call) are
+        // made between transactions.
         let filler_chain = JoinFill::new(
             JoinFill::new(
                 seismic_filler,
-                JoinFill::new(NonceFiller::default(), ChainIdFiller::default()),
+                // Using SimpleNonceManager instead of cached to avoid nonce gaps
+                JoinFill::new(
+                    NonceFiller::<SimpleNonceManager>::simple(),
+                    ChainIdFiller::default(),
+                ),
             ),
             SeismicGasFiller::with_url(url.clone()),
         );
