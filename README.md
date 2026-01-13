@@ -4,7 +4,7 @@ A Rust toolkit that extends [Alloy](https://github.com/alloy-rs/alloy) to suppor
 
 ## Overview
 
-Seismic-Alloy provides the transaction types, network abstractions, and provider implementations necessary to interact with Seismic networks. It introduces the Seismic transaction type where calldata is encrypted using ECDH + AEAD before submission, ensuring that only nodes with the network's secret key can decrypt it.
+Seismic-Alloy provides the transaction types, network abstractions, and provider implementations necessary to interact with Seismic. It introduces the Seismic transaction type where calldata is encrypted using ECDH + AEAD before submission, ensuring that only nodes with the network's secret key can decrypt it. Its counterpart is the "signed read" – an eth_call that's sent as a raw transaction, so we can prevent users from spoofing the "from" address. Seismic still supports stock eth_call, but the "from" field is zeroed out
 
 ## Features
 
