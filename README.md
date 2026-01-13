@@ -17,9 +17,9 @@ Seismic-Alloy provides the transaction types, network abstractions, and provider
 ## Prerequisites
 
 - **Rust**: 1.82 or later
-- **Seismic Foundry**: Required for running provider tests
+- **Seismic Anvil**: Required for running provider tests
 
-### Installing Seismic Foundry
+### Installing Seismic Anvil via sfoundryup
 
 Seismic Foundry includes `sanvil` (Seismic Anvil), which is required for the test suite.
 
@@ -27,7 +27,7 @@ For installation instructions, see the [Seismic documentation](https://docs.seis
 
 ## Running Tests
 
-**Before running tests**: Install Seismic Anvil (`sanvil`) to run the full test suite. See [installation instructions](https://docs.seismic.systems/getting-started/publish-your-docs#install-the-local-development-suite).
+**Before running tests**: Install Seismic Anvil (`sanvil`) to run the full test suite. See installation instructions for [sfoundryup](https://docs.seismic.systems/getting-started/publish-your-docs#install-the-local-development-suite).
 
 Run the full test suite:
 
