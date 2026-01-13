@@ -1,7 +1,7 @@
 //! Typed transaction types and utilities
 use crate::{
     InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, SeismicTxType,
-    TxSeismic, TxSeismicElements,
+    TxSeismic, TxSeismicElements, TxSeismicMetadata,
 };
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
@@ -462,6 +462,27 @@ impl InputDecryptionElements for SeismicTypedTransaction {
                 "SeismicTypedTransaction::Eip7702".to_string(),
             )),
             Self::Seismic(tx) => tx.set_input(data),
+        }
+    }
+
+    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+        match self {
+            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Legacy".to_string(),
+            )),
+            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip1559".to_string(),
+            )),
+            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip2930".to_string(),
+            )),
+            Self::Eip4844(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip4844".to_string(),
+            )),
+            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
+                "SeismicTypedTransaction::Eip7702".to_string(),
+            )),
+            Self::Seismic(tx) => Ok(tx.tx_metadata(sender)),
         }
     }
 }

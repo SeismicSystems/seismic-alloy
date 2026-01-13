@@ -1,6 +1,6 @@
 //! Seismic network types
 pub mod fillers;
-pub use crate::fillers::SeismicGasFiller;
+pub use crate::fillers::{fetch_tee_pubkey, SeismicGasFiller};
 
 pub mod foundry;
 pub use foundry::{

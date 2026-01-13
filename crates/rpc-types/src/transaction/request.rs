@@ -1,5 +1,3 @@
-use core::fmt::Error;
-
 use alloc::vec::Vec;
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
@@ -8,13 +6,13 @@ use alloy_consensus::{
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
-use alloy_primitives::{Address, Signature, TxKind, U256};
+use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
     Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
     SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
-    TypedDataRequest,
+    TxSeismicMetadata, TypedDataRequest, SEISMIC_TX_TYPE_ID,
 };
 
 /// Builder for [`SeismicTypedTransaction`].
@@ -220,17 +218,62 @@ impl SeismicTransactionRequest {
         Self::from_transaction(tx).from(from)
     }
 
+    fn decrypt_to_tx_request(
+        &self,
+        secret_key: &seismic_enclave::secp256k1::SecretKey,
+    ) -> Result<TransactionRequest, InputDecryptionElementsError> {
+        if self.seismic_elements.is_some() {
+            let sender = match self.from {
+                Some(addr) => addr,
+                None => {
+                    return Err(InputDecryptionElementsError::MissingField("sender"));
+                }
+            };
+            let tx_metadata = self.metadata(sender)?;
+            let ciphertext = self.inner.input.input().unwrap();
+            let plaintext = tx_metadata
+                .decrypt(secret_key, ciphertext)
+                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
+            return Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()));
+        }
+        return Err(InputDecryptionElementsError::NoElements);
+    }
+
     /// Decrypts the seismic elements and returns a [`TransactionRequest`].
     pub fn to_transaction_request(
         &self,
         secret_key: &seismic_enclave::secp256k1::SecretKey,
-    ) -> Result<TransactionRequest, Error> {
-        if let Some(seismic_elements) = &self.seismic_elements {
-            let ciphertext = self.inner.input.input().unwrap();
-            let plaintext = seismic_elements.decrypt(secret_key, ciphertext).map_err(|_| Error)?;
-            self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into());
+    ) -> Result<TransactionRequest, InputDecryptionElementsError> {
+        match self.transaction_type {
+            Some(SEISMIC_TX_TYPE_ID) => {
+                // if there are no elements, throw an error
+                let tx_req = self.decrypt_to_tx_request(secret_key);
+                if tx_req.is_err() {
+                    println!("tx type but no elements: {tx_req:?}");
+                }
+                tx_req
+            }
+            None => {
+                match self.decrypt_to_tx_request(secret_key) {
+                    // if there's no type, return the decrypted request
+                    // if the decryption actually works
+                    Ok(tx_req) => Ok(tx_req),
+                    Err(InputDecryptionElementsError::NoElements) => {
+                        // if there are no elements and no type,
+                        // then return the original request,
+                        // bc then we hit the default type
+                        Ok(self.inner.clone())
+                    }
+                    // if there's no type but there are elements,
+                    // and the decryption fails, return an error
+                    Err(e) => {
+                        println!("No elements & no tx type");
+                        Err(e)
+                    }
+                }
+            }
+            _ => Ok(self.inner.clone()),
         }
-        Ok(self.inner.clone())
     }
 
     /// Check this builder's preferred type, based on the fields that are set.
@@ -512,24 +555,128 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         self.seismic_elements.ok_or(InputDecryptionElementsError::NoElements)
     }
 
-    fn get_input(&self) -> alloy_primitives::Bytes {
+    fn get_input(&self) -> Bytes {
         self.inner.input.clone().into_input().unwrap()
     }
 
     fn set_input(
         &mut self,
-        data: alloy_primitives::Bytes,
+        data: Bytes,
     ) -> Result<(), seismic_alloy_consensus::InputDecryptionElementsError> {
         let new_self = core::mem::take(self).input(data.into());
         *self = new_self;
         Ok(())
     }
+
+    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+        Ok(TxSeismicMetadata {
+            sender,
+            legacy_fields: seismic_alloy_consensus::TxLegacyFields {
+                chain_id: self
+                    .chain_id
+                    .ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
+                nonce: self.nonce.ok_or(InputDecryptionElementsError::MissingField("nonce"))?,
+                to: self.to.ok_or(InputDecryptionElementsError::MissingField("to"))?,
+                value: self.value.unwrap_or_default(),
+            },
+            seismic_elements: self
+                .seismic_elements
+                .ok_or(InputDecryptionElementsError::NoElements)?,
+        })
+    }
+}
+
+// ============================================================================
+// NEW: Seismic transaction builder helpers and validation
+// Added for filler-based seismic transaction handling
+// ============================================================================
+
+impl SeismicTransactionRequest {
+    /// Mark this transaction as a seismic transaction.
+    /// Fillers will generate seismic elements and encrypt the input.
+    pub fn seismic(mut self) -> Self {
+        self.inner.transaction_type = Some(TxSeismic::TX_TYPE);
+        self
+    }
+
+    /// Mark this seismic transaction as a signed call (sets signed_read to true).
+    /// This should be called for seismic calls (eth_call), not sends (eth_sendTransaction).
+    /// Creates partial elements with signed_read=true; the filler will complete them.
+    pub fn with_signed_read(mut self) -> Self {
+        // Create default elements with signed_read=true
+        // The filler will see encryption_nonce=0 and know to complete the encryption
+        if self.seismic_elements.is_none() {
+            self.seismic_elements = Some(TxSeismicElements::default());
+        }
+        if let Some(ref mut elements) = self.seismic_elements {
+            elements.signed_read = true;
+        }
+        self
+    }
+
+    /// Check if this transaction is marked as seismic
+    pub fn is_seismic(&self) -> bool {
+        // First check if explicitly marked as seismic type
+        if self.inner.transaction_type == Some(TxSeismic::TX_TYPE) {
+            return true;
+        }
+
+        // Only infer from seismic_elements if transaction_type is None
+        if self.inner.transaction_type.is_none() && self.seismic_elements.is_some() {
+            return true;
+        }
+
+        false
+    }
+
+    /// Check if this transaction needs seismic elements to be filled
+    pub fn needs_seismic_elements(&self) -> bool {
+        self.is_seismic() && self.seismic_elements.is_none()
+    }
+
+    /// Validate that transaction type and seismic elements are compatible.
+    /// Returns an error if non-seismic type is set with seismic elements.
+    pub fn validate_seismic_consistency(&self) -> Result<(), &'static str> {
+        if let Some(tx_type) = self.inner.transaction_type {
+            if tx_type != TxSeismic::TX_TYPE && self.seismic_elements.is_some() {
+                return Err(
+                    "Invalid transaction: non-seismic transaction type set with seismic elements. \
+                     Either call .seismic() or remove seismic_elements.",
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+// ============================================================================
+// AsRef/AsMut implementations for better trait bound compatibility
+// ============================================================================
+
+impl AsRef<SeismicTransactionRequest> for SeismicTransactionRequest {
+    fn as_ref(&self) -> &SeismicTransactionRequest {
+        self
+    }
+}
+
+impl AsMut<SeismicTransactionRequest> for SeismicTransactionRequest {
+    fn as_mut(&mut self) -> &mut SeismicTransactionRequest {
+        self
+    }
+}
+
+// Note: AsRef<SeismicTransactionRequest> for WithOtherFields<SeismicTransactionRequest>
+// is automatically provided by alloy_serde's blanket impl:
+// impl<T, U> AsRef<U> for WithOtherFields<T> where T: AsRef<U>
+
+impl AsMut<SeismicTransactionRequest> for WithOtherFields<SeismicTransactionRequest> {
+    fn as_mut(&mut self) -> &mut SeismicTransactionRequest {
+        &mut self.inner
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::Bytes;
-
     use super::*;
 
     #[test]
