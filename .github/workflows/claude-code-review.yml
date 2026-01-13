@@ -12,25 +12,41 @@ on:
 
 jobs:
   claude-review:
-    # Only auto-review PRs from Seismic Systems org members
-    if: |
-      github.event.pull_request.author_association == 'MEMBER' ||
-      github.event.pull_request.author_association == 'OWNER'
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
       issues: read
       id-token: write
+      members: read
 
     steps:
+      - name: Check team membership
+        id: check-team
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if PR author is a member of @SeismicSystems/seismic-developers
+          AUTHOR="${{ github.event.pull_request.user.login }}"
+          ORG="SeismicSystems"
+          TEAM="seismic-developers"
+
+          if gh api "orgs/$ORG/teams/$TEAM/memberships/$AUTHOR" --silent 2>/dev/null; then
+            echo "is_team_member=true" >> $GITHUB_OUTPUT
+            echo "✓ $AUTHOR is a member of @$ORG/$TEAM"
+          else
+            echo "is_team_member=false" >> $GITHUB_OUTPUT
+            echo "✗ $AUTHOR is not a member of @$ORG/$TEAM"
+          fi
+
       - name: Checkout repository
+        if: steps.check-team.outputs.is_team_member == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
       - name: Run Claude Code Review
+        if: steps.check-team.outputs.is_team_member == 'true'
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
