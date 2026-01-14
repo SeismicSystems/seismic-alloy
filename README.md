@@ -112,12 +112,10 @@ crates/
 
 ## License
 
-Licensed under either of:
+Licensed under either of the following, at your option:
 
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-
-at your option.
 
 ## Contributing
 
@@ -126,3 +124,10 @@ Contributions are welcome! Please ensure:
 - All tests pass (`cargo test --workspace`)
 - Code is formatted (`cargo fmt --all`)
 - No warnings (`RUSTFLAGS="-D warnings" cargo check`)
+
+## Known issues
+
+- Encryption nonce is currently U96 and not B96 – I think really should be changed because decoding fails when there are leading zeroes. Our typescript client has an ugly hack where we will regenerate encryption nonces until there are no leading zeroes, even though this only happens 1/16**2 of the time
+- We currently allow estimateGas calls with Seismic transactions to be unsigned (even with from address), even though eth_call requires signatures. This could potentially leak information (curious for thoughts on this – it’s more annoying to change this client side, but obviously doable, and I suspect we’ll need to do this)
+- We have not completed our implementation of rotating the root network key, but know this is absolutely critical for preserving forward secrecy among other things. We also have to think about how we store old keys – it might be important to be able to decrypt old Seismic transactions
+- We will rely on reth’s unwind command to create checkpoints at the end of each epoch. However, our fork of reth’s unwind command does not correctly handle seismic transactions. We are working on this and will get it in ASAP. Aside from running the node and unwind, there is no other command we plan to use
