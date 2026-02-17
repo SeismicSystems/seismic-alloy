@@ -47,11 +47,11 @@ sfoundryup
 ### Run tests
 
 ```bash
-cargo test --workspace                        # Full suite (54 tests)
-cargo test -p seismic-alloy-consensus         # Consensus crate only (15 tests)
-cargo test -p seismic-alloy-provider          # Provider crate only (8 tests, needs sanvil)
-cargo test -p seismic-alloy-genesis           # Genesis crate only (28 tests)
-cargo test -p seismic-alloy-rpc-types         # RPC types only (6 tests)
+cargo test --workspace                        # Full suite
+cargo test -p seismic-alloy-consensus         # Consensus crate only
+cargo test -p seismic-alloy-provider          # Provider crate only (needs sanvil)
+cargo test -p seismic-alloy-genesis           # Genesis crate only
+cargo test -p seismic-alloy-rpc-types         # RPC types only
 ```
 
 ### CI checks (all 4 must pass)
@@ -111,7 +111,7 @@ All custom forks are commit-pinned in `Cargo.toml`'s `[patch.crates-io]`. Do not
 | `SeismicSystems/seismic-trie.git`       | `alloy-trie`                                                                                                           |
 | `SeismicSystems/seismic-revm.git`       | `revm`, `seismic-revm`                                                                                                 |
 
-Alloy is pinned to **exact version 1.1.0** (`=1.1.0`).
+**Alloy version management** — Alloy is an excellent and actively developed project, but rapid iteration means releases occasionally include breaking changes or get yanked. Mismatched Alloy versions across our dependency tree (especially when Cargo resolves to a latest version automatically) have historically been one of the biggest sources of build errors. Be very careful when changing Alloy versions — always verify that the chosen version is compatible across all forked dependencies before bumping.
 
 ## Code Style
 
@@ -125,8 +125,6 @@ Alloy is pinned to **exact version 1.1.0** (`=1.1.0`).
 - **Encryption pubkeys** are 33-byte compressed secp256k1 (`FixedBytes<33>`). Never use 65-byte uncompressed.
 - **Seismic txs use legacy gas params** (`gas_price` + `gas_limit`), not EIP-1559 style.
 - **Tests require sanvil** — standard GitHub runners won't work. CI uses a self-hosted runner with `$HOME/.seismic/bin` in PATH.
-- **Do not bump Alloy** past 1.1.0 without testing all forks.
-- **Do not modify fork repos** (seismic-enclave, seismic-revm, etc.) from this repo.
 
 ## Troubleshooting
 
@@ -136,5 +134,4 @@ Alloy is pinned to **exact version 1.1.0** (`=1.1.0`).
 | Provider tests fail with "AES decryption failed" panic in sanvil     | sanvil version mismatch — reinstall with `sfoundryup` to get a version compatible with current seismic-enclave commit                       |
 | Provider tests fail with "connection refused" or "IncompleteMessage" | sanvil crashed during test. Often follows the AES error above. Same fix: update sanvil.                                                     |
 | `cargo test` can't find `sanvil`                                     | Ensure `sanvil` is in `$PATH` or `$HOME/.seismic/bin/`. Run: `which sanvil` to verify.                                                      |
-| Build fails fetching git dependencies                                | Ensure SSH keys or HTTPS credentials are configured for GitHub. The `[patch.crates-io]` section fetches from multiple SeismicSystems repos. |
 | Warnings cause `cargo check` to fail                                 | Expected — CI runs `RUSTFLAGS="-D warnings"`. Fix all warnings before pushing.                                                              |
