@@ -230,11 +230,15 @@ impl SeismicTransactionRequest {
                 }
             };
             let tx_metadata = self.metadata(sender)?;
-            let ciphertext = self.inner.input.input().unwrap();
-            let plaintext = tx_metadata
-                .decrypt(secret_key, ciphertext)
-                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
-            return Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()));
+            return match self.inner.input.input() {
+                Some(ciphertext) => {
+                    let plaintext = tx_metadata.decrypt(secret_key, ciphertext).map_err(|e| {
+                        InputDecryptionElementsError::DecryptionError(e.to_string())
+                    })?;
+                    Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()))
+                }
+                None => Err(InputDecryptionElementsError::MissingField("input")),
+            };
         }
         return Err(InputDecryptionElementsError::NoElements);
     }
@@ -555,8 +559,11 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         self.seismic_elements.ok_or(InputDecryptionElementsError::NoElements)
     }
 
-    fn get_input(&self) -> Bytes {
-        self.inner.input.clone().into_input().unwrap()
+    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
+        match self.inner.input.clone().into_input() {
+            Some(input) => Ok(input),
+            None => Err(InputDecryptionElementsError::MissingField("input")),
+        }
     }
 
     fn set_input(
@@ -682,12 +689,12 @@ mod tests {
     #[test]
     fn test_set_input_for_request() {
         let mut req = SeismicTransactionRequest::from_transaction(TxEip1559::default());
-        let start_input = req.get_input();
+        let start_input = req.get_input().unwrap();
         let data = Bytes::from("test");
         assert_ne!(data, start_input);
 
         req.set_input(data.clone()).unwrap();
-        let end_input = req.get_input();
+        let end_input = req.get_input().unwrap();
         assert_eq!(data, end_input);
     }
 

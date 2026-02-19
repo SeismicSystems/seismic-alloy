@@ -380,11 +380,11 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
         }
     }
 
-    fn get_input(&self) -> Bytes {
+    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
         match self {
             SeismicFoundryTxEnvelope::Seismic(tx) => tx.tx().get_input(),
-            SeismicFoundryTxEnvelope::Ethereum(tx) => tx.input().clone(),
-            SeismicFoundryTxEnvelope::Unknown(tx) => tx.input().clone(),
+            SeismicFoundryTxEnvelope::Ethereum(tx) => Ok(tx.input().clone()),
+            SeismicFoundryTxEnvelope::Unknown(tx) => Ok(tx.input().clone()),
         }
     }
 
