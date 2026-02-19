@@ -33,7 +33,7 @@ pub trait InputDecryptionElements: Clone {
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
 
     /// Returns the 'input' field of the transaction.
-    fn get_input(&self) -> Bytes;
+    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError>;
 
     /// Sets the 'input' field of the transaction to the provided data.
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
@@ -51,10 +51,12 @@ pub trait InputDecryptionElements: Clone {
         let mut tx = self.clone();
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
             let tx_metadata = self.metadata(sender)?;
-            let ciphertext = tx.get_input();
+            let ciphertext = tx.get_input()?;
             let decrypted_data = seismic_elements
                 .decrypt(decryption_key, &ciphertext, &tx_metadata)
-                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
+                .map_err(|e| {
+                    InputDecryptionElementsError::DecryptionError(e.to_string())
+                })?;
             tx.set_input(Bytes::from(decrypted_data))?;
         }
         Ok(tx)
@@ -107,7 +109,7 @@ where
         self.inner.get_decryption_elements()
     }
 
-    fn get_input(&self) -> alloy_primitives::Bytes {
+    fn get_input(&self) -> Result<alloy_primitives::Bytes, InputDecryptionElementsError> {
         self.inner.get_input()
     }
 
@@ -776,8 +778,8 @@ impl InputDecryptionElements for TxSeismic {
         Ok(self.seismic_elements)
     }
 
-    fn get_input(&self) -> Bytes {
-        self.input.clone()
+    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
+        Ok(self.input.clone())
     }
 
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
