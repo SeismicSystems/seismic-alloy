@@ -690,4 +690,36 @@ mod tests {
         let end_input = req.get_input();
         assert_eq!(data, end_input);
     }
+
+    /// Regression test: get_input() must return an error instead of panicking
+    /// when called on a SeismicTransactionRequest with no input data.
+    #[test]
+    fn get_input_returns_error_when_input_missing() {
+        let req = SeismicTransactionRequest::default()
+            .from(Address::ZERO)
+            .nonce(0)
+            .to(Address::ZERO)
+            .seismic_elements(TxSeismicElements::default())
+            .seismic();
+
+        let result = req.get_input();
+        assert!(result.is_err(), "get_input should return Err when input is missing");
+    }
+
+    /// Regression test: to_transaction_request() must return an error instead of
+    /// panicking when seismic elements are present but calldata is missing.
+    #[test]
+    fn to_transaction_request_returns_error_when_input_missing() {
+        let mut req = SeismicTransactionRequest::default()
+            .from(Address::ZERO)
+            .nonce(0)
+            .to(Address::ZERO)
+            .seismic_elements(TxSeismicElements::default())
+            .seismic();
+        req.inner.chain_id = Some(1);
+
+        let sk = seismic_enclave::get_unsecure_sample_secp256k1_sk();
+        let result = req.to_transaction_request(&sk);
+        assert!(result.is_err(), "to_transaction_request should return Err when input is missing");
+    }
 }
