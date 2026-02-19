@@ -154,13 +154,14 @@ alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy
 
 alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "d8425918ced1d62043c3a64b382d6fa1d8c25518" }
 
-# alloy-consensus = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-eips = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-serde = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
+alloy-consensus = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
+alloy-eips = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
+alloy-serde = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
+alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
+
 # alloy-network = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-consensus-any = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-json-rpc = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-rpc-types-any = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-rpc-types-eth = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-signer = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
