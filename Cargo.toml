@@ -40,6 +40,7 @@ seismic-alloy-consensus = { version = "0.0.1", path = "crates/consensus", defaul
 seismic-alloy-rpc-types = { version = "0.0.1", path = "crates/rpc-types", default-features = false }
 seismic-alloy-network = { version = "0.0.1", path = "crates/network", default-features = false }
 seismic-alloy-provider = { version = "0.0.1", path = "crates/provider", default-features = false }
+seismic-alloy-trie = { version = "0.0.1", path = "crates/trie", default-features = false }
 
 seismic-enclave = "0.1.0"
 
@@ -151,8 +152,6 @@ alloy-sol-macro-expander = { git = "https://github.com/SeismicSystems/seismic-al
 alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
 alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
-
-alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "d8425918ced1d62043c3a64b382d6fa1d8c25518" }
 
 alloy-consensus = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 alloy-eips = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
