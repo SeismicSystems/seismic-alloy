@@ -81,7 +81,10 @@ alloy-sol-types = { version = "1.3.1", default-features = false, features = ["se
 alloy-sol-type-parser = { version = "1.3.1", default-features = false, features = ["seismic"] }
 alloy-dyn-abi = { version = "1.3.1", default-features = false, features = ["seismic"] }
 
-alloy-trie = { version = "0.9.1", default-features = false }
+# Need =0.9.1 because our fork is stuck at this version:
+# https://github.com/SeismicSystems/seismic-trie/blob/420123bdf0561894c7d8d202ae919283327234ed/Cargo.toml#L3
+# In order to be able to patch alloy-trie to point to our fork, cargo needs the versions to be equivalent.
+alloy-trie = { version = "=0.9.1", default-features = false }
 
 # Serde
 serde_repr = "0.1"
