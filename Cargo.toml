@@ -148,7 +148,7 @@ seismic-enclave =  { git = "https://github.com/SeismicSystems/enclave.git", rev 
 
 # seismic-alloy-core
 # TODO(samlaf): pointing to https://github.com/SeismicSystems/seismic-alloy-core/pull/58
-# Before merging this PR, merge the one from seismic-alloy-core and update the rev here.
+# Before merging this PR, merge that PR and update the rev here.
 alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", branch = "feat--no-trie-fork" }
 alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", branch = "feat--no-trie-fork" }
 alloy-json-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", branch = "feat--no-trie-fork" }
