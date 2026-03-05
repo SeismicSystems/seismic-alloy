@@ -26,6 +26,7 @@ workspace = true
 alloy-primitives.workspace = true
 alloy-serde.workspace = true
 alloy-trie = { workspace = true, features = ["ethereum"] }
+seismic-alloy-trie.workspace = true
 alloy-genesis = { workspace = true }
 
 # serde
