@@ -40,6 +40,7 @@ pub struct SeismicSignedProviderLayer<N, P> {
 impl<N: SeismicNetwork, P> SeismicSignedProviderLayer<N, P>
 where
     N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
     P: SeismicProviderExt<N>,
 {
     /// Create a new signed seismic provider with ephemeral secret key and TEE pubkey
@@ -69,6 +70,7 @@ pub struct SeismicUnsignedProviderLayer<N, P> {
 impl<N: SeismicNetwork, P> SeismicUnsignedProviderLayer<N, P>
 where
     N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
     P: SeismicProviderExt<N>,
 {
     /// Create a new unsigned seismic provider with only ephemeral secret key
@@ -83,6 +85,7 @@ where
 impl<N: SeismicNetwork, P> Provider<N> for SeismicSignedProviderLayer<N, P>
 where
     N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -104,6 +107,7 @@ where
 impl<N: SeismicNetwork, P> Provider<N> for SeismicUnsignedProviderLayer<N, P>
 where
     N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -277,6 +281,7 @@ impl SeismicSignedLayer {
 impl<N: SeismicNetwork, P> ProviderLayer<P, N> for SeismicSignedLayer
 where
     N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -304,6 +309,7 @@ impl SeismicUnsignedLayer {
 impl<N: SeismicNetwork, P> ProviderLayer<P, N> for SeismicUnsignedLayer
 where
     N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
     P: SeismicProviderExt<N>,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -342,6 +348,7 @@ pub struct SeismicSignedProvider<N: SeismicNetwork>(SeismicSignedProviderInner<N
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
         + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync;
 
@@ -349,6 +356,7 @@ impl<N: SeismicNetwork> SeismicSignedProvider<N>
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
         + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
@@ -441,6 +449,7 @@ pub struct SeismicUnsignedProvider<N: SeismicNetwork>(SeismicUnsignedProviderInn
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
         + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync;
 
@@ -448,6 +457,7 @@ impl<N: SeismicNetwork> SeismicUnsignedProvider<N>
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
         + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
@@ -523,6 +533,7 @@ where
 impl<N: SeismicNetwork, P> Deref for SeismicSignedProviderLayer<N, P>
 where
     N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
     P: SeismicProviderExt<N>,
 {
     type Target = P;
@@ -535,6 +546,7 @@ where
 impl<N: SeismicNetwork, P> Deref for SeismicUnsignedProviderLayer<N, P>
 where
     N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
     P: SeismicProviderExt<N>,
 {
     type Target = P;
@@ -548,6 +560,7 @@ impl<N: SeismicNetwork> Deref for SeismicSignedProvider<N>
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
         + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
 {
@@ -562,6 +575,7 @@ impl<N: SeismicNetwork> Deref for SeismicUnsignedProvider<N>
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
         + seismic_alloy_consensus::InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
 {
@@ -569,6 +583,90 @@ where
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+// ============================================================================
+// Direct Provider and SeismicProviderExt impls for newtype wrappers.
+// Deref alone doesn't satisfy generic trait bounds, so these are needed
+// for use in contexts like `CallBuilder<&P, C, N>` where P must impl Provider.
+// ============================================================================
+
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl<N: SeismicNetwork> Provider<N> for SeismicSignedProvider<N>
+where
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
+    N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>,
+{
+    fn root(&self) -> &RootProvider<N> {
+        self.0.root()
+    }
+
+    async fn send_transaction_internal(
+        &self,
+        tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        self.0.send_transaction_internal(tx).await
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl<N: SeismicNetwork> SeismicProviderExt<N> for SeismicSignedProvider<N>
+where
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
+    N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>,
+{
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
+        self.0.seismic_call(tx).await
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl<N: SeismicNetwork> Provider<N> for SeismicUnsignedProvider<N>
+where
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
+    N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>,
+{
+    fn root(&self) -> &RootProvider<N> {
+        self.0.root()
+    }
+
+    async fn send_transaction_internal(
+        &self,
+        tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        self.0.send_transaction_internal(tx).await
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl<N: SeismicNetwork> SeismicProviderExt<N> for SeismicUnsignedProvider<N>
+where
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
+        + seismic_alloy_consensus::InputDecryptionElements,
+    N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>,
+{
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
+        self.0.seismic_call(tx).await
     }
 }
 
@@ -608,7 +706,7 @@ mod tests {
     use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
     use alloy_rpc_types_eth::Filter;
     use alloy_signer_local::PrivateKeySigner;
-    use alloy_sol_types::SolEvent;
+    use alloy_sol_types::{sol, SolEvent};
     use futures_util::StreamExt;
     use seismic_alloy_consensus::SeismicReceiptEnvelope;
     use seismic_alloy_network::foundry::builder::seismic_foundry_tx_builder;
@@ -880,6 +978,107 @@ mod tests {
         assert!(total_events_received == 2, "Total events received: {}", total_events_received);
 
         drop(anvil);
+    }
+
+    // ========================================================================
+    // SeismicCallExt tests — contract.method().seismic().call()/send()
+    // ========================================================================
+
+    // Declare the contract with #[sol(rpc)] so we get CallBuilder methods
+    sol! {
+        #[sol(rpc)]
+        contract SeismicCounter {
+            function setNumber(suint256 newNumber) public;
+            function increment() public;
+            function isOdd() public view returns (bool);
+        }
+    }
+
+    /// Helper: deploy the SeismicCounter test contract
+    async fn deploy_test_contract(
+        anvil: &AnvilInstance,
+    ) -> (SeismicSignedProvider<SeismicFoundry>, alloy_primitives::Address) {
+        let wallet = get_wallet(anvil);
+        let provider = SeismicSignedProvider::<SeismicFoundry>::new(wallet, anvil.endpoint_url())
+            .await
+            .unwrap();
+
+        let plaintext = ContractTestContext::get_deploy_input_plaintext();
+        let tx: SeismicTransactionRequest =
+            seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
+
+        let receipt =
+            provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+        let contract_address = receipt.contract_address.unwrap();
+
+        (provider, contract_address)
+    }
+
+    #[tokio::test]
+    async fn test_call_ext_shielded_read() {
+        use crate::SeismicCallExt;
+
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
+        let (provider, addr) = deploy_test_contract(&anvil).await;
+
+        let contract = SeismicCounter::new(addr, &provider);
+
+        // Shielded read: number is 0, isOdd returns false
+        let is_odd = contract.isOdd().seismic().call().await;
+        assert!(is_odd.is_ok(), "seismic().call() failed: {:?}", is_odd.unwrap_err());
+        assert!(!is_odd.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_call_ext_shielded_write_then_read() {
+        use crate::SeismicCallExt;
+
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
+        let (provider, addr) = deploy_test_contract(&anvil).await;
+
+        let contract = SeismicCounter::new(addr, &provider);
+
+        // Shielded write: setNumber(5)
+        let receipt = contract
+            .setNumber(alloy_primitives::aliases::SUInt(alloy_primitives::U256::from(5)))
+            .seismic()
+            .send()
+            .await
+            .unwrap()
+            .get_receipt()
+            .await
+            .unwrap();
+        assert!(receipt.status());
+
+        // Shielded read: 5 is odd
+        let is_odd = contract.isOdd().seismic().call().await.unwrap();
+        assert!(is_odd, "5 should be odd");
+    }
+
+    #[tokio::test]
+    async fn test_call_ext_shielded_increment() {
+        use crate::SeismicCallExt;
+
+        let anvil = Anvil::at(SANVIL_PATH).spawn();
+        let (provider, addr) = deploy_test_contract(&anvil).await;
+
+        let contract = SeismicCounter::new(addr, &provider);
+
+        // Shielded write: increment from 0 to 1
+        let receipt = contract
+            .increment()
+            .seismic()
+            .send()
+            .await
+            .unwrap()
+            .get_receipt()
+            .await
+            .unwrap();
+        assert!(receipt.status());
+
+        // Shielded read: 1 is odd
+        let is_odd = contract.isOdd().seismic().call().await.unwrap();
+        assert!(is_odd, "1 should be odd");
     }
 
     fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {
