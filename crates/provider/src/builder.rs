@@ -10,6 +10,12 @@
 //!     .connect_http(url)
 //!     .await?;
 //!
+//! // WebSocket (signed)
+//! let provider = SeismicProviderBuilder::new()
+//!     .wallet(wallet)
+//!     .connect_ws(url)
+//!     .await?;
+//!
 //! // Testing with sanvil (SeismicFoundry)
 //! let provider = SeismicProviderBuilder::new()
 //!     .foundry()
@@ -243,6 +249,54 @@ where
         url: reqwest::Url,
         tee_pubkey: seismic_enclave::secp256k1::PublicKey,
     ) -> SeismicSignedProvider<N> {
+        let (filler_chain, ephemeral_secret_key) =
+            self.signed_filler_chain(url.clone(), tee_pubkey);
+
+        ProviderBuilder::<_, _, N>::default()
+            .network::<N>()
+            .layer(ResponseDecryptLayer::new(ephemeral_secret_key, tee_pubkey))
+            .layer(filler_chain)
+            .connect_client(RpcClient::new_http(url))
+    }
+
+    /// Connect via WebSocket. Fetches the TEE public key automatically.
+    pub async fn connect_ws(
+        self,
+        url: reqwest::Url,
+    ) -> TransportResult<SeismicSignedProvider<N>> {
+        let temp_provider = ProviderBuilder::<_, _, N>::default()
+            .network::<N>()
+            .connect_ws(WsConnect::new(url.clone()))
+            .await?;
+        let tee_pubkey = temp_provider.get_tee_pubkey().await?;
+
+        self.connect_ws_with_tee_pubkey(url, tee_pubkey).await
+    }
+
+    /// Connect via WebSocket with a pre-fetched TEE public key.
+    pub async fn connect_ws_with_tee_pubkey(
+        self,
+        url: reqwest::Url,
+        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+    ) -> TransportResult<SeismicSignedProvider<N>> {
+        let (filler_chain, ephemeral_secret_key) =
+            self.signed_filler_chain(url.clone(), tee_pubkey);
+
+        ProviderBuilder::<_, _, N>::default()
+            .network::<N>()
+            .layer(ResponseDecryptLayer::new(ephemeral_secret_key, tee_pubkey))
+            .layer(filler_chain)
+            .connect_ws(WsConnect::new(url))
+            .await
+    }
+
+    /// Build the signed filler chain. Returns the chain and the ephemeral secret key
+    /// (needed by ResponseDecryptLayer).
+    fn signed_filler_chain(
+        self,
+        url: reqwest::Url,
+        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+    ) -> (SignedFillers<N>, seismic_enclave::secp256k1::SecretKey) {
         let seismic_filler = SeismicElementsFiller::with_tee_pubkey_and_url(tee_pubkey);
         let ephemeral_secret_key = seismic_filler.ephemeral_secret_key().clone();
 
@@ -257,14 +311,10 @@ where
                 ),
                 seismic_filler,
             ),
-            SeismicGasFiller::with_url(url.clone()),
+            SeismicGasFiller::with_url(url),
         );
 
-        ProviderBuilder::<_, _, N>::default()
-            .network::<N>()
-            .layer(ResponseDecryptLayer::new(ephemeral_secret_key, tee_pubkey))
-            .layer(filler_chain)
-            .connect_client(RpcClient::new_http(url))
+        (filler_chain, ephemeral_secret_key)
     }
 }
 

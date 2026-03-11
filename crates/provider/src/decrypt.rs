@@ -12,6 +12,8 @@ use alloy_provider::{
 };
 use alloy_transport::TransportResult;
 use seismic_alloy_consensus::InputDecryptionElements;
+
+use crate::SeismicProviderError;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
@@ -82,12 +84,7 @@ fn decrypt_response(
     metadata
         .seismic_elements
         .client_decrypt(output, tee_pubkey, ephemeral_secret_key, metadata)
-        .map_err(|e| {
-            alloy_transport::TransportErrorKind::custom_str(&format!(
-                "Error decrypting response: {:?}",
-                e
-            ))
-        })
+        .map_err(|e| SeismicProviderError::Decryption(format!("{e:?}")).into_transport())
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -126,22 +123,16 @@ where
                 let metadata = match &filled_tx {
                     SendableTx::Builder(filled_builder) => {
                         let sender = filled_builder.from().ok_or_else(|| {
-                            alloy_transport::TransportErrorKind::custom_str(
-                                "Sender address required for seismic call decryption",
-                            )
+                            SeismicProviderError::MissingSender.into_transport()
                         })?;
                         filled_builder.metadata(sender).map_err(|e| {
-                            alloy_transport::TransportErrorKind::custom_str(&format!(
-                                "Error creating metadata: {:?}",
-                                e
-                            ))
+                            SeismicProviderError::MetadataCreation(format!("{e:?}"))
+                                .into_transport()
                         })?
                     }
                     SendableTx::Envelope(envelope) => {
                         N::extract_seismic_metadata(envelope).ok_or_else(|| {
-                            alloy_transport::TransportErrorKind::custom_str(
-                                "Expected seismic envelope for decryption",
-                            )
+                            SeismicProviderError::NotSeismicEnvelope.into_transport()
                         })?
                     }
                 };
@@ -190,9 +181,7 @@ where
         match filled {
             SendableTx::Envelope(ref envelope) => {
                 let typed_data_req = N::to_typed_data_request(envelope).ok_or_else(|| {
-                    alloy_transport::TransportErrorKind::custom_str(
-                        "EIP-712 send: filled transaction is not an EIP-712 seismic envelope",
-                    )
+                    SeismicProviderError::Eip712NotSeismicEnvelope.into_transport()
                 })?;
 
                 let tx_hash = self
@@ -201,9 +190,9 @@ where
                     .await?;
                 Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
             }
-            SendableTx::Builder(_) => Err(alloy_transport::TransportErrorKind::custom_str(
-                "EIP-712 send: expected signed envelope after filling, got builder",
-            )),
+            SendableTx::Builder(_) => {
+                Err(SeismicProviderError::Eip712GotBuilder.into_transport())
+            }
         }
     }
 }

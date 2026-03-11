@@ -8,6 +8,9 @@ pub use traits::SeismicProviderExt;
 mod call_ext;
 pub use call_ext::{SeismicCallExt, SeismicSolCallBuilder};
 
+pub mod error;
+pub use error::SeismicProviderError;
+
 pub mod decrypt;
 pub use decrypt::ResponseDecryptProvider;
 

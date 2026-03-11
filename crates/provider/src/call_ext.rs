@@ -30,7 +30,9 @@ use alloy_network::Network;
 use alloy_primitives::{aliases::U96, B256};
 use alloy_provider::{PendingTransactionBuilder, SendableTx};
 use alloy_sol_types::SolCall;
-use alloy_transport::{TransportErrorKind, TransportResult};
+use alloy_transport::TransportResult;
+
+use crate::SeismicProviderError;
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
@@ -148,7 +150,7 @@ where
         let result = self.inner.provider.seismic_call(SendableTx::Builder(request)).await?;
 
         C::abi_decode_returns(&result)
-            .map_err(|e| TransportErrorKind::custom_str(&format!("ABI decode error: {e}")))
+            .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
     }
 
     /// Send an encrypted write transaction.

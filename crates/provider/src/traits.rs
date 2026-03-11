@@ -7,7 +7,9 @@ use alloy_provider::{
     PendingTransactionBuilder, Provider, RootProvider, SendableTx,
 };
 use alloy_sol_types::SolCall;
-use alloy_transport::{TransportErrorKind, TransportResult};
+use alloy_transport::TransportResult;
+
+use crate::SeismicProviderError;
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
 };
@@ -78,7 +80,7 @@ where
         let result = self.seismic_call(SendableTx::Builder(tx)).await?;
 
         C::abi_decode_returns(&result)
-            .map_err(|e| TransportErrorKind::custom_str(&format!("ABI decode error: {e}")))
+            .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
     }
 
     /// Encrypted write transaction. The filler pipeline handles encryption key
@@ -113,7 +115,7 @@ where
         let result = self.call(tx).await?;
 
         C::abi_decode_returns(&result)
-            .map_err(|e| TransportErrorKind::custom_str(&format!("ABI decode error: {e}")))
+            .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
     }
 
     /// Standard (unencrypted) write transaction.
@@ -174,9 +176,7 @@ where
         &self,
         _tx: SendableTx<N>,
     ) -> TransportResult<PendingTransactionBuilder<N>> {
-        Err(alloy_transport::TransportErrorKind::custom_str(
-            "EIP-712 sends require a signed provider (SeismicProviderBuilder::new().wallet(...).connect_http(...))",
-        ))
+        Err(SeismicProviderError::Eip712RequiresSignedProvider.into_transport())
     }
 
     /// Get the PublicKey of the enclave.
@@ -235,9 +235,7 @@ where
         let builder = match tx {
             SendableTx::Builder(b) => b,
             SendableTx::Envelope(_) => {
-                return Err(TransportErrorKind::custom_str(
-                    "FillProvider::seismic_call received an Envelope; expected a Builder",
-                ));
+                return Err(SeismicProviderError::UnexpectedEnvelope.into_transport());
             }
         };
 

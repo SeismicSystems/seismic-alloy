@@ -30,6 +30,7 @@ seismic-enclave.workspace = true
 
 async-trait.workspace = true
 reqwest.workspace = true
+thiserror.workspace = true
 
 
 [dev-dependencies]
