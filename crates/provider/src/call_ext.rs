@@ -34,7 +34,6 @@ use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
-use std::marker::PhantomData;
 
 use crate::SeismicProviderExt;
 
@@ -64,13 +63,12 @@ where
     N::UnsignedTx: Send + Sync,
 {
     fn seismic(self) -> SeismicSolCallBuilder<'a, P, C, N> {
-        // Set the seismic tx type on the underlying request via .map()
         let inner = self.map(|mut req| {
             let seismic_req: &mut SeismicTransactionRequest = req.as_mut();
             seismic_req.inner.transaction_type = Some(seismic_alloy_consensus::TxSeismic::TX_TYPE);
             req
         });
-        SeismicSolCallBuilder { inner, _call: PhantomData }
+        SeismicSolCallBuilder { inner }
     }
 }
 
@@ -82,16 +80,20 @@ where
 ///   pipeline (encrypting calldata, signing the request, then decrypting the response).
 /// - `.send()` delegates to the standard `send_transaction` path — the fillers detect
 ///   the seismic tx type and encrypt automatically.
+///
+/// Security parameters can be customized per-call via builder methods:
+/// - [`.expires_at()`](SeismicSolCallBuilder::expires_at) — transaction expiration block
+/// - [`.recent_block_hash()`](SeismicSolCallBuilder::recent_block_hash) — chain-state pinning
+/// - [`.encryption_nonce()`](SeismicSolCallBuilder::encryption_nonce) — AEAD nonce (testing only)
 #[must_use = "call builders do nothing unless you `.call()` or `.send()` them"]
 pub struct SeismicSolCallBuilder<'a, P, C: SolCall, N: Network> {
     inner: SolCallBuilder<&'a P, C, N>,
-    _call: PhantomData<C>,
 }
 
 impl<'a, P, C, N> SeismicSolCallBuilder<'a, P, C, N>
 where
     N: SeismicNetwork,
-    C: SolCall,
+    C: SolCall + Send,
     P: SeismicProviderExt<N>,
     N::TransactionRequest: AsMut<SeismicTransactionRequest> + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
@@ -120,26 +122,6 @@ where
         self.mutate_elements(|e| e.encryption_nonce = nonce)
     }
 
-    /// Internal: mutate the partial seismic elements on the underlying request.
-    fn mutate_elements(mut self, f: impl FnOnce(&mut TxSeismicElements)) -> Self {
-        self.inner = self.inner.map(|mut req| {
-            let seismic_req: &mut SeismicTransactionRequest = req.as_mut();
-            let elements = seismic_req.seismic_elements.get_or_insert_with(TxSeismicElements::default);
-            f(elements);
-            req
-        });
-        self
-    }
-}
-
-impl<'a, P, C, N> SeismicSolCallBuilder<'a, P, C, N>
-where
-    N: SeismicNetwork,
-    C: SolCall + Send,
-    P: SeismicProviderExt<N>,
-    N::TransactionRequest: AsMut<SeismicTransactionRequest> + From<SeismicTransactionRequest>,
-    N::UnsignedTx: Send + Sync,
-{
     /// Execute an encrypted, signed read call.
     ///
     /// The call goes through the filler pipeline which encrypts the calldata
@@ -148,11 +130,7 @@ where
     where
         C::Return: Send,
     {
-        // Clone the request (already has seismic tx type set from .seismic())
         let request = self.inner.as_ref().clone();
-
-        // Route through seismic_call which runs the filler pipeline
-        // (encrypts calldata, signs, sends via eth_call, decrypts response)
         let result = self.inner.provider.seismic_call(SendableTx::Builder(request)).await?;
 
         C::abi_decode_returns(&result)
@@ -164,11 +142,20 @@ where
     /// The fillers detect the seismic tx type and encrypt the calldata
     /// automatically before broadcasting.
     pub async fn send(&self) -> TransportResult<PendingTransactionBuilder<N>> {
-        // Clone the request (already has seismic tx type set)
         let request = self.inner.as_ref().clone();
-
-        // Standard send_transaction — fillers handle encryption
         self.inner.provider.send_transaction(request).await
+    }
+
+    /// Internal: mutate the partial seismic elements on the underlying request.
+    fn mutate_elements(mut self, f: impl FnOnce(&mut TxSeismicElements)) -> Self {
+        self.inner = self.inner.map(|mut req| {
+            let seismic_req: &mut SeismicTransactionRequest = req.as_mut();
+            let elements =
+                seismic_req.seismic_elements.get_or_insert_with(TxSeismicElements::default);
+            f(elements);
+            req
+        });
+        self
     }
 }
 

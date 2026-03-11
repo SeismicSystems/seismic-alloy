@@ -53,9 +53,7 @@ impl SeismicGasFiller {
     pub fn with_url(rpc_url: reqwest::Url) -> Self {
         Self { inner: GasFiller::default(), rpc_url: Some(rpc_url) }
     }
-}
 
-impl SeismicGasFiller {
     fn is_seismic_tx<N>(&self, tx: &N::TransactionRequest) -> bool
     where
         N: SeismicNetwork,
@@ -75,10 +73,10 @@ where
         + InputDecryptionElements,
     <N as Network>::UnsignedTx: Send + Sync,
 {
-    // (Option<GasFillable>, Option<(u128, reqwest::Url)>)
+    // (Option<GasFillable>, Option<(u128, RpcClient)>)
     // First: Gas values if already set
-    // Second: (gas_price, rpc_url) for deferred estimation in fill() for seismic tx
-    type Fillable = (Option<GasFillable>, Option<(u128, reqwest::Url)>);
+    // Second: (gas_price, rpc_client) for deferred estimation in fill() for seismic tx
+    type Fillable = (Option<GasFillable>, Option<(u128, RpcClient)>);
 
     fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
         if self.is_seismic_tx::<N>(tx) {
@@ -127,11 +125,12 @@ where
                 // Gas limit already set, no need to estimate
                 Ok((Some(GasFillable::Legacy { gas_limit: limit, gas_price }), None))
             } else {
-                // Defer estimation to fill() - need RPC URL
+                // Defer estimation to fill() — create client now, estimate after encryption
                 let rpc_url = self.rpc_url.as_ref().ok_or_else(|| {
                     TransportErrorKind::custom_str("RPC URL required for seismic gas estimation")
                 })?;
-                Ok((None, Some((gas_price, rpc_url.clone()))))
+                let client = RpcClient::new_http(rpc_url.clone());
+                Ok((None, Some((gas_price, client))))
             }
         } else {
             // For non-seismic transactions, use regular GasFiller logic
@@ -149,15 +148,11 @@ where
         if let Some(gas_fillable) = immediate_fill {
             // Gas values already determined in prepare()
             GasFiller::fill(&self.inner, gas_fillable, tx).await
-        } else if let Some((gas_price, rpc_url)) = deferred_estimate {
+        } else if let Some((gas_price, client)) = deferred_estimate {
             // Need to estimate gas now (after encryption)
             let tx_for_estimate = match &tx {
-                SendableTx::Builder(builder) => {
-                    // Clone the builder's transaction for estimation
-                    builder.clone()
-                }
+                SendableTx::Builder(builder) => builder.clone(),
                 SendableTx::Envelope(_) => {
-                    // Already signed, can't estimate
                     return Err(TransportErrorKind::custom_str(
                         "Cannot estimate gas on already-signed transaction",
                     )
@@ -165,8 +160,7 @@ where
                 }
             };
 
-            // Create temporary provider for estimate_gas call
-            let client = RpcClient::new_http(rpc_url);
+            // Use the pre-created client for gas estimation (fill() has no provider access)
             let gas_estimate_provider =
                 ProviderBuilder::<_, _, N>::default().network::<N>().connect_client(client);
 
@@ -242,6 +236,18 @@ impl SeismicElementsFiller {
     pub fn ephemeral_secret_key(&self) -> &seismic_enclave::secp256k1::SecretKey {
         &self.ephemeral_secret_key
     }
+
+    /// Check whether a transaction has already been encrypted by this filler.
+    ///
+    /// We detect this by comparing the `encryption_pubkey` in the elements to our
+    /// ephemeral public key. Users never set the pubkey directly (it's derived from
+    /// the filler's ephemeral secret key), so a match means we already ran.
+    fn is_encrypted(&self, tx: &SeismicTransactionRequest) -> bool {
+        let our_pubkey = self.ephemeral_secret_key.public_key(&Secp256k1::new());
+        tx.seismic_elements
+            .as_ref()
+            .map_or(false, |e| e.encryption_pubkey == our_pubkey)
+    }
 }
 
 impl<N: SeismicNetwork> TxFiller<N> for SeismicElementsFiller
@@ -280,11 +286,12 @@ where
             let has_input = N::get_request_input(tx).map_or(false, |i| !i.is_empty());
 
             if has_input {
-                // If elements are set AND encryption_nonce is non-zero, encryption is complete
-                if seismic_tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_nonce != 0) {
+                // Encryption is complete when the encryption_pubkey matches our ephemeral key.
+                // We can't use encryption_nonce != 0 as a sentinel because users can now
+                // set custom nonces via SecurityParams.
+                if self.is_encrypted(seismic_tx) {
                     FillerControlFlow::Finished
                 } else {
-                    // No elements yet or incomplete elements - needs encryption
                     FillerControlFlow::Ready
                 }
             } else {
@@ -313,10 +320,8 @@ where
         // Validate consistency
         seismic_tx.validate_seismic_consistency().map_err(|e| TransportErrorKind::custom_str(e))?;
 
-        // If encryption already happened (encryption_nonce is non-zero), we're done
-        if seismic_tx.is_seismic() &&
-            seismic_tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_nonce != 0)
-        {
+        // If encryption already happened (our pubkey is set), we're done
+        if seismic_tx.is_seismic() && self.is_encrypted(seismic_tx) {
             return Ok(None);
         }
 

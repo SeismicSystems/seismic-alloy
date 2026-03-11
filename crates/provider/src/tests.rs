@@ -472,6 +472,70 @@ async fn test_call_ext_transparent_send_then_shielded_read() {
     assert!(is_odd, "3 should be odd");
 }
 
+#[tokio::test]
+async fn test_call_ext_security_params_expires_at() {
+    use crate::SeismicCallExt;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+    let contract = SeismicCounter::new(addr, &provider);
+
+    let current_block = provider.get_block_number().await.unwrap();
+
+    // Shielded read with custom expires_at (generous window) — should succeed
+    let is_odd = contract.isOdd().seismic().expires_at(current_block + 50).call().await;
+    assert!(is_odd.is_ok(), "seismic().expires_at().call() failed: {:?}", is_odd.unwrap_err());
+    assert!(!is_odd.unwrap());
+}
+
+#[tokio::test]
+async fn test_call_ext_security_params_encryption_nonce() {
+    use crate::SeismicCallExt;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+    let contract = SeismicCounter::new(addr, &provider);
+
+    // Shielded read with custom encryption nonce — verifies the nonce override
+    // doesn't break the encryption/decryption round-trip
+    let custom_nonce = alloy_primitives::aliases::U96::from(12345u64);
+    let is_odd = contract.isOdd().seismic().encryption_nonce(custom_nonce).call().await;
+    assert!(
+        is_odd.is_ok(),
+        "seismic().encryption_nonce().call() failed: {:?}",
+        is_odd.unwrap_err()
+    );
+    assert!(!is_odd.unwrap());
+}
+
+#[tokio::test]
+async fn test_call_ext_security_params_send() {
+    use crate::SeismicCallExt;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+    let contract = SeismicCounter::new(addr, &provider);
+
+    let current_block = provider.get_block_number().await.unwrap();
+
+    // Shielded send with custom expires_at
+    let receipt = contract
+        .setNumber(alloy_primitives::aliases::SUInt(alloy_primitives::U256::from(9)))
+        .seismic()
+        .expires_at(current_block + 50)
+        .send()
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+    assert!(receipt.status());
+
+    // Verify the write worked via shielded read
+    let is_odd = contract.isOdd().seismic().call().await.unwrap();
+    assert!(is_odd, "9 should be odd");
+}
+
 fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {
     let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
     SeismicWallet::from(bob)
