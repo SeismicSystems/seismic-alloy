@@ -1,0 +1,35 @@
+[package]
+name = "seismic-examples"
+description = "Example programs for the seismic-alloy SDK"
+publish = false
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+seismic-alloy-consensus.workspace = true
+seismic-alloy-network.workspace = true
+seismic-alloy-provider.workspace = true
+seismic-alloy-rpc-types.workspace = true
+
+alloy-contract.workspace = true
+alloy-network.workspace = true
+alloy-node-bindings.workspace = true
+alloy-primitives.workspace = true
+alloy-provider.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-signer-local.workspace = true
+alloy-sol-types.workspace = true
+alloy-transport.workspace = true
+
+tokio = { workspace = true, features = ["full"] }
+futures-util.workspace = true
