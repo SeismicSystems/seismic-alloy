@@ -27,9 +27,11 @@
 //! ```
 use alloy_contract::SolCallBuilder;
 use alloy_network::Network;
+use alloy_primitives::{aliases::U96, B256};
 use alloy_provider::{PendingTransactionBuilder, SendableTx};
 use alloy_sol_types::SolCall;
 use alloy_transport::{TransportErrorKind, TransportResult};
+use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use std::marker::PhantomData;
@@ -84,6 +86,50 @@ where
 pub struct SeismicSolCallBuilder<'a, P, C: SolCall, N: Network> {
     inner: SolCallBuilder<&'a P, C, N>,
     _call: PhantomData<C>,
+}
+
+impl<'a, P, C, N> SeismicSolCallBuilder<'a, P, C, N>
+where
+    N: SeismicNetwork,
+    C: SolCall,
+    P: SeismicProviderExt<N>,
+    N::TransactionRequest: AsMut<SeismicTransactionRequest> + From<SeismicTransactionRequest>,
+    N::UnsignedTx: Send + Sync,
+{
+    /// Set the block number after which this transaction expires.
+    ///
+    /// By default, the filler sets this to `current_block + BLOCKS_WINDOW` (100).
+    /// Use this to shorten or extend the validity window.
+    pub fn expires_at(self, block: u64) -> Self {
+        self.mutate_elements(|e| e.expires_at_block = block)
+    }
+
+    /// Set the recent block hash for chain-state pinning.
+    ///
+    /// By default, the filler fetches the latest block hash. Use this to pin
+    /// the transaction to a specific chain state (e.g., for deterministic testing).
+    pub fn recent_block_hash(self, hash: B256) -> Self {
+        self.mutate_elements(|e| e.recent_block_hash = hash)
+    }
+
+    /// Set a custom encryption nonce (AEAD nonce).
+    ///
+    /// By default, the filler generates a random nonce. Only override this
+    /// for deterministic testing — reusing nonces in production breaks encryption.
+    pub fn encryption_nonce(self, nonce: U96) -> Self {
+        self.mutate_elements(|e| e.encryption_nonce = nonce)
+    }
+
+    /// Internal: mutate the partial seismic elements on the underlying request.
+    fn mutate_elements(mut self, f: impl FnOnce(&mut TxSeismicElements)) -> Self {
+        self.inner = self.inner.map(|mut req| {
+            let seismic_req: &mut SeismicTransactionRequest = req.as_mut();
+            let elements = seismic_req.seismic_elements.get_or_insert_with(TxSeismicElements::default);
+            f(elements);
+            req
+        });
+        self
+    }
 }
 
 impl<'a, P, C, N> SeismicSolCallBuilder<'a, P, C, N>

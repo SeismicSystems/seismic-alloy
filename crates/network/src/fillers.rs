@@ -354,36 +354,50 @@ where
             fetch_tee_pubkey(provider).await?
         };
 
-        // Get latest block number for expiration calculation
+        // Extract user-provided overrides from partial elements (if any)
+        let partial = seismic_tx.seismic_elements.as_ref();
+        let user_recent_block_hash = partial
+            .map(|e| e.recent_block_hash)
+            .filter(|h| !h.is_zero());
+        let user_encryption_nonce = partial
+            .map(|e| e.encryption_nonce)
+            .filter(|n| *n != alloy_primitives::Uint::ZERO);
+        let user_expires_at = partial
+            .map(|e| e.expires_at_block)
+            .filter(|&b| b > 0);
+        let signed_read = partial.map_or(self.signed_read, |e| e.signed_read);
 
-        // Get recent block hash (one block behind for finalization)
-        let block = provider
-            .get_block_by_number(BlockNumberOrTag::Latest)
-            .await
-            .map_err(|_| TransportErrorKind::custom_str("Failed to fetch recent block"))?
-            .ok_or_else(|| TransportErrorKind::custom_str("Block not found"))?;
-        let block_header = block.header();
-        let recent_block_hash = block_header.hash();
-        let latest_block = block_header.number();
-
-        // Calculate expires_at_block and get signed_read from existing partial elements if present
-        let (expires_at_block, signed_read) = if let Some(elements) = &seismic_tx.seismic_elements {
-            let expires = if elements.expires_at_block > 0 {
-                elements.expires_at_block // User manually set it
-            } else {
-                let window = self.blocks_window.unwrap_or(BLOCKS_WINDOW);
-                latest_block + window
-            };
-            (expires, elements.signed_read) // Preserve signed_read from partial elements
+        // Fetch block info only if we need recent_block_hash or expires_at_block
+        let (recent_block_hash, latest_block) = if user_recent_block_hash.is_some()
+            && user_expires_at.is_some()
+        {
+            // User provided both — skip the RPC call entirely
+            (user_recent_block_hash.unwrap(), 0)
         } else {
-            let window = self.blocks_window.unwrap_or(BLOCKS_WINDOW);
-            (latest_block + window, self.signed_read) // Use filler default
+            let block = provider
+                .get_block_by_number(BlockNumberOrTag::Latest)
+                .await
+                .map_err(|_| TransportErrorKind::custom_str("Failed to fetch recent block"))?
+                .ok_or_else(|| TransportErrorKind::custom_str("Block not found"))?;
+            let header = block.header();
+            (
+                user_recent_block_hash.unwrap_or_else(|| header.hash()),
+                header.number(),
+            )
         };
+
+        let expires_at_block = user_expires_at.unwrap_or_else(|| {
+            let window = self.blocks_window.unwrap_or(BLOCKS_WINDOW);
+            latest_block + window
+        });
+
+        let encryption_nonce = user_encryption_nonce
+            .unwrap_or_else(TxSeismicElements::get_rand_encryption_nonce);
 
         // Create seismic elements (without full metadata yet, will encrypt in fill())
         let elements = TxSeismicElements::default()
             .with_encryption_pubkey(ephemeral_pubkey)
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
+            .with_encryption_nonce(encryption_nonce)
             // message version != 0 is for typescript / Eip712 signed transactions
             .with_message_version(0)
             .with_recent_block_hash(recent_block_hash)
