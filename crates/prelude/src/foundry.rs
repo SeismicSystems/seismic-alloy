@@ -26,9 +26,8 @@ pub use seismic_alloy_network::{
     },
 };
 pub use seismic_alloy_provider::{
-    builder::{sfoundry_signed_provider, sfoundry_unsigned_provider},
-    test_utils, SeismicCallExt, SeismicProviderExt, SeismicSignedProvider, SeismicSolCallBuilder,
-    SeismicUnsignedProvider,
+    test_utils, SeismicCallExt, SeismicProviderBuilder, SeismicProviderExt,
+    SeismicSignedProvider, SeismicSolCallBuilder, SeismicUnsignedProvider,
 };
 pub use seismic_alloy_rpc_types::{
     SeismicCallRequest, SeismicRawTxRequest, SeismicTransactionReceipt as TransactionReceipt,

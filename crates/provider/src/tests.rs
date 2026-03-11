@@ -26,7 +26,10 @@ const SANVIL_PATH: &str = "sanvil";
 async fn test_get_tee_pubkey() {
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let wallet = get_wallet(&anvil);
-    let provider = crate::signed_provider::<SeismicFoundry>(wallet, anvil.endpoint_url())
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
         .await
         .unwrap();
 
@@ -39,7 +42,10 @@ async fn test_send_transaction_with_empty_input() {
     let plaintext = Bytes::new();
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let wallet = get_wallet(&anvil);
-    let provider = crate::signed_provider::<SeismicFoundry>(wallet, anvil.endpoint_url())
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
         .await
         .unwrap();
 
@@ -54,7 +60,9 @@ async fn test_send_transaction_with_empty_input() {
 #[tokio::test]
 async fn test_anvil_set_code() {
     let anvil = Anvil::at(SANVIL_PATH).spawn();
-    let provider = crate::unsigned_provider_http::<SeismicFoundry>(anvil.endpoint_url());
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .connect_http(anvil.endpoint_url());
 
     let address = address!("0xd8da6bf26964af9d7eed9e03e53415d37aa96045");
     provider.anvil_set_code(address, Bytes::from("0xbeef")).await.unwrap();
@@ -68,7 +76,9 @@ async fn test_seismic_unsigned_call() {
     let plaintext = ContractTestContext::get_deploy_input_plaintext();
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let from = get_wallet(&anvil).default_signer().address();
-    let unsigned_provider = crate::unsigned_provider_http::<SeismicFoundry>(anvil.endpoint_url());
+    let unsigned_provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .connect_http(anvil.endpoint_url());
 
     // Make a regular (non-seismic) eth_call
     let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
@@ -86,7 +96,10 @@ async fn test_seismic_signed_call() {
     let plaintext = ContractTestContext::get_deploy_input_plaintext();
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let wallet = get_wallet(&anvil);
-    let provider = crate::signed_provider::<SeismicFoundry>(wallet, anvil.endpoint_url())
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
         .await
         .unwrap();
 
@@ -123,7 +136,10 @@ async fn test_send_transaction() {
     let plaintext = ContractTestContext::get_deploy_input_plaintext();
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let wallet = get_wallet(&anvil);
-    let provider = crate::signed_provider::<SeismicFoundry>(wallet, anvil.endpoint_url())
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
         .await
         .unwrap();
 
@@ -144,7 +160,10 @@ async fn test_send_seismic_transaction() {
     let plaintext = ContractTestContext::get_deploy_input_plaintext();
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let wallet = get_wallet(&anvil);
-    let provider = crate::signed_provider::<SeismicFoundry>(wallet, anvil.endpoint_url())
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
         .await
         .unwrap();
 
@@ -183,11 +202,18 @@ async fn test_subscribe_to_events() {
     let plaintext = ContractTestContext::get_deploy_input_plaintext();
     let anvil = Anvil::at(SANVIL_PATH).block_time(2).spawn();
     let wallet = get_wallet(&anvil);
-    let provider = crate::signed_provider::<SeismicFoundry>(wallet, anvil.endpoint_url())
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
         .await
         .unwrap();
     let ws_provider =
-        crate::unsigned_provider_ws::<SeismicFoundry>(anvil.ws_endpoint_url()).await.unwrap();
+        crate::SeismicProviderBuilder::new()
+        .foundry()
+        .connect_ws(anvil.ws_endpoint_url())
+        .await
+        .unwrap();
 
     // Deploy contract with a regular (non-seismic) transaction
     let tx: SeismicTransactionRequest =
@@ -293,7 +319,10 @@ async fn deploy_test_contract(
     anvil: &AnvilInstance,
 ) -> (SeismicSignedProvider<SeismicFoundry>, alloy_primitives::Address) {
     let wallet = get_wallet(anvil);
-    let provider = crate::signed_provider::<SeismicFoundry>(wallet, anvil.endpoint_url())
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
         .await
         .unwrap();
 

@@ -1,10 +1,26 @@
-//! Convenience constructors for Seismic providers.
+//! Builder for creating Seismic providers.
 //!
-//! Signed providers encrypt calldata and decrypt responses. They require a
-//! wallet for signing and fetch the TEE public key at creation time.
+//! Follows alloy's `ProviderBuilder` pattern. Defaults to `SeismicReth`
+//! (production); use `.foundry()` for testing with sanvil.
 //!
-//! Unsigned providers encrypt calldata but do not decrypt responses. They
-//! don't need a wallet or TEE public key.
+//! ```rust,ignore
+//! // Production (SeismicReth, the default)
+//! let provider = SeismicProviderBuilder::new()
+//!     .wallet(wallet)
+//!     .connect_http(url)
+//!     .await?;
+//!
+//! // Testing with sanvil (SeismicFoundry)
+//! let provider = SeismicProviderBuilder::new()
+//!     .foundry()
+//!     .wallet(wallet)
+//!     .connect_http(url)
+//!     .await?;
+//!
+//! // Unsigned provider (no wallet, no response decryption)
+//! let provider = SeismicProviderBuilder::new()
+//!     .connect_http(url);
+//! ```
 use alloy_provider::{
     fillers::{
         ChainIdFiller, FillProvider, JoinFill, NonceFiller, SimpleNonceManager, WalletFiller,
@@ -34,7 +50,10 @@ use crate::SeismicProviderExt;
 /// Wallet → (Nonce + ChainId) → SeismicElements → Gas
 type SignedFillers<N> = JoinFill<
     JoinFill<
-        JoinFill<WalletFiller<SeismicWallet<N>>, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+        JoinFill<
+            WalletFiller<SeismicWallet<N>>,
+            JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>,
+        >,
         SeismicElementsFiller,
     >,
     SeismicGasFiller,
@@ -55,36 +74,100 @@ pub type SeismicSignedProvider<N> =
 pub type SeismicUnsignedProvider<N> = FillProvider<UnsignedFillers, RootProvider<N>, N>;
 
 // ---------------------------------------------------------------------------
-// Generic constructors
+// Builder — entry point, defaults to SeismicReth
 // ---------------------------------------------------------------------------
 
-/// Build a signed provider that fetches the TEE public key automatically.
-pub async fn signed_provider<N: SeismicNetwork>(
-    wallet: impl Into<SeismicWallet<N>>,
-    url: reqwest::Url,
-) -> TransportResult<SeismicSignedProvider<N>>
-where
-    N::TransactionRequest: AsRef<SeismicTransactionRequest>
-        + AsMut<SeismicTransactionRequest>
-        + From<SeismicTransactionRequest>
-        + InputDecryptionElements,
-    N::UnsignedTx: Send + Sync,
-    RootProvider<N>: SeismicProviderExt<N>,
-{
-    // Fetch TEE pubkey once using a temporary provider
-    let temp_provider =
-        ProviderBuilder::<_, _, N>::default().network::<N>().connect_client(RpcClient::new_http(url.clone()));
-    let tee_pubkey = temp_provider.get_tee_pubkey().await?;
+/// Builder for creating Seismic providers.
+///
+/// Defaults to [`SeismicReth`] (production). Use `.foundry()` for sanvil testing
+/// or `.network::<N>()` for a custom network.
+///
+/// ```rust,ignore
+/// // Production (default)
+/// let provider = SeismicProviderBuilder::new()
+///     .wallet(wallet)
+///     .connect_http(url)
+///     .await?;
+///
+/// // Testing
+/// let provider = SeismicProviderBuilder::new()
+///     .foundry()
+///     .wallet(wallet)
+///     .connect_http(url)
+///     .await?;
+/// ```
+#[derive(Debug)]
+pub struct SeismicProviderBuilder;
 
-    Ok(signed_provider_with_tee_pubkey(wallet, url, tee_pubkey))
+impl SeismicProviderBuilder {
+    /// Create a new builder. Defaults to [`SeismicReth`] network.
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Switch to [`SeismicFoundry`] network for testing with sanvil.
+    pub fn foundry(self) -> SeismicProviderBuilderWithNetwork<SeismicFoundry> {
+        self.network::<SeismicFoundry>()
+    }
+
+    /// Select a custom network.
+    pub fn network<N: SeismicNetwork>(self) -> SeismicProviderBuilderWithNetwork<N>
+    where
+        N::TransactionRequest: AsRef<SeismicTransactionRequest>
+            + AsMut<SeismicTransactionRequest>
+            + From<SeismicTransactionRequest>
+            + InputDecryptionElements,
+        N::UnsignedTx: Send + Sync,
+        RootProvider<N>: SeismicProviderExt<N>,
+    {
+        SeismicProviderBuilderWithNetwork { _network: std::marker::PhantomData }
+    }
+
+    /// Add a wallet for signing. Uses the default [`SeismicReth`] network.
+    pub fn wallet(
+        self,
+        wallet: impl Into<SeismicWallet<SeismicReth>>,
+    ) -> SeismicProviderBuilderWithWallet<SeismicReth> {
+        SeismicProviderBuilderWithWallet {
+            wallet: wallet.into(),
+            _network: std::marker::PhantomData,
+        }
+    }
+
+    /// Connect via HTTP as an unsigned provider. Uses the default [`SeismicReth`] network.
+    pub fn connect_http(self, url: reqwest::Url) -> SeismicUnsignedProvider<SeismicReth> {
+        build_unsigned_http(url)
+    }
+
+    /// Connect via WebSocket as an unsigned provider. Uses the default [`SeismicReth`] network.
+    pub async fn connect_ws(
+        self,
+        url: reqwest::Url,
+    ) -> TransportResult<SeismicUnsignedProvider<SeismicReth>> {
+        build_unsigned_ws(url).await
+    }
 }
 
-/// Build a signed provider with a pre-fetched TEE public key.
-pub fn signed_provider_with_tee_pubkey<N: SeismicNetwork>(
-    wallet: impl Into<SeismicWallet<N>>,
-    url: reqwest::Url,
-    tee_pubkey: seismic_enclave::secp256k1::PublicKey,
-) -> SeismicSignedProvider<N>
+impl Default for SeismicProviderBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Builder — network selected (non-default)
+// ---------------------------------------------------------------------------
+
+/// Builder state after selecting a non-default network.
+#[derive(Debug)]
+pub struct SeismicProviderBuilderWithNetwork<N: SeismicNetwork>
+where
+    N::UnsignedTx: Send + Sync,
+{
+    _network: std::marker::PhantomData<N>,
+}
+
+impl<N: SeismicNetwork> SeismicProviderBuilderWithNetwork<N>
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
@@ -93,29 +176,103 @@ where
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
-    let seismic_filler = SeismicElementsFiller::with_tee_pubkey_and_url(tee_pubkey);
-    let ephemeral_secret_key = seismic_filler.ephemeral_secret_key().clone();
+    /// Add a wallet for signing.
+    pub fn wallet(
+        self,
+        wallet: impl Into<SeismicWallet<N>>,
+    ) -> SeismicProviderBuilderWithWallet<N> {
+        SeismicProviderBuilderWithWallet {
+            wallet: wallet.into(),
+            _network: std::marker::PhantomData,
+        }
+    }
 
-    let filler_chain = JoinFill::new(
-        JoinFill::new(
+    /// Connect via HTTP (unsigned provider).
+    pub fn connect_http(self, url: reqwest::Url) -> SeismicUnsignedProvider<N> {
+        build_unsigned_http(url)
+    }
+
+    /// Connect via WebSocket (unsigned provider).
+    pub async fn connect_ws(
+        self,
+        url: reqwest::Url,
+    ) -> TransportResult<SeismicUnsignedProvider<N>> {
+        build_unsigned_ws(url).await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Builder — network + wallet selected
+// ---------------------------------------------------------------------------
+
+/// Builder state with network and wallet. Ready to connect as a signed provider.
+#[derive(Debug)]
+pub struct SeismicProviderBuilderWithWallet<N: SeismicNetwork>
+where
+    N::UnsignedTx: Send + Sync,
+{
+    wallet: SeismicWallet<N>,
+    _network: std::marker::PhantomData<N>,
+}
+
+impl<N: SeismicNetwork> SeismicProviderBuilderWithWallet<N>
+where
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>
+        + InputDecryptionElements,
+    N::UnsignedTx: Send + Sync,
+    RootProvider<N>: SeismicProviderExt<N>,
+{
+    /// Connect via HTTP. Fetches the TEE public key automatically.
+    pub async fn connect_http(
+        self,
+        url: reqwest::Url,
+    ) -> TransportResult<SeismicSignedProvider<N>> {
+        let temp_provider = ProviderBuilder::<_, _, N>::default()
+            .network::<N>()
+            .connect_client(RpcClient::new_http(url.clone()));
+        let tee_pubkey = temp_provider.get_tee_pubkey().await?;
+
+        Ok(self.connect_http_with_tee_pubkey(url, tee_pubkey))
+    }
+
+    /// Connect via HTTP with a pre-fetched TEE public key (synchronous).
+    pub fn connect_http_with_tee_pubkey(
+        self,
+        url: reqwest::Url,
+        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+    ) -> SeismicSignedProvider<N> {
+        let seismic_filler = SeismicElementsFiller::with_tee_pubkey_and_url(tee_pubkey);
+        let ephemeral_secret_key = seismic_filler.ephemeral_secret_key().clone();
+
+        let filler_chain = JoinFill::new(
             JoinFill::new(
-                WalletFiller::new(wallet.into()),
-                JoinFill::new(NonceFiller::<SimpleNonceManager>::simple(), ChainIdFiller::default()),
+                JoinFill::new(
+                    WalletFiller::new(self.wallet),
+                    JoinFill::new(
+                        NonceFiller::<SimpleNonceManager>::simple(),
+                        ChainIdFiller::default(),
+                    ),
+                ),
+                seismic_filler,
             ),
-            seismic_filler,
-        ),
-        SeismicGasFiller::with_url(url.clone()),
-    );
+            SeismicGasFiller::with_url(url.clone()),
+        );
 
-    ProviderBuilder::<_, _, N>::default()
-        .network::<N>()
-        .layer(ResponseDecryptLayer::new(ephemeral_secret_key, tee_pubkey))
-        .layer(filler_chain)
-        .connect_client(RpcClient::new_http(url))
+        ProviderBuilder::<_, _, N>::default()
+            .network::<N>()
+            .layer(ResponseDecryptLayer::new(ephemeral_secret_key, tee_pubkey))
+            .layer(filler_chain)
+            .connect_client(RpcClient::new_http(url))
+    }
 }
 
-/// Build an unsigned HTTP provider.
-pub fn unsigned_provider_http<N: SeismicNetwork>(url: reqwest::Url) -> SeismicUnsignedProvider<N>
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+fn build_unsigned_http<N: SeismicNetwork>(url: reqwest::Url) -> SeismicUnsignedProvider<N>
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
@@ -132,8 +289,7 @@ where
         .connect_client(RpcClient::new_http(url))
 }
 
-/// Build an unsigned WebSocket provider.
-pub async fn unsigned_provider_ws<N: SeismicNetwork>(
+async fn build_unsigned_ws<N: SeismicNetwork>(
     url: reqwest::Url,
 ) -> TransportResult<SeismicUnsignedProvider<N>>
 where
@@ -153,43 +309,15 @@ where
         .await
 }
 
-/// Shared filler chain construction for unsigned providers.
 fn unsigned_filler_chain(url: reqwest::Url) -> UnsignedFillers {
     JoinFill::new(
         JoinFill::new(
             SeismicElementsFiller::new(),
-            JoinFill::new(NonceFiller::<SimpleNonceManager>::simple(), ChainIdFiller::default()),
+            JoinFill::new(
+                NonceFiller::<SimpleNonceManager>::simple(),
+                ChainIdFiller::default(),
+            ),
         ),
         SeismicGasFiller::with_url(url),
     )
-}
-
-// ---------------------------------------------------------------------------
-// Network-specific convenience functions
-// ---------------------------------------------------------------------------
-
-/// Create a signed provider for the SeismicFoundry (sanvil) network.
-pub async fn sfoundry_signed_provider(
-    wallet: impl Into<SeismicWallet<SeismicFoundry>>,
-    url: reqwest::Url,
-) -> TransportResult<SeismicSignedProvider<SeismicFoundry>> {
-    signed_provider(wallet, url).await
-}
-
-/// Create an unsigned HTTP provider for the SeismicFoundry (sanvil) network.
-pub fn sfoundry_unsigned_provider(url: reqwest::Url) -> SeismicUnsignedProvider<SeismicFoundry> {
-    unsigned_provider_http(url)
-}
-
-/// Create a signed provider for the SeismicReth network.
-pub async fn sreth_signed_provider(
-    wallet: impl Into<SeismicWallet<SeismicReth>>,
-    url: reqwest::Url,
-) -> TransportResult<SeismicSignedProvider<SeismicReth>> {
-    signed_provider(wallet, url).await
-}
-
-/// Create an unsigned HTTP provider for the SeismicReth network.
-pub fn sreth_unsigned_provider(url: reqwest::Url) -> SeismicUnsignedProvider<SeismicReth> {
-    unsigned_provider_http(url)
 }
