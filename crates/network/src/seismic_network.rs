@@ -6,7 +6,8 @@ use alloy_primitives::{Address, Bytes};
 use alloy_provider::fillers::RecommendedFillers;
 use alloy_rpc_types_eth::TransactionInput;
 use seismic_alloy_consensus::{
-    InputDecryptionElements, InputDecryptionElementsError, TxSeismicElements, SEISMIC_TX_TYPE_ID,
+    InputDecryptionElements, InputDecryptionElementsError, TxSeismicElements, TypedDataRequest,
+    SEISMIC_TX_TYPE_ID,
 };
 
 /// A trait for networks that support seismic elements.
@@ -50,6 +51,10 @@ where
     fn extract_seismic_metadata(
         envelope: &Self::TxEnvelope,
     ) -> Option<seismic_alloy_consensus::TxSeismicMetadata>;
+
+    /// Convert an EIP-712 signed seismic envelope to a [`TypedDataRequest`].
+    /// Returns None if the envelope is not a seismic transaction or not EIP-712.
+    fn to_typed_data_request(envelope: &Self::TxEnvelope) -> Option<TypedDataRequest>;
 }
 
 #[async_trait::async_trait]
@@ -153,6 +158,16 @@ impl SeismicNetwork for SeismicReth {
             _ => None,
         }
     }
+
+    fn to_typed_data_request(envelope: &Self::TxEnvelope) -> Option<TypedDataRequest> {
+        use seismic_alloy_consensus::SeismicTxEnvelope;
+        match envelope {
+            SeismicTxEnvelope::Seismic(signed_tx) if signed_tx.tx().is_eip712() => {
+                Some(signed_tx.clone().into())
+            }
+            _ => None,
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -240,6 +255,16 @@ impl SeismicNetwork for SeismicFoundry {
                     },
                     seismic_elements: tx_seismic.seismic_elements.clone(),
                 })
+            }
+            _ => None,
+        }
+    }
+
+    fn to_typed_data_request(envelope: &Self::TxEnvelope) -> Option<TypedDataRequest> {
+        use crate::foundry::envelope::SeismicFoundryTxEnvelope;
+        match envelope {
+            SeismicFoundryTxEnvelope::Seismic(signed_tx) if signed_tx.tx().is_eip712() => {
+                Some(signed_tx.clone().into())
             }
             _ => None,
         }

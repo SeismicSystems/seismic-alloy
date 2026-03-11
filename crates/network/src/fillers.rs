@@ -371,6 +371,7 @@ where
             .map(|e| e.expires_at_block)
             .filter(|&b| b > 0);
         let signed_read = partial.map_or(self.signed_read, |e| e.signed_read);
+        let message_version = partial.map(|e| e.message_version).filter(|&v| v > 0).unwrap_or(0);
 
         // Fetch block info only if we need recent_block_hash or expires_at_block
         let (recent_block_hash, latest_block) = if user_recent_block_hash.is_some()
@@ -403,8 +404,7 @@ where
         let elements = TxSeismicElements::default()
             .with_encryption_pubkey(ephemeral_pubkey)
             .with_encryption_nonce(encryption_nonce)
-            // message version != 0 is for typescript / Eip712 signed transactions
-            .with_message_version(0)
+            .with_message_version(message_version)
             .with_recent_block_hash(recent_block_hash)
             .with_expires_at_block(expires_at_block)
             .with_signed_read(signed_read);

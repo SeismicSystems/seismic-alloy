@@ -95,7 +95,9 @@ where
     N: SeismicNetwork,
     C: SolCall + Send,
     P: SeismicProviderExt<N>,
-    N::TransactionRequest: AsMut<SeismicTransactionRequest> + From<SeismicTransactionRequest>,
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
 {
     /// Set the block number after which this transaction expires.
@@ -122,6 +124,18 @@ where
         self.mutate_elements(|e| e.encryption_nonce = nonce)
     }
 
+    /// Use EIP-712 typed data signing instead of standard RLP signing.
+    ///
+    /// This sets `message_version = 2`, which makes the transaction get signed
+    /// via EIP-712 `signTypedData` and sent as a [`TypedDataRequest`] instead
+    /// of raw bytes. Primarily needed for browser wallet (e.g., MetaMask)
+    /// integration, where the wallet can't sign custom RLP-encoded tx types.
+    ///
+    /// [`TypedDataRequest`]: seismic_alloy_consensus::TypedDataRequest
+    pub fn eip712(self) -> Self {
+        self.mutate_elements(|e| e.message_version = 2)
+    }
+
     /// Execute an encrypted, signed read call.
     ///
     /// The call goes through the filler pipeline which encrypts the calldata
@@ -140,10 +154,25 @@ where
     /// Send an encrypted write transaction.
     ///
     /// The fillers detect the seismic tx type and encrypt the calldata
-    /// automatically before broadcasting.
+    /// automatically before broadcasting. If `.eip712()` was called, the
+    /// transaction is sent as a [`TypedDataRequest`] instead of raw bytes.
+    ///
+    /// [`TypedDataRequest`]: seismic_alloy_consensus::TypedDataRequest
     pub async fn send(&self) -> TransportResult<PendingTransactionBuilder<N>> {
         let request = self.inner.as_ref().clone();
-        self.inner.provider.send_transaction(request).await
+
+        // Check if this is an EIP-712 transaction
+        let seismic_req: &SeismicTransactionRequest = request.as_ref();
+        let is_eip712 = seismic_req
+            .seismic_elements
+            .as_ref()
+            .map_or(false, |e| e.message_version >= 2);
+
+        if is_eip712 {
+            self.inner.provider.eip712_send(SendableTx::Builder(request)).await
+        } else {
+            self.inner.provider.send_transaction(request).await
+        }
     }
 
     /// Internal: mutate the partial seismic elements on the underlying request.

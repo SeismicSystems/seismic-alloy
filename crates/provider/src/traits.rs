@@ -146,11 +146,37 @@ where
                 Ok(output)
             }
             SendableTx::Envelope(envelope) => {
-                let encoded_tx = envelope.encoded_2718();
-                let output = self.client().request("eth_call", (encoded_tx,)).await?;
-                Ok(output)
+                // EIP-712 envelopes are sent as TypedDataRequest JSON, not raw bytes
+                if let Some(typed_data_req) = N::to_typed_data_request(&envelope) {
+                    let output: Bytes =
+                        self.client().request("eth_call", (typed_data_req,)).await?;
+                    Ok(output)
+                } else {
+                    let encoded_tx = envelope.encoded_2718();
+                    let output = self.client().request("eth_call", (encoded_tx,)).await?;
+                    Ok(output)
+                }
             }
         }
+    }
+
+    /// Send an EIP-712 signed seismic transaction.
+    ///
+    /// Fills the transaction, signs it (producing an EIP-712 typed data signature),
+    /// and sends the result as a [`TypedDataRequest`] instead of raw bytes.
+    /// Requires a signed provider with fill capabilities.
+    ///
+    /// The default implementation returns an error — only
+    /// [`ResponseDecryptProvider`](crate::decrypt::ResponseDecryptProvider) overrides this.
+    ///
+    /// [`TypedDataRequest`]: seismic_alloy_consensus::TypedDataRequest
+    async fn eip712_send(
+        &self,
+        _tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        Err(alloy_transport::TransportErrorKind::custom_str(
+            "EIP-712 sends require a signed provider (SeismicProviderBuilder::new().wallet(...).connect_http(...))",
+        ))
     }
 
     /// Get the PublicKey of the enclave.
@@ -179,6 +205,13 @@ where
 {
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         (**self).seismic_call(tx).await
+    }
+
+    async fn eip712_send(
+        &self,
+        tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        (**self).eip712_send(tx).await
     }
 }
 

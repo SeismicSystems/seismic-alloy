@@ -536,6 +536,76 @@ async fn test_call_ext_security_params_send() {
     assert!(is_odd, "9 should be odd");
 }
 
+// ========================================================================
+// EIP-712 tests — contract.method().seismic().eip712().call()/send()
+// ========================================================================
+
+#[tokio::test]
+async fn test_call_ext_eip712_read() {
+    use crate::SeismicCallExt;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+    let contract = SeismicCounter::new(addr, &provider);
+
+    // EIP-712 signed read: number is 0, isOdd returns false
+    let is_odd = contract.isOdd().seismic().eip712().call().await;
+    assert!(is_odd.is_ok(), "seismic().eip712().call() failed: {:?}", is_odd.unwrap_err());
+    assert!(!is_odd.unwrap());
+}
+
+#[tokio::test]
+async fn test_call_ext_eip712_send() {
+    use crate::SeismicCallExt;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+    let contract = SeismicCounter::new(addr, &provider);
+
+    // EIP-712 signed write: setNumber(11)
+    let receipt = contract
+        .setNumber(alloy_primitives::aliases::SUInt(alloy_primitives::U256::from(11)))
+        .seismic()
+        .eip712()
+        .send()
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+    assert!(receipt.status());
+
+    // Verify via standard shielded read: 11 is odd
+    let is_odd = contract.isOdd().seismic().call().await.unwrap();
+    assert!(is_odd, "11 should be odd");
+}
+
+#[tokio::test]
+async fn test_call_ext_eip712_write_then_eip712_read() {
+    use crate::SeismicCallExt;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+    let contract = SeismicCounter::new(addr, &provider);
+
+    // EIP-712 write
+    let receipt = contract
+        .setNumber(alloy_primitives::aliases::SUInt(alloy_primitives::U256::from(13)))
+        .seismic()
+        .eip712()
+        .send()
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+    assert!(receipt.status());
+
+    // EIP-712 read
+    let is_odd = contract.isOdd().seismic().eip712().call().await.unwrap();
+    assert!(is_odd, "13 should be odd");
+}
+
 fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {
     let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
     SeismicWallet::from(bob)

@@ -175,6 +175,37 @@ where
             }
         }
     }
+
+    async fn eip712_send(
+        &self,
+        tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        // Fill the transaction (wallet, nonce, chain_id, seismic elements, gas, sign)
+        let filled = match tx {
+            SendableTx::Builder(builder) => self.inner.fill(builder).await?,
+            envelope => envelope,
+        };
+
+        // Extract TypedDataRequest from the signed envelope
+        match filled {
+            SendableTx::Envelope(ref envelope) => {
+                let typed_data_req = N::to_typed_data_request(envelope).ok_or_else(|| {
+                    alloy_transport::TransportErrorKind::custom_str(
+                        "EIP-712 send: filled transaction is not an EIP-712 seismic envelope",
+                    )
+                })?;
+
+                let tx_hash = self
+                    .client()
+                    .request("eth_sendRawTransaction", (typed_data_req,))
+                    .await?;
+                Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
+            }
+            SendableTx::Builder(_) => Err(alloy_transport::TransportErrorKind::custom_str(
+                "EIP-712 send: expected signed envelope after filling, got builder",
+            )),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
