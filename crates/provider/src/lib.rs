@@ -17,6 +17,8 @@ pub use decrypt::ResponseDecryptProvider;
 pub mod builder;
 pub use builder::{SeismicProviderBuilder, SeismicSignedProvider, SeismicUnsignedProvider};
 
+pub mod precompiles;
+
 pub mod test_utils;
 
 #[cfg(test)]

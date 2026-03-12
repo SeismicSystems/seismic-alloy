@@ -7,3 +7,4 @@
 //! - `eip712` — EIP-712 typed data signing
 //! - `security_params` — Custom expiration, nonce, block hash
 //! - `event_subscription` — WebSocket event subscription
+//! - `precompiles` — Calling Seismic's on-chain crypto precompiles
