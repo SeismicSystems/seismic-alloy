@@ -1,6 +1,8 @@
 //! Extension trait for alloy's [`CallBuilder`] that adds `.seismic()` support.
 //!
-//! This enables the standard `#[sol(rpc)]` pattern to work with Seismic encryption:
+//! The `.seismic()` method is only available on **signed providers** (those created
+//! with `.wallet()`). This is enforced at compile time — unsigned providers cannot
+//! call `.seismic()`.
 //!
 //! ```rust,ignore
 //! use seismic_alloy_provider::SeismicCallExt;
@@ -15,32 +17,69 @@
 //!
 //! let contract = MyContract::new(address, &provider);
 //!
-//! // Shielded read (encrypted + signed)
+//! // Shielded read (encrypted + signed) — requires signed provider
 //! let is_odd = contract.isOdd().seismic().call().await?;
 //!
-//! // Shielded send (encrypted write)
+//! // Shielded send (encrypted write) — requires signed provider
 //! let receipt = contract.setNumber(U256::from(42)).seismic().send().await?
 //!     .get_receipt().await?;
 //!
-//! // Transparent (default alloy behavior, no changes needed)
+//! // Transparent (default alloy behavior, works on any provider)
 //! let is_odd = contract.isOdd().call().await?;
 //! ```
 use alloy_contract::SolCallBuilder;
 use alloy_network::Network;
 use alloy_primitives::{aliases::U96, B256};
-use alloy_provider::{PendingTransactionBuilder, SendableTx};
+use alloy_provider::{
+    fillers::{FillProvider, TxFiller},
+    PendingTransactionBuilder, Provider, SendableTx,
+};
 use alloy_sol_types::SolCall;
 use alloy_transport::TransportResult;
 
+use crate::decrypt::ResponseDecryptProvider;
 use crate::SeismicProviderError;
+use crate::SeismicProviderExt;
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
-use crate::SeismicProviderExt;
+/// Sealed marker trait for signed providers that can decrypt responses.
+///
+/// Implemented only by [`ResponseDecryptProvider`] and references to it.
+/// Users do not need to import this trait — it is used internally as a bound
+/// on [`SeismicCallExt`] to restrict `.seismic()` to signed providers.
+pub trait IsSignedProvider<N: SeismicNetwork>: SeismicProviderExt<N>
+where
+    N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
+{
+}
+
+impl<N, F, P> IsSignedProvider<N> for ResponseDecryptProvider<N, FillProvider<F, P, N>>
+where
+    N: SeismicNetwork,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
+    N::UnsignedTx: Send + Sync,
+    Self: SeismicProviderExt<N>,
+    F: TxFiller<N>,
+    P: Provider<N>,
+{
+}
+
+impl<T, N> IsSignedProvider<N> for &T
+where
+    T: IsSignedProvider<N> + Sync,
+    N: SeismicNetwork,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
+    N::UnsignedTx: Send + Sync,
+    Self: SeismicProviderExt<N>,
+{
+}
 
 /// Extension trait that adds `.seismic()` to alloy's [`SolCallBuilder`].
 ///
+/// Only available on signed providers (those constructed with `.wallet()`).
 /// Calling `.seismic()` marks the call/transaction as encrypted. The returned
 /// [`SeismicSolCallBuilder`] provides:
 /// - `.call()` — encrypted, signed read (routes through the filler pipeline)
@@ -53,6 +92,8 @@ pub trait SeismicCallExt<'a, P, C: SolCall, N: Network> {
     ///
     /// For writes (`.send()`), this sets the seismic tx type so the filler
     /// pipeline encrypts the calldata before submission.
+    ///
+    /// Only available on signed providers (constructed with `.wallet()`).
     fn seismic(self) -> SeismicSolCallBuilder<'a, P, C, N>;
 }
 
@@ -60,7 +101,7 @@ impl<'a, P, C, N> SeismicCallExt<'a, P, C, N> for SolCallBuilder<&'a P, C, N>
 where
     N: SeismicNetwork,
     C: SolCall,
-    P: SeismicProviderExt<N>,
+    P: IsSignedProvider<N>,
     N::TransactionRequest: AsMut<SeismicTransactionRequest> + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
 {
@@ -77,6 +118,7 @@ where
 /// A [`SolCallBuilder`] wrapper that routes calls through Seismic's encrypted path.
 ///
 /// Created by calling [`.seismic()`](SeismicCallExt::seismic) on a `SolCallBuilder`.
+/// Only available on signed providers.
 ///
 /// - `.call()` goes through [`SeismicProviderExt::seismic_call`] which runs the filler
 ///   pipeline (encrypting calldata, signing the request, then decrypting the response).

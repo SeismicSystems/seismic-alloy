@@ -26,6 +26,10 @@ use seismic_enclave::secp256k1::PublicKey;
 /// - [`transparent_call`](SeismicProviderExt::transparent_call) — standard `eth_call`
 /// - [`transparent_send`](SeismicProviderExt::transparent_send) — standard transaction
 ///
+/// For the call-builder equivalent, use `.seismic()` on a `SolCallBuilder` (see
+/// [`SeismicCallExt`](crate::SeismicCallExt)). The `.seismic()` method is only available
+/// on signed providers.
+///
 /// # Example
 ///
 /// ```rust,ignore
