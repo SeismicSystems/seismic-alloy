@@ -238,7 +238,7 @@ Key error types:
 
 ### Seismic Transaction Type ID
 
-The Seismic transaction type ID is `123`. This is hardcoded and must not change without coordinated chain upgrade.
+The Seismic transaction type ID is `0x4A` (74 decimal). This is hardcoded and must not change without coordinated chain upgrade.
 
 ### Encryption Public Key Format
 
@@ -303,7 +303,7 @@ Use the test utilities in `crates/provider/src/test_utils.rs`. Tests typically s
 ### Avoid
 
 - Do not modify vendored dependencies (seismic-enclave, seismic-revm, etc.) directly in this repo
-- Do not change the Seismic transaction type ID (123) without chain upgrade coordination
+- Do not change the Seismic transaction type ID (0x4A / 74) without chain upgrade coordination
 - Do not add dependencies that conflict with Alloy's version requirements
 - Do not implement partial features - ensure encryption/decryption pairs are complete
 - Do not skip CI checks - all warnings must be resolved
