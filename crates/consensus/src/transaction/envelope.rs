@@ -894,6 +894,7 @@ mod tests {
             value: U256::from(1000000000000000u64),
             seismic_elements: TxSeismicElements::default(),
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
+            authorization_list: vec![],
         };
 
         let sig = Signature::from_scalars_and_parity(

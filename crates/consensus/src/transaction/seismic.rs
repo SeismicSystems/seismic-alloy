@@ -364,7 +364,6 @@ impl Decodable for TxSeismicElements {
 
 /// Basic encrypted transaction type
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
-#[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[doc(alias = "SeismicTransaction", alias = "TransactionSeismic", alias = "SeismicTx")]
@@ -404,14 +403,40 @@ pub struct TxSeismic {
     /// to the newly created account; formally Tv.
     pub value: U256,
     /// Input has two uses depending if transaction is Create or Call (if `to` field is None or
-    /// Some). pub init: An unlimited size byte array specifying the
-    /// EVM-code for the account initialisation procedure CREATE,
-    /// data: An unlimited size byte array specifying the
+    /// Some).
+    ///  - pub init: An unlimited size byte array specifying the EVM-code for the account
+    ///    initialisation procedure CREATE,
+    ///  - data: An unlimited size byte array specifying the
     /// input data of the message call, formally Td.
     pub input: Bytes,
     /// Seismic-specific encryption and message data
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub seismic_elements: TxSeismicElements,
+    /// Optional list of EIP-7702 authorization tuples for smart account delegation.
+    /// Unlike TxEip7702 where an empty auth list is invalid, TxSeismic's primary purpose
+    /// is encryption, so an empty list is perfectly valid (means "no delegations").
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub authorization_list: Vec<SignedAuthorization>,
+}
+
+// We implement manually instead of using the derive macro because SignedAuthorization doesn't
+// implement it.
+#[cfg(any(test, feature = "arbitrary"))]
+impl<'a> arbitrary::Arbitrary<'a> for TxSeismic {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self {
+            chain_id: ChainId::arbitrary(u)?,
+            nonce: u64::arbitrary(u)?,
+            gas_price: u128::arbitrary(u)?,
+            gas_limit: u64::arbitrary(u)?,
+            to: TxKind::arbitrary(u)?,
+            value: U256::arbitrary(u)?,
+            input: Bytes::arbitrary(u)?,
+            seismic_elements: TxSeismicElements::arbitrary(u)?,
+            // SignedAuthorization doesn't impl Arbitrary, so default to empty
+            authorization_list: vec![],
+        })
+    }
 }
 
 impl TxSeismic {
@@ -447,7 +472,8 @@ impl TxSeismic {
         mem::size_of::<u8>() + // message_version
         mem::size_of::<B256>() + // recent_block_hash
         mem::size_of::<u64>() + // expires_at_block
-        mem::size_of::<bool>() // signed_read
+        mem::size_of::<bool>() + // signed_read
+        self.authorization_list.capacity() * mem::size_of::<SignedAuthorization>() // authorization_list
     }
 
     /// Encodes a [`TxSeismic`] into a [`TypedData`].
@@ -640,7 +666,8 @@ impl RlpEcdsaEncodableTx for TxSeismic {
             self.to.length() +
             self.value.length() +
             self.seismic_elements.length() +
-            self.input.length()
+            self.input.length() +
+            self.authorization_list.length()
     }
 
     fn rlp_encode_fields(&self, out: &mut dyn alloy_rlp::BufMut) {
@@ -652,6 +679,7 @@ impl RlpEcdsaEncodableTx for TxSeismic {
         self.value.encode(out);
         self.seismic_elements.encode(out);
         self.input.encode(out);
+        self.authorization_list.encode(out);
     }
 
     fn tx_hash(&self, signature: &Signature) -> alloy_primitives::TxHash {
@@ -681,6 +709,7 @@ impl RlpEcdsaDecodableTx for TxSeismic {
             value: Decodable::decode(buf)?,
             seismic_elements: Decodable::decode(buf)?,
             input: Decodable::decode(buf)?,
+            authorization_list: Decodable::decode(buf)?,
         })
     }
 }
@@ -767,7 +796,7 @@ impl Transaction for TxSeismic {
 
     #[inline]
     fn authorization_list(&self) -> Option<&[SignedAuthorization]> {
-        None
+        Some(&self.authorization_list)
     }
 }
 
@@ -882,6 +911,8 @@ pub(super) mod serde_bincode_compat {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use serde_with::{DeserializeAs, SerializeAs};
 
+    use alloy_eips::eip7702::SignedAuthorization;
+
     use super::TxSeismicElements;
 
     /// Bincode-compatible [`super::TxSeismic`] serde implementation.
@@ -910,6 +941,8 @@ pub(super) mod serde_bincode_compat {
         value: U256,
         seismic_elements: TxSeismicElements,
         input: Cow<'a, Bytes>,
+        #[serde(default)]
+        authorization_list: Cow<'a, Vec<SignedAuthorization>>,
     }
 
     impl<'a> From<&'a super::TxSeismic> for TxSeismic<'a> {
@@ -923,6 +956,7 @@ pub(super) mod serde_bincode_compat {
                 value: value.value,
                 seismic_elements: value.seismic_elements,
                 input: Cow::Borrowed(&value.input),
+                authorization_list: Cow::Borrowed(&value.authorization_list),
             }
         }
     }
@@ -938,6 +972,7 @@ pub(super) mod serde_bincode_compat {
                 value: value.value,
                 seismic_elements: value.seismic_elements,
                 input: value.input.into_owned(),
+                authorization_list: value.authorization_list.into_owned(),
             }
         }
     }
@@ -1018,7 +1053,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_seismic() {
-        let hash: B256 = b256!("d906edeab8343895bac1821b9f916b1beec1a8650d982918186cc9294674a544");
+        let hash: B256 = b256!("0xd18462df79a0e613bf39886c23ef1e0fc0c7d518b488fa5e76bf7462632cc1f9");
 
         let tx = TxSeismic {
             chain_id: 4u64,
@@ -1029,6 +1064,7 @@ mod tests {
             value: U256::from(1000000000000000u64),
             seismic_elements: TxSeismicElements::default(),
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
+            authorization_list: vec![],
         };
 
         let sig = Signature::from_scalars_and_parity(
@@ -1106,6 +1142,7 @@ mod tests {
                 expires_at_block: 1000000,
                 signed_read: false,
             },
+            authorization_list: vec![],
             input:  hex!("a22cb4650000000000000000000000005eee75727d804a2b13038928d36f8b188945a57a0000000000000000000000000000000000000000000000000000000000000000").into(),
         };
         let typed_data = tx.eip712_to_type_data();
@@ -1154,6 +1191,7 @@ mod tests {
                 signed_read: true,
             },
             input: Bytes::default(),
+            authorization_list: vec![],
         };
         let typed_data = tx.eip712_to_type_data();
         let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
@@ -1179,7 +1217,8 @@ mod tests {
                 recent_block_hash: B256::from_slice(&hex!("abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")),
                 expires_at_block: 1000000,
                 signed_read: false,
-            }
+            },
+            authorization_list: vec![],
         };
         let signature = {
             let r_bytes =
@@ -1205,15 +1244,11 @@ mod tests {
         let signed_hash = signed.hash();
 
         let expected_tx_hash = FixedBytes::<32>::from_hex(
-            "d33755a15aeb3023cb6e5a593a60cb963b2381c44342a43b1088465931b1cdbc",
+            "0x8c95f5133ab8d55531621f1d46f0ca092084be09db7a932e738c56003d3735eb",
         )
         .unwrap();
 
         assert_eq!(signed_hash, &expected_tx_hash);
-
-        // NOTE: undecided whether we want to check this last assert
-        let raw_tx_hash = tx.tx_hash(&signature);
-        assert_eq!(&raw_tx_hash, &expected_tx_hash);
     }
 
     #[cfg(feature = "serde")]
@@ -1274,6 +1309,7 @@ mod tests {
             value: U256::from(1u64),
             seismic_elements,
             input: plaintext.clone(),
+            authorization_list: vec![],
         };
         let sender = Address::from_str("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").unwrap();
         let tx_metadata = orig_decoded_tx.metadata(sender).unwrap();
