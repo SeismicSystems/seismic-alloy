@@ -12,7 +12,7 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use seismic_alloy_provider::precompiles::{self, addresses};
+//! use seismic_alloy_provider::precompiles;
 //!
 //! // Generate 32 bytes of randomness via the RNG precompile
 //! let random_bytes = precompiles::call::rng(&provider, 32, b"my_domain").await?;
@@ -21,41 +21,29 @@
 //! let aes_key = precompiles::call::ecdh(&provider, &secret_key, &public_key).await?;
 //! ```
 
-use alloy_primitives::{Address, Bytes, FixedBytes};
+use alloy_primitives::{address, Address, Bytes, FixedBytes};
 
 /// Precompile contract addresses.
 pub mod addresses {
     use super::*;
 
     /// RNG — on-chain random number generation (gas: 3500 + 5 per 32-byte word).
-    pub const RNG: Address = Address::new([
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x64,
-    ]);
+    pub const RNG: Address = address!("0x0000000000000000000000000000000000000064");
 
     /// ECDH — derive a shared AES-256 key from a secret key and public key (gas: 3120).
-    pub const ECDH: Address = Address::new([
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x65,
-    ]);
+    pub const ECDH: Address = address!("0x0000000000000000000000000000000000000065");
 
     /// AES-256-GCM encryption (gas: 1000 + 30 per 16-byte block).
-    pub const AES_ENCRYPT: Address = Address::new([
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x66,
-    ]);
+    pub const AES_ENCRYPT: Address = address!("0x0000000000000000000000000000000000000066");
 
     /// AES-256-GCM decryption (gas: 1000 + 30 per 16-byte block).
-    pub const AES_DECRYPT: Address = Address::new([
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x67,
-    ]);
+    pub const AES_DECRYPT: Address = address!("0x0000000000000000000000000000000000000067");
 
     /// HKDF — derive an AES-256 key from arbitrary input (variable gas).
-    pub const HKDF: Address = Address::new([
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x68,
-    ]);
+    pub const HKDF: Address = address!("0x0000000000000000000000000000000000000068");
 
     /// SECP256K1 — ECDSA recoverable signing (gas: 3000).
-    pub const SECP256K1_SIGN: Address = Address::new([
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x69,
-    ]);
+    pub const SECP256K1_SIGN: Address = address!("0x0000000000000000000000000000000000000069");
 }
 
 // ---------------------------------------------------------------------------
@@ -159,7 +147,7 @@ pub fn encode_secp256k1_sign(
 /// Decoded output from the SECP256K1 signing precompile.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecoverableSignature {
-    /// 64-byte compact ECDSA signature (r‖s).
+    /// 64-byte compact ECDSA signature (r || s).
     pub signature: FixedBytes<64>,
     /// Recovery ID (0–3).
     pub recovery_id: u8,
@@ -339,8 +327,9 @@ pub mod call {
         )
         .await?;
         decode_secp256k1_sign(&output).ok_or_else(|| {
-            crate::SeismicProviderError::AbiDecode(alloy_sol_types::Error::Other(
-                std::borrow::Cow::Borrowed("SECP256K1 sign: expected 65-byte output"),
+            crate::SeismicProviderError::PrecompileOutput(format!(
+                "SECP256K1 sign: expected 65-byte output, got {} bytes",
+                output.len()
             ))
             .into_transport()
         })

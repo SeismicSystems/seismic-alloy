@@ -16,10 +16,8 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
-seismic-alloy-consensus.workspace = true
 seismic-alloy-network.workspace = true
 seismic-alloy-provider.workspace = true
-seismic-alloy-rpc-types.workspace = true
 
 alloy-contract.workspace = true
 alloy-network.workspace = true
@@ -29,7 +27,6 @@ alloy-provider.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-signer-local.workspace = true
 alloy-sol-types.workspace = true
-alloy-transport.workspace = true
 
 tokio = { workspace = true, features = ["full"] }
 futures-util.workspace = true

@@ -48,6 +48,10 @@ pub enum SeismicProviderError {
     /// EIP-712 send: expected a signed envelope after filling but got a builder.
     #[error("EIP-712 send: expected signed envelope after filling, got builder")]
     Eip712GotBuilder,
+
+    /// Precompile returned output in an unexpected format.
+    #[error("precompile output error: {0}")]
+    PrecompileOutput(String),
 }
 
 impl SeismicProviderError {

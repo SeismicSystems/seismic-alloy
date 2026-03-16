@@ -13,23 +13,20 @@
 //! cargo run -p seismic-examples --example event_subscription
 //! ```
 
-use alloy_network::TransactionBuilder;
+use alloy_network::ReceiptResponse;
 use alloy_node_bindings::Anvil;
-use alloy_primitives::{Bytes, TxKind, U256};
+use alloy_primitives::U256;
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::Filter;
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::{sol, SolEvent};
 use futures_util::StreamExt;
-use seismic_alloy_network::{
-    foundry::{builder::seismic_foundry_tx_builder, SeismicFoundry},
-    wallet::SeismicWallet,
-};
+use seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet};
 use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder};
-use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
+// See basic_contract.rs for the Solidity source.
 sol! {
-    #[sol(rpc)]
+    #[sol(rpc, bytecode = "60806040525f5f8190b1506102e2806100175f395ff3fe608060405234801561000f575f5ffd5b506004361061003f575f3560e01c806324a7f0b71461004357806343bd0d701461005f578063d09de08a1461007d575b5f5ffd5b61005d6004803603810190610058919061014e565b610087565b005b6100676100bc565b6040516100749190610193565b60405180910390f35b6100856100d3565b005b805f8190b1507fd5d7fa14c63c3a6cb5e6dd4b4bb8c48d371a807bd306e9c09f1d61769963402c60405160405180910390a150565b5f600160025fb06100cd91906101e2565b14905090565b5f5f81b0809291906100e49061023f565b919050b1507f9ff5ccac5db99a217f56663c2490d2cb74f1512ec2f298bb1c8b7ffc56dae36e60405160405180910390a1565b5f5ffd5b5f819050919050565b61012d8161011b565b8114610137575f5ffd5b50565b5f8135905061014881610124565b92915050565b5f6020828403121561016357610162610117565b5b5f6101708482850161013a565b91505092915050565b5f8115159050919050565b61018d81610179565b82525050565b5f6020820190506101a65f830184610184565b92915050565b5f819050919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601260045260245ffd5b5f6101ec826101ac565b91506101f7836101ac565b925082610207576102066101b5565b5b828206905092915050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b5f6102498261011b565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361027b5761027a610212565b5b60018201905091905056fea264697066735822122005eb17b23e331c07f3f13292a557c76fafce3a9e7ac80b829875dffc0aece52664736f6c637828302e382e32382d646576656c6f702e323032352e332e31332b636f6d6d69742e64306231386234650059")]
     contract SeismicCounter {
         event setNumberEmit();
         event incrementEmit();
@@ -60,21 +57,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // Deploy contract
-    let bytecode = Bytes::from_static(include_bytes!("../bytecode/seismic_counter.bin"));
-    let deploy_tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(bytecode)
-        .with_kind(TxKind::Create)
-        .into();
-
-    let receipt = provider
-        .send_transaction(deploy_tx.into())
-        .await?
-        .get_receipt()
-        .await?;
-    let addr = receipt.contract_address.unwrap();
+    let contract = SeismicCounter::deploy(&provider).await?;
+    let addr = *contract.address();
     println!("Contract deployed at {addr}");
-
-    let contract = SeismicCounter::new(addr, &provider);
 
     // Subscribe to all events from this contract.
     let filter = Filter::new().address(addr);
@@ -90,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .get_receipt()
         .await?;
-    println!("setNumber(42) tx: {:?}", receipt.transaction_hash);
+    println!("setNumber(42) tx: {:?} (status: {})", receipt.transaction_hash, receipt.status());
 
     let receipt = contract
         .increment()
@@ -99,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .get_receipt()
         .await?;
-    println!("increment() tx: {:?}", receipt.transaction_hash);
+    println!("increment() tx: {:?} (status: {})", receipt.transaction_hash, receipt.status());
 
     // Collect events.
     let mut set_events = 0u32;

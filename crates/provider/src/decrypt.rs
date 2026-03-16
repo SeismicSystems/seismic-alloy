@@ -105,14 +105,13 @@ where
         match tx {
             SendableTx::Builder(builder) => {
                 // Check if this is a seismic transaction
-                let seismic_tx: &SeismicTransactionRequest = builder.as_ref();
-                if !seismic_tx.is_seismic() {
+                let seismic_req: &SeismicTransactionRequest = builder.as_ref();
+                if !seismic_req.is_seismic() {
                     // Not seismic, just pass through as a standard eth_call
                     return self.call(builder).await;
                 }
 
                 // Mark as signed_read before filling
-                let seismic_req: &SeismicTransactionRequest = builder.as_ref();
                 let modified_req = seismic_req.clone().with_signed_read();
                 let modified_builder: N::TransactionRequest = modified_req.into();
 
