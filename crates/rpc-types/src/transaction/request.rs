@@ -396,8 +396,17 @@ impl From<TxEip4844> for SeismicTransactionRequest {
 impl From<TxSeismic> for SeismicTransactionRequest {
     fn from(tx: TxSeismic) -> Self {
         let ty = tx.ty();
-        let TxSeismic { chain_id, nonce, gas_price, gas_limit, to, value, input, seismic_elements, authorization_list } =
-            tx;
+        let TxSeismic {
+            chain_id,
+            nonce,
+            gas_price,
+            gas_limit,
+            to,
+            value,
+            input,
+            seismic_elements,
+            authorization_list,
+        } = tx;
 
         let inner = TransactionRequest {
             to: Some(to.into()),

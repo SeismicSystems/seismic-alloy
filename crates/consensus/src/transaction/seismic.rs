@@ -1053,7 +1053,8 @@ mod tests {
 
     #[test]
     fn test_encode_decode_seismic() {
-        let hash: B256 = b256!("0xd18462df79a0e613bf39886c23ef1e0fc0c7d518b488fa5e76bf7462632cc1f9");
+        let hash: B256 =
+            b256!("0xd18462df79a0e613bf39886c23ef1e0fc0c7d518b488fa5e76bf7462632cc1f9");
 
         let tx = TxSeismic {
             chain_id: 4u64,
