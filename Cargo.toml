@@ -176,5 +176,6 @@ alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", tag = "v
 # alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 
 # revm
-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "07d9df07bdcd03ccbf98fb8d1282aa19e7760a71" }
-seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "07d9df07bdcd03ccbf98fb8d1282aa19e7760a71" }
+# Temporarily pointing to veridise-audit-feb-2026 branch. Will point back to seismic after the audit is complete.
+revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5ba06828ab6f0f8d0d62d745efd8a35862f8603c" }
+seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5ba06828ab6f0f8d0d62d745efd8a35862f8603c" }
