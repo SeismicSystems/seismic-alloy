@@ -52,7 +52,7 @@ pub use seismic_revm::{
     },
     precompiles::SeismicPrecompiles,
     SeismicChain, SeismicContext as EthEvmContext, SeismicContext, SeismicEvm as RevmEvm,
-    SeismicHaltReason as OpHaltReason, SeismicSpecId as SpecId, SeismicSpecId, SeismicTransaction,
+    SeismicSpecId as SpecId, SeismicSpecId, SeismicTransaction,
     SeismicTransaction as OpTransaction,
 };
 
