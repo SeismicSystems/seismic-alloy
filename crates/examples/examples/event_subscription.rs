@@ -13,16 +13,13 @@
 //! cargo run -p seismic-examples --example event_subscription
 //! ```
 
-use alloy_network::ReceiptResponse;
+use seismic_prelude::client::*;
 use alloy_node_bindings::Anvil;
-use alloy_primitives::U256;
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::Filter;
-use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::{sol, SolEvent};
+use alloy_sol_types::SolEvent;
 use futures_util::StreamExt;
-use seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet};
-use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder, ShieldedCallExt};
+use seismic_alloy_network::foundry::SeismicFoundry;
 
 // See basic_contract.rs for the Solidity source.
 sol! {

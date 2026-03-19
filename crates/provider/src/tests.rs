@@ -1,5 +1,6 @@
 //! Integration tests for the Seismic provider.
 #![cfg(test)]
+#![allow(deprecated)] // Tests exercise deprecated .seismic() on ShieldedCallBuilder
 
 use crate::{
     builder::SeismicSignedProvider,

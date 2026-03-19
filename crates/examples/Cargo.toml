@@ -16,6 +16,7 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
+seismic-prelude.workspace = true
 seismic-alloy-network.workspace = true
 seismic-alloy-provider.workspace = true
 

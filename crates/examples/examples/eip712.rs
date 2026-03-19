@@ -13,13 +13,9 @@
 //! cargo run -p seismic-examples --example eip712
 //! ```
 
-use alloy_network::ReceiptResponse;
+use seismic_prelude::client::*;
 use alloy_node_bindings::Anvil;
-use alloy_primitives::U256;
-use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::sol;
-use seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet};
-use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder, ShieldedCallExt};
+use seismic_alloy_network::foundry::SeismicFoundry;
 
 // See basic_contract.rs for the Solidity source.
 sol! {
