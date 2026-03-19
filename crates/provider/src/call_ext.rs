@@ -50,7 +50,8 @@ use seismic_alloy_rpc_types::SeismicTransactionRequest;
 ///
 /// Implemented only by [`ResponseDecryptProvider`] and references to it.
 /// Users do not need to import this trait — it is used internally as a bound
-/// on [`SeismicCallExt`] to restrict `.seismic()` to signed providers.
+/// on [`SeismicCallExt`] and [`ShieldedCallExt`] to restrict seismic
+/// operations to signed providers.
 pub trait IsSignedProvider<N: SeismicNetwork>: SeismicProviderExt<N>
 where
     N::UnsignedTx: Send + Sync,
