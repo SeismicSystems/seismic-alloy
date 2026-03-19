@@ -121,31 +121,23 @@ where
                 // Extract metadata for decryption
                 let metadata = match &filled_tx {
                     SendableTx::Builder(filled_builder) => {
-                        let sender = filled_builder.from().ok_or_else(|| {
-                            SeismicProviderError::MissingSender.into_transport()
-                        })?;
+                        let sender = filled_builder
+                            .from()
+                            .ok_or_else(|| SeismicProviderError::MissingSender.into_transport())?;
                         filled_builder.metadata(sender).map_err(|e| {
                             SeismicProviderError::MetadataCreation(format!("{e:?}"))
                                 .into_transport()
                         })?
                     }
-                    SendableTx::Envelope(envelope) => {
-                        N::extract_seismic_metadata(envelope).ok_or_else(|| {
-                            SeismicProviderError::NotSeismicEnvelope.into_transport()
-                        })?
-                    }
+                    SendableTx::Envelope(envelope) => N::extract_seismic_metadata(envelope)
+                        .ok_or_else(|| SeismicProviderError::NotSeismicEnvelope.into_transport())?,
                 };
 
                 // Send the RPC call
                 let output = self.inner.root().seismic_call(filled_tx).await?;
 
                 // Decrypt the response
-                decrypt_response(
-                    &output,
-                    &metadata,
-                    &self.tee_pubkey,
-                    &self.ephemeral_secret_key,
-                )
+                decrypt_response(&output, &metadata, &self.tee_pubkey, &self.ephemeral_secret_key)
             }
             SendableTx::Envelope(envelope) => {
                 // Envelope passed directly — try to extract seismic metadata
@@ -183,15 +175,11 @@ where
                     SeismicProviderError::Eip712NotSeismicEnvelope.into_transport()
                 })?;
 
-                let tx_hash = self
-                    .client()
-                    .request("eth_sendRawTransaction", (typed_data_req,))
-                    .await?;
+                let tx_hash =
+                    self.client().request("eth_sendRawTransaction", (typed_data_req,)).await?;
                 Ok(PendingTransactionBuilder::new(self.root().clone(), tx_hash))
             }
-            SendableTx::Builder(_) => {
-                Err(SeismicProviderError::Eip712GotBuilder.into_transport())
-            }
+            SendableTx::Builder(_) => Err(SeismicProviderError::Eip712GotBuilder.into_transport()),
         }
     }
 }

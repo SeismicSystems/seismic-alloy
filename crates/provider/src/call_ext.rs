@@ -1,31 +1,35 @@
-//! Extension trait for alloy's [`CallBuilder`] that adds `.seismic()` support.
+//! Extension traits for seismic (encrypted) contract calls.
 //!
-//! The `.seismic()` method is only available on **signed providers** (those created
-//! with `.wallet()`). This is enforced at compile time — unsigned providers cannot
-//! call `.seismic()`.
+//! Two traits provide the seismic call interface:
+//!
+//! - [`SeismicCallExt`] — adds `.seismic()` to alloy's `SolCallBuilder`, converting it to a
+//!   [`ShieldedCallBuilder`] that encrypts calldata.
+//! - [`ShieldedCallExt`] — provides `.call()`, `.send()`, and builder methods (`.expires_at()`,
+//!   `.eip712()`, etc.) on [`ShieldedCallBuilder`].
+//!
+//! Functions with shielded parameters (e.g., `suint256`, `saddress`) are automatically
+//! wrapped in `ShieldedCallBuilder` by the `sol!` macro, so `.call()` and `.send()`
+//! auto-encrypt without needing `.seismic()`.
 //!
 //! ```rust,ignore
-//! use seismic_alloy_provider::SeismicCallExt;
-//!
 //! sol! {
 //!     #[sol(rpc)]
 //!     interface MyContract {
-//!         function isOdd() public view returns (bool);
-//!         function setNumber(uint256 newNumber) public;
+//!         function getPublicValue() public view returns (uint256);
+//!         function setSecret(suint256 val) public;
 //!     }
 //! }
 //!
 //! let contract = MyContract::new(address, &provider);
 //!
-//! // Shielded read (encrypted + signed) — requires signed provider
-//! let is_odd = contract.isOdd().seismic().call().await?;
+//! // Non-shielded function — opt in to encryption with .seismic()
+//! let val = contract.getPublicValue().seismic().call().await?;
 //!
-//! // Shielded send (encrypted write) — requires signed provider
-//! let receipt = contract.setNumber(U256::from(42)).seismic().send().await?
-//!     .get_receipt().await?;
+//! // Shielded function — auto-encrypts, .seismic() is unnecessary
+//! contract.setSecret(val).send().await?;
 //!
 //! // Transparent (default alloy behavior, works on any provider)
-//! let is_odd = contract.isOdd().call().await?;
+//! let val = contract.getPublicValue().call().await?;
 //! ```
 use alloy_contract::SolCallBuilder;
 use alloy_network::Network;
@@ -34,12 +38,10 @@ use alloy_provider::{
     fillers::{FillProvider, TxFiller},
     PendingTransactionBuilder, Provider, SendableTx,
 };
-use alloy_sol_types::SolCall;
+use alloy_sol_types::{private::ShieldedCallBuilder, SolCall};
 use alloy_transport::TransportResult;
 
-use crate::decrypt::ResponseDecryptProvider;
-use crate::SeismicProviderError;
-use crate::SeismicProviderExt;
+use crate::{decrypt::ResponseDecryptProvider, SeismicProviderError, SeismicProviderExt};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
@@ -79,22 +81,16 @@ where
 
 /// Extension trait that adds `.seismic()` to alloy's [`SolCallBuilder`].
 ///
+/// Converts a `SolCallBuilder` into a [`ShieldedCallBuilder`] that routes
+/// calls through the seismic (encrypted) path.
+///
 /// Only available on signed providers (those constructed with `.wallet()`).
-/// Calling `.seismic()` marks the call/transaction as encrypted. The returned
-/// [`SeismicSolCallBuilder`] provides:
-/// - `.call()` — encrypted, signed read (routes through the filler pipeline)
-/// - `.send()` — encrypted write (fillers handle encryption automatically)
 pub trait SeismicCallExt<'a, P, C: SolCall, N: Network> {
     /// Mark this contract call as a seismic (encrypted) operation.
     ///
-    /// For reads (`.call()`), this encrypts the calldata, signs the request
-    /// (preventing `msg.sender` spoofing), and decrypts the response.
-    ///
-    /// For writes (`.send()`), this sets the seismic tx type so the filler
-    /// pipeline encrypts the calldata before submission.
-    ///
-    /// Only available on signed providers (constructed with `.wallet()`).
-    fn seismic(self) -> SeismicSolCallBuilder<'a, P, C, N>;
+    /// Returns a [`ShieldedCallBuilder`] with `.call()`, `.send()`, and
+    /// builder methods for customizing security parameters.
+    fn seismic(self) -> ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>>;
 }
 
 impl<'a, P, C, N> SeismicCallExt<'a, P, C, N> for SolCallBuilder<&'a P, C, N>
@@ -105,135 +101,148 @@ where
     N::TransactionRequest: AsMut<SeismicTransactionRequest> + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
 {
-    fn seismic(self) -> SeismicSolCallBuilder<'a, P, C, N> {
-        let inner = self.map(|mut req| {
-            let seismic_req: &mut SeismicTransactionRequest = req.as_mut();
-            seismic_req.inner.transaction_type = Some(seismic_alloy_consensus::TxSeismic::TX_TYPE);
-            req
-        });
-        SeismicSolCallBuilder { inner }
+    fn seismic(self) -> ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>> {
+        ShieldedCallBuilder(self)
     }
 }
 
-/// A [`SolCallBuilder`] wrapper that routes calls through Seismic's encrypted path.
+/// Extension trait for [`ShieldedCallBuilder`] — provides `.call()`, `.send()`,
+/// and builder methods for seismic (encrypted) contract calls.
 ///
-/// Created by calling [`.seismic()`](SeismicCallExt::seismic) on a `SolCallBuilder`.
-/// Only available on signed providers.
+/// Functions with shielded types in their arguments are automatically wrapped
+/// in `ShieldedCallBuilder` by the `sol!` macro, so `.call()` and `.send()`
+/// auto-encrypt. Calling `.seismic()` first is unnecessary and produces a
+/// deprecation warning.
 ///
-/// - `.call()` goes through [`SeismicProviderExt::seismic_call`] which runs the filler
-///   pipeline (encrypting calldata, signing the request, then decrypting the response).
-/// - `.send()` delegates to the standard `send_transaction` path — the fillers detect
-///   the seismic tx type and encrypt automatically.
-///
-/// Security parameters can be customized per-call via builder methods:
-/// - [`.expires_at()`](SeismicSolCallBuilder::expires_at) — transaction expiration block
-/// - [`.recent_block_hash()`](SeismicSolCallBuilder::recent_block_hash) — chain-state pinning
-/// - [`.encryption_nonce()`](SeismicSolCallBuilder::encryption_nonce) — AEAD nonce (testing only)
-#[must_use = "call builders do nothing unless you `.call()` or `.send()` them"]
-pub struct SeismicSolCallBuilder<'a, P, C: SolCall, N: Network> {
-    inner: SolCallBuilder<&'a P, C, N>,
-}
+/// For non-shielded functions, use [`SeismicCallExt::seismic()`] to convert
+/// a `SolCallBuilder` into a `ShieldedCallBuilder` first.
+pub trait ShieldedCallExt<'a, P, C: SolCall, N: Network> {
+    /// Execute an encrypted read call.
+    ///
+    /// Encrypts the calldata, signs the request (preventing `msg.sender`
+    /// spoofing), and decrypts the response.
+    fn call(&self) -> impl std::future::Future<Output = TransportResult<C::Return>> + Send
+    where
+        C::Return: Send;
 
-impl<'a, P, C, N> SeismicSolCallBuilder<'a, P, C, N>
-where
-    N: SeismicNetwork,
-    C: SolCall + Send,
-    P: SeismicProviderExt<N>,
-    N::TransactionRequest: AsRef<SeismicTransactionRequest>
-        + AsMut<SeismicTransactionRequest>
-        + From<SeismicTransactionRequest>,
-    N::UnsignedTx: Send + Sync,
-{
+    /// Send an encrypted write transaction.
+    ///
+    /// The filler pipeline detects the seismic tx type and encrypts the
+    /// calldata automatically before broadcasting.
+    fn send(
+        &self,
+    ) -> impl std::future::Future<Output = TransportResult<PendingTransactionBuilder<N>>> + Send;
+
+    /// Unnecessary — functions with shielded parameters are automatically
+    /// sent as seismic (encrypted) transactions. Use `.call()` or `.send()` directly.
+    #[deprecated = "unnecessary — functions with shielded parameters are automatically sent as seismic transactions. Use .call() or .send() directly."]
+    fn seismic(self) -> ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>>;
+
     /// Set the block number after which this transaction expires.
     ///
     /// By default, the filler sets this to `current_block + BLOCKS_WINDOW` (100).
-    /// Use this to shorten or extend the validity window.
-    pub fn expires_at(self, block: u64) -> Self {
-        self.mutate_elements(|e| e.expires_at_block = block)
-    }
+    fn expires_at(self, block: u64) -> Self;
 
     /// Set the recent block hash for chain-state pinning.
     ///
-    /// By default, the filler fetches the latest block hash. Use this to pin
-    /// the transaction to a specific chain state (e.g., for deterministic testing).
-    pub fn recent_block_hash(self, hash: B256) -> Self {
-        self.mutate_elements(|e| e.recent_block_hash = hash)
-    }
+    /// By default, the filler fetches the latest block hash.
+    fn recent_block_hash(self, hash: B256) -> Self;
 
     /// Set a custom encryption nonce (AEAD nonce).
     ///
     /// By default, the filler generates a random nonce. Only override this
     /// for deterministic testing — reusing nonces in production breaks encryption.
-    pub fn encryption_nonce(self, nonce: U96) -> Self {
-        self.mutate_elements(|e| e.encryption_nonce = nonce)
-    }
+    fn encryption_nonce(self, nonce: U96) -> Self;
 
     /// Use EIP-712 typed data signing instead of standard RLP signing.
     ///
-    /// This sets `message_version = 2`, which makes the transaction get signed
-    /// via EIP-712 `signTypedData` and sent as a [`TypedDataRequest`] instead
-    /// of raw bytes. Primarily needed for browser wallet (e.g., MetaMask)
-    /// integration, where the wallet can't sign custom RLP-encoded tx types.
-    ///
-    /// [`TypedDataRequest`]: seismic_alloy_consensus::TypedDataRequest
-    pub fn eip712(self) -> Self {
-        self.mutate_elements(|e| e.message_version = 2)
-    }
+    /// Primarily needed for browser wallet (e.g., MetaMask) integration.
+    fn eip712(self) -> Self;
+}
 
-    /// Execute an encrypted, signed read call.
-    ///
-    /// The call goes through the filler pipeline which encrypts the calldata
-    /// and signs the request. The response is decrypted before being returned.
-    pub async fn call(&self) -> TransportResult<C::Return>
+impl<'a, P, C, N> ShieldedCallExt<'a, P, C, N> for ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>>
+where
+    N: SeismicNetwork,
+    C: SolCall + Send + Sync,
+    P: IsSignedProvider<N>,
+    N::TransactionRequest: AsRef<SeismicTransactionRequest>
+        + AsMut<SeismicTransactionRequest>
+        + From<SeismicTransactionRequest>,
+    N::UnsignedTx: Send + Sync,
+{
+    async fn call(&self) -> TransportResult<C::Return>
     where
         C::Return: Send,
     {
-        let request = self.inner.as_ref().clone();
-        let result = self.inner.provider.seismic_call(SendableTx::Builder(request)).await?;
-
+        let request = build_seismic_request(&self.0);
+        let result = self.0.provider.seismic_call(SendableTx::Builder(request)).await?;
         C::abi_decode_returns(&result)
             .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
     }
 
-    /// Send an encrypted write transaction.
-    ///
-    /// The fillers detect the seismic tx type and encrypt the calldata
-    /// automatically before broadcasting. If `.eip712()` was called, the
-    /// transaction is sent as a [`TypedDataRequest`] instead of raw bytes.
-    ///
-    /// [`TypedDataRequest`]: seismic_alloy_consensus::TypedDataRequest
-    pub async fn send(&self) -> TransportResult<PendingTransactionBuilder<N>> {
-        let request = self.inner.as_ref().clone();
+    async fn send(&self) -> TransportResult<PendingTransactionBuilder<N>> {
+        let request = build_seismic_request(&self.0);
 
-        // Check if this is an EIP-712 transaction
         let seismic_req: &SeismicTransactionRequest = request.as_ref();
-        let is_eip712 = seismic_req
-            .seismic_elements
-            .as_ref()
-            .map_or(false, |e| e.message_version >= 2);
+        let is_eip712 =
+            seismic_req.seismic_elements.as_ref().map_or(false, |e| e.message_version >= 2);
 
         if is_eip712 {
-            self.inner.provider.eip712_send(SendableTx::Builder(request)).await
+            self.0.provider.eip712_send(SendableTx::Builder(request)).await
         } else {
-            self.inner.provider.send_transaction(request).await
+            self.0.provider.send_transaction(request).await
         }
     }
 
-    /// Internal: mutate the partial seismic elements on the underlying request.
-    fn mutate_elements(mut self, f: impl FnOnce(&mut TxSeismicElements)) -> Self {
-        self.inner = self.inner.map(|mut req| {
-            let seismic_req: &mut SeismicTransactionRequest = req.as_mut();
-            let elements =
-                seismic_req.seismic_elements.get_or_insert_with(TxSeismicElements::default);
-            f(elements);
-            req
-        });
+    fn seismic(self) -> ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>> {
         self
+    }
+
+    fn expires_at(self, block: u64) -> Self {
+        mutate_shielded_elements(self, |e| e.expires_at_block = block)
+    }
+
+    fn recent_block_hash(self, hash: B256) -> Self {
+        mutate_shielded_elements(self, |e| e.recent_block_hash = hash)
+    }
+
+    fn encryption_nonce(self, nonce: U96) -> Self {
+        mutate_shielded_elements(self, |e| e.encryption_nonce = nonce)
+    }
+
+    fn eip712(self) -> Self {
+        mutate_shielded_elements(self, |e| e.message_version = 2)
     }
 }
 
-impl<P, C: SolCall, N: Network> std::fmt::Debug for SeismicSolCallBuilder<'_, P, C, N> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SeismicSolCallBuilder").field("inner", &self.inner).finish()
-    }
+/// Build a seismic request from a `SolCallBuilder`'s underlying request.
+fn build_seismic_request<N: SeismicNetwork>(
+    builder: &SolCallBuilder<&impl Provider<N>, impl SolCall, N>,
+) -> N::TransactionRequest
+where
+    N::TransactionRequest: AsMut<SeismicTransactionRequest>,
+    N::UnsignedTx: Send + Sync,
+{
+    let mut request = builder.as_ref().clone();
+    let seismic_req: &mut SeismicTransactionRequest = request.as_mut();
+    seismic_req.inner.transaction_type = Some(seismic_alloy_consensus::TxSeismic::TX_TYPE);
+    request
+}
+
+/// Mutate seismic elements on a `ShieldedCallBuilder`'s underlying request.
+fn mutate_shielded_elements<'a, P: Provider<N>, C: SolCall, N: SeismicNetwork>(
+    mut builder: ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>>,
+    f: impl FnOnce(&mut TxSeismicElements),
+) -> ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>>
+where
+    N::TransactionRequest: AsMut<SeismicTransactionRequest>,
+    N::UnsignedTx: Send + Sync,
+{
+    builder.0 = builder.0.map(|mut req: N::TransactionRequest| {
+        let seismic_req: &mut SeismicTransactionRequest = req.as_mut();
+        let elements = seismic_req.seismic_elements.get_or_insert_with(TxSeismicElements::default);
+        f(elements);
+        req
+    });
+    builder
 }

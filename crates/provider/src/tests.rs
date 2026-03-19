@@ -1,9 +1,11 @@
 //! Integration tests for the Seismic provider.
 #![cfg(test)]
 
-use crate::builder::SeismicSignedProvider;
-use crate::test_utils::{ContractTestContext, ISeismicCounter};
-use crate::SeismicProviderExt;
+use crate::{
+    builder::SeismicSignedProvider,
+    test_utils::{ContractTestContext, ISeismicCounter},
+    SeismicProviderExt,
+};
 use alloy_network::{ReceiptResponse, TransactionBuilder};
 use alloy_node_bindings::{Anvil, AnvilInstance};
 use alloy_primitives::{address, hex, Address, Bytes, TxKind};
@@ -60,9 +62,8 @@ async fn test_send_transaction_with_empty_input() {
 #[tokio::test]
 async fn test_anvil_set_code() {
     let anvil = Anvil::at(SANVIL_PATH).spawn();
-    let provider = crate::SeismicProviderBuilder::new()
-        .foundry()
-        .connect_http(anvil.endpoint_url());
+    let provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
 
     let address = address!("0xd8da6bf26964af9d7eed9e03e53415d37aa96045");
     provider.anvil_set_code(address, Bytes::from("0xbeef")).await.unwrap();
@@ -76,9 +77,8 @@ async fn test_seismic_unsigned_call() {
     let plaintext = ContractTestContext::get_deploy_input_plaintext();
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let from = get_wallet(&anvil).default_signer().address();
-    let unsigned_provider = crate::SeismicProviderBuilder::new()
-        .foundry()
-        .connect_http(anvil.endpoint_url());
+    let unsigned_provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
 
     // Make a regular (non-seismic) eth_call
     let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
@@ -208,8 +208,7 @@ async fn test_subscribe_to_events() {
         .connect_http(anvil.endpoint_url())
         .await
         .unwrap();
-    let ws_provider =
-        crate::SeismicProviderBuilder::new()
+    let ws_provider = crate::SeismicProviderBuilder::new()
         .foundry()
         .connect_ws(anvil.ws_endpoint_url())
         .await
@@ -330,8 +329,7 @@ async fn deploy_test_contract(
     let tx: SeismicTransactionRequest =
         seismic_foundry_tx_builder().with_input(plaintext).with_kind(TxKind::Create).into();
 
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
     let contract_address = receipt.contract_address.unwrap();
 
     (provider, contract_address)
@@ -339,7 +337,7 @@ async fn deploy_test_contract(
 
 #[tokio::test]
 async fn test_call_ext_shielded_read() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -354,7 +352,7 @@ async fn test_call_ext_shielded_read() {
 
 #[tokio::test]
 async fn test_call_ext_shielded_write_then_read() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -380,7 +378,7 @@ async fn test_call_ext_shielded_write_then_read() {
 
 #[tokio::test]
 async fn test_call_ext_shielded_increment() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -388,15 +386,7 @@ async fn test_call_ext_shielded_increment() {
     let contract = SeismicCounter::new(addr, &provider);
 
     // Shielded write: increment from 0 to 1
-    let receipt = contract
-        .increment()
-        .seismic()
-        .send()
-        .await
-        .unwrap()
-        .get_receipt()
-        .await
-        .unwrap();
+    let receipt = contract.increment().seismic().send().await.unwrap().get_receipt().await.unwrap();
     assert!(receipt.status());
 
     // Shielded read: 1 is odd
@@ -406,7 +396,7 @@ async fn test_call_ext_shielded_increment() {
 
 #[tokio::test]
 async fn test_call_ext_shielded_read_write_read() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -449,7 +439,7 @@ async fn test_call_ext_transparent_call() {
 
 #[tokio::test]
 async fn test_call_ext_transparent_send_then_shielded_read() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -474,7 +464,7 @@ async fn test_call_ext_transparent_send_then_shielded_read() {
 
 #[tokio::test]
 async fn test_call_ext_security_params_expires_at() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -490,7 +480,7 @@ async fn test_call_ext_security_params_expires_at() {
 
 #[tokio::test]
 async fn test_call_ext_security_params_encryption_nonce() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -510,7 +500,7 @@ async fn test_call_ext_security_params_encryption_nonce() {
 
 #[tokio::test]
 async fn test_call_ext_security_params_send() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -542,7 +532,7 @@ async fn test_call_ext_security_params_send() {
 
 #[tokio::test]
 async fn test_call_ext_eip712_read() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -556,7 +546,7 @@ async fn test_call_ext_eip712_read() {
 
 #[tokio::test]
 async fn test_call_ext_eip712_send() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -582,7 +572,7 @@ async fn test_call_ext_eip712_send() {
 
 #[tokio::test]
 async fn test_call_ext_eip712_write_then_eip712_read() {
-    use crate::SeismicCallExt;
+    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;

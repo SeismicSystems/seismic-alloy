@@ -57,12 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ---- Custom expiration ----
     // By default, transactions expire at current_block + 100.
     // Here we set a shorter window.
-    let is_odd = contract
-        .isOdd()
-        .seismic()
-        .expires_at(current_block + 10)
-        .call()
-        .await?;
+    let is_odd = contract.isOdd().seismic().expires_at(current_block + 10).call().await?;
     println!("isOdd() with expires_at={} = {is_odd}", current_block + 10);
 
     // ---- Custom encryption nonce ----
@@ -70,21 +65,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // A fixed nonce is useful for deterministic testing.
     // WARNING: Never reuse nonces in production — it breaks encryption.
     let custom_nonce = U96::from(0xDEADBEEFu64);
-    let is_odd = contract
-        .isOdd()
-        .seismic()
-        .encryption_nonce(custom_nonce)
-        .call()
-        .await?;
+    let is_odd = contract.isOdd().seismic().encryption_nonce(custom_nonce).call().await?;
     println!("isOdd() with custom nonce = {is_odd}");
 
     // ---- Custom recent_block_hash ----
     // By default, the filler fetches the latest block hash.
     // Providing it manually skips one RPC round-trip.
-    let block = provider
-        .get_block_by_number(alloy_rpc_types_eth::BlockNumberOrTag::Latest)
-        .await?
-        .unwrap();
+    let block =
+        provider.get_block_by_number(alloy_rpc_types_eth::BlockNumberOrTag::Latest).await?.unwrap();
     let block_hash = block.header.hash;
     println!("Pinning to block hash: {block_hash}");
 
@@ -106,11 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .get_receipt()
         .await?;
-    println!(
-        "setNumber(3) with expires_at={} (status: {})",
-        current_block + 50,
-        receipt.status()
-    );
+    println!("setNumber(3) with expires_at={} (status: {})", current_block + 50, receipt.status());
 
     let is_odd = contract.isOdd().seismic().call().await?;
     println!("isOdd() = {is_odd} (expected: true)");

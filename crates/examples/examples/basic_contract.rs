@@ -98,12 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("isOdd() [transparent] = {is_odd}");
 
     // 7. Transparent write: increment()
-    let receipt = contract
-        .increment()
-        .send()
-        .await?
-        .get_receipt()
-        .await?;
+    let receipt = contract.increment().send().await?.get_receipt().await?;
     println!("increment() tx: {:?} (status: {})", receipt.transaction_hash, receipt.status());
 
     // 8. Shielded read after increment: 8 is even.
@@ -114,9 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 9. Also works with the low-level trait methods.
     use seismic_alloy_provider::SeismicProviderExt;
 
-    let result = provider
-        .shielded_call(addr, SeismicCounter::isOddCall {})
-        .await?;
+    let result = provider.shielded_call(addr, SeismicCounter::isOddCall {}).await?;
     println!("shielded_call isOdd() = {result}");
 
     let tee_pubkey = provider.get_tee_pubkey().await?;

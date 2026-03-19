@@ -60,9 +60,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("AES encrypted: {ciphertext} ({} bytes)", ciphertext.len());
     assert_eq!(ciphertext.len(), plaintext.len() + 16); // plaintext + 16-byte GCM tag
 
-    let decrypted =
-        precompiles::call::aes_decrypt::<SeismicFoundry, _>(&provider, &aes_key, &nonce, &ciphertext)
-            .await?;
+    let decrypted = precompiles::call::aes_decrypt::<SeismicFoundry, _>(
+        &provider,
+        &aes_key,
+        &nonce,
+        &ciphertext,
+    )
+    .await?;
     println!("AES decrypted: {:?}", String::from_utf8_lossy(&decrypted));
     assert_eq!(decrypted.as_ref(), plaintext);
 

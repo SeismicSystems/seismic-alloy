@@ -51,10 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // Unsigned WS provider for subscribing to events.
-    let ws_provider = SeismicProviderBuilder::new()
-        .foundry()
-        .connect_ws(anvil.ws_endpoint_url())
-        .await?;
+    let ws_provider =
+        SeismicProviderBuilder::new().foundry().connect_ws(anvil.ws_endpoint_url()).await?;
 
     // Deploy contract
     let contract = SeismicCounter::deploy(&provider).await?;
@@ -77,13 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("setNumber(42) tx: {:?} (status: {})", receipt.transaction_hash, receipt.status());
 
-    let receipt = contract
-        .increment()
-        .seismic()
-        .send()
-        .await?
-        .get_receipt()
-        .await?;
+    let receipt = contract.increment().seismic().send().await?.get_receipt().await?;
     println!("increment() tx: {:?} (status: {})", receipt.transaction_hash, receipt.status());
 
     // Collect events.

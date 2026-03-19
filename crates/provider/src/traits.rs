@@ -112,8 +112,7 @@ where
         C::Return: Send,
     {
         let encoded = call.abi_encode();
-        let mut tx: N::TransactionRequest =
-            SeismicTransactionRequest::default().to(address).into();
+        let mut tx: N::TransactionRequest = SeismicTransactionRequest::default().to(address).into();
         TransactionBuilder::<N>::set_input(&mut tx, encoded);
 
         let result = self.call(tx).await?;
@@ -129,8 +128,7 @@ where
         call: C,
     ) -> TransportResult<PendingTransactionBuilder<N>> {
         let encoded = call.abi_encode();
-        let mut tx: N::TransactionRequest =
-            SeismicTransactionRequest::default().to(address).into();
+        let mut tx: N::TransactionRequest = SeismicTransactionRequest::default().to(address).into();
         TransactionBuilder::<N>::set_input(&mut tx, encoded);
 
         self.send_transaction(tx).await

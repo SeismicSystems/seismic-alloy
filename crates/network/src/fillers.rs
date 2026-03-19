@@ -244,9 +244,7 @@ impl SeismicElementsFiller {
     /// the filler's ephemeral secret key), so a match means we already ran.
     fn is_encrypted(&self, tx: &SeismicTransactionRequest) -> bool {
         let our_pubkey = self.ephemeral_secret_key.public_key(&Secp256k1::new());
-        tx.seismic_elements
-            .as_ref()
-            .map_or(false, |e| e.encryption_pubkey == our_pubkey)
+        tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_pubkey == our_pubkey)
     }
 }
 
@@ -361,44 +359,35 @@ where
 
         // Extract user-provided overrides from partial elements (if any)
         let partial = seismic_tx.seismic_elements.as_ref();
-        let user_recent_block_hash = partial
-            .map(|e| e.recent_block_hash)
-            .filter(|h| !h.is_zero());
-        let user_encryption_nonce = partial
-            .map(|e| e.encryption_nonce)
-            .filter(|n| *n != alloy_primitives::Uint::ZERO);
-        let user_expires_at = partial
-            .map(|e| e.expires_at_block)
-            .filter(|&b| b > 0);
+        let user_recent_block_hash = partial.map(|e| e.recent_block_hash).filter(|h| !h.is_zero());
+        let user_encryption_nonce =
+            partial.map(|e| e.encryption_nonce).filter(|n| *n != alloy_primitives::Uint::ZERO);
+        let user_expires_at = partial.map(|e| e.expires_at_block).filter(|&b| b > 0);
         let signed_read = partial.map_or(self.signed_read, |e| e.signed_read);
         let message_version = partial.map(|e| e.message_version).filter(|&v| v > 0).unwrap_or(0);
 
         // Fetch block info only if we need recent_block_hash or expires_at_block
-        let (recent_block_hash, latest_block) = if user_recent_block_hash.is_some()
-            && user_expires_at.is_some()
-        {
-            // User provided both — skip the RPC call entirely
-            (user_recent_block_hash.unwrap(), 0)
-        } else {
-            let block = provider
-                .get_block_by_number(BlockNumberOrTag::Latest)
-                .await
-                .map_err(|_| TransportErrorKind::custom_str("Failed to fetch recent block"))?
-                .ok_or_else(|| TransportErrorKind::custom_str("Block not found"))?;
-            let header = block.header();
-            (
-                user_recent_block_hash.unwrap_or_else(|| header.hash()),
-                header.number(),
-            )
-        };
+        let (recent_block_hash, latest_block) =
+            if user_recent_block_hash.is_some() && user_expires_at.is_some() {
+                // User provided both — skip the RPC call entirely
+                (user_recent_block_hash.unwrap(), 0)
+            } else {
+                let block = provider
+                    .get_block_by_number(BlockNumberOrTag::Latest)
+                    .await
+                    .map_err(|_| TransportErrorKind::custom_str("Failed to fetch recent block"))?
+                    .ok_or_else(|| TransportErrorKind::custom_str("Block not found"))?;
+                let header = block.header();
+                (user_recent_block_hash.unwrap_or_else(|| header.hash()), header.number())
+            };
 
         let expires_at_block = user_expires_at.unwrap_or_else(|| {
             let window = self.blocks_window.unwrap_or(BLOCKS_WINDOW);
             latest_block + window
         });
 
-        let encryption_nonce = user_encryption_nonce
-            .unwrap_or_else(TxSeismicElements::get_rand_encryption_nonce);
+        let encryption_nonce =
+            user_encryption_nonce.unwrap_or_else(TxSeismicElements::get_rand_encryption_nonce);
 
         // Create seismic elements (without full metadata yet, will encrypt in fill())
         let elements = TxSeismicElements::default()

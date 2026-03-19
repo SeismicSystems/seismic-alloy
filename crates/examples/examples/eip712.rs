@@ -60,7 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .get_receipt()
         .await?;
-    println!("EIP-712 setNumber(13) tx: {:?} (status: {})", receipt.transaction_hash, receipt.status());
+    println!(
+        "EIP-712 setNumber(13) tx: {:?} (status: {})",
+        receipt.transaction_hash,
+        receipt.status()
+    );
 
     // ---- EIP-712 signed read ----
     let is_odd = contract.isOdd().seismic().eip712().call().await?;
@@ -75,7 +79,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .get_receipt()
         .await?;
-    println!("Standard setNumber(4) tx: {:?} (status: {})", receipt.transaction_hash, receipt.status());
+    println!(
+        "Standard setNumber(4) tx: {:?} (status: {})",
+        receipt.transaction_hash,
+        receipt.status()
+    );
 
     // ---- EIP-712 read after standard write ----
     // EIP-712 and standard signing are interchangeable for reads.

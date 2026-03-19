@@ -83,11 +83,7 @@ pub fn encode_ecdh(secret_key: &FixedBytes<32>, compressed_pubkey: &[u8; 33]) ->
 /// - `plaintext`: data to encrypt
 ///
 /// Format: `[key (32) | nonce (12) | plaintext...]`
-pub fn encode_aes_encrypt(
-    key: &FixedBytes<32>,
-    nonce: &FixedBytes<12>,
-    plaintext: &[u8],
-) -> Bytes {
+pub fn encode_aes_encrypt(key: &FixedBytes<32>, nonce: &FixedBytes<12>, plaintext: &[u8]) -> Bytes {
     let mut buf = Vec::with_capacity(44 + plaintext.len());
     buf.extend_from_slice(key.as_slice());
     buf.extend_from_slice(nonce.as_slice());
@@ -130,10 +126,7 @@ pub fn encode_hkdf(ikm: &[u8]) -> Bytes {
 /// - `message_hash`: 32-byte message digest (typically keccak256)
 ///
 /// Format: `[secret_key (32) | message_hash (32)]` → 64 bytes total
-pub fn encode_secp256k1_sign(
-    secret_key: &FixedBytes<32>,
-    message_hash: &FixedBytes<32>,
-) -> Bytes {
+pub fn encode_secp256k1_sign(secret_key: &FixedBytes<32>, message_hash: &FixedBytes<32>) -> Bytes {
     let mut buf = Vec::with_capacity(64);
     buf.extend_from_slice(secret_key.as_slice());
     buf.extend_from_slice(message_hash.as_slice());
@@ -196,8 +189,7 @@ pub mod call {
         N::UnsignedTx: Send + Sync,
         P: Provider<N>,
     {
-        let mut tx: N::TransactionRequest =
-            SeismicTransactionRequest::default().to(address).into();
+        let mut tx: N::TransactionRequest = SeismicTransactionRequest::default().to(address).into();
         TransactionBuilder::<N>::set_input(&mut tx, input);
         provider.call(tx).await
     }
@@ -217,12 +209,8 @@ pub mod call {
         N::UnsignedTx: Send + Sync,
         P: Provider<N>,
     {
-        precompile_call::<N, P>(
-            provider,
-            addresses::RNG,
-            encode_rng(output_len, personalization),
-        )
-        .await
+        precompile_call::<N, P>(provider, addresses::RNG, encode_rng(output_len, personalization))
+            .await
     }
 
     /// Derive a 32-byte AES key via ECDH (0x65).
@@ -289,22 +277,14 @@ pub mod call {
     }
 
     /// Derive a 32-byte AES key via HKDF-SHA256 (0x68).
-    pub async fn hkdf<N, P>(
-        provider: &P,
-        ikm: &[u8],
-    ) -> TransportResult<FixedBytes<32>>
+    pub async fn hkdf<N, P>(provider: &P, ikm: &[u8]) -> TransportResult<FixedBytes<32>>
     where
         N: SeismicNetwork,
         N::TransactionRequest: From<SeismicTransactionRequest>,
         N::UnsignedTx: Send + Sync,
         P: Provider<N>,
     {
-        let output = precompile_call::<N, P>(
-            provider,
-            addresses::HKDF,
-            encode_hkdf(ikm),
-        )
-        .await?;
+        let output = precompile_call::<N, P>(provider, addresses::HKDF, encode_hkdf(ikm)).await?;
         Ok(FixedBytes::from_slice(&output))
     }
 

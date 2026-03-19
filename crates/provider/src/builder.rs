@@ -45,8 +45,10 @@ use seismic_alloy_network::{
 };
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
-use crate::decrypt::{ResponseDecryptLayer, ResponseDecryptProvider};
-use crate::SeismicProviderExt;
+use crate::{
+    decrypt::{ResponseDecryptLayer, ResponseDecryptProvider},
+    SeismicProviderExt,
+};
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -260,10 +262,7 @@ where
     }
 
     /// Connect via WebSocket. Fetches the TEE public key automatically.
-    pub async fn connect_ws(
-        self,
-        url: reqwest::Url,
-    ) -> TransportResult<SeismicSignedProvider<N>> {
+    pub async fn connect_ws(self, url: reqwest::Url) -> TransportResult<SeismicSignedProvider<N>> {
         let temp_provider = ProviderBuilder::<_, _, N>::default()
             .network::<N>()
             .connect_ws(WsConnect::new(url.clone()))
@@ -363,10 +362,7 @@ fn unsigned_filler_chain(url: reqwest::Url) -> UnsignedFillers {
     JoinFill::new(
         JoinFill::new(
             SeismicElementsFiller::new(),
-            JoinFill::new(
-                NonceFiller::<SimpleNonceManager>::simple(),
-                ChainIdFiller::default(),
-            ),
+            JoinFill::new(NonceFiller::<SimpleNonceManager>::simple(), ChainIdFiller::default()),
         ),
         SeismicGasFiller::with_url(url),
     )
