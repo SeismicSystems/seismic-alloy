@@ -3,8 +3,8 @@
 //! Demonstrates:
 //! - Building a signed provider
 //! - Deploying a contract via the `sol!` macro's generated `deploy()`
-//! - Shielded (encrypted) reads and writes — auto-encrypted for functions with
-//!   shielded params, or via `.seismic()` for non-shielded functions
+//! - Shielded (encrypted) reads and writes — auto-encrypted for functions with shielded params, or
+//!   via `.seismic()` for non-shielded functions
 //! - Transparent (unencrypted) reads and writes
 //!
 //! # Running
@@ -15,9 +15,9 @@
 //! cargo run -p seismic-examples --example basic_contract
 //! ```
 
-use seismic_prelude::client::*;
 use alloy_node_bindings::Anvil;
 use seismic_alloy_network::foundry::SeismicFoundry;
+use seismic_prelude::client::*;
 
 // Solidity source (compiled with seismic solc):
 //

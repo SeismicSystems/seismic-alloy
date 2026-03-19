@@ -11,10 +11,10 @@
 //! cargo run -p seismic-examples --example precompiles
 //! ```
 
-use seismic_prelude::client::*;
 use alloy_node_bindings::Anvil;
 use seismic_alloy_network::foundry::SeismicFoundry;
 use seismic_alloy_provider::precompiles;
+use seismic_prelude::client::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -16,11 +16,11 @@
 //! ```
 
 use alloy_network::ReceiptResponse;
-use seismic_prelude::client::*;
 use alloy_node_bindings::Anvil;
 use alloy_primitives::aliases::U96;
 use alloy_provider::Provider;
 use seismic_alloy_network::foundry::SeismicFoundry;
+use seismic_prelude::client::*;
 
 // See basic_contract.rs for the Solidity source.
 sol! {

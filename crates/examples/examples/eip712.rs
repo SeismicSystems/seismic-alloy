@@ -13,9 +13,9 @@
 //! cargo run -p seismic-examples --example eip712
 //! ```
 
-use seismic_prelude::client::*;
 use alloy_node_bindings::Anvil;
 use seismic_alloy_network::foundry::SeismicFoundry;
+use seismic_prelude::client::*;
 
 // See basic_contract.rs for the Solidity source.
 sol! {
