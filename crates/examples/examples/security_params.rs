@@ -22,7 +22,7 @@ use alloy_provider::Provider;
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::sol;
 use seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet};
-use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder};
+use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder, ShieldedCallExt};
 
 // See basic_contract.rs for the Solidity source.
 sol! {
@@ -86,9 +86,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("isOdd() with pinned block hash = {is_odd}");
 
     // ---- Security params on writes ----
+    // setNumber auto-encrypts since suint256 is shielded.
     let receipt = contract
         .setNumber(alloy_primitives::aliases::SUInt(U256::from(3)))
-        .seismic()
         .expires_at(current_block + 50)
         .send()
         .await?

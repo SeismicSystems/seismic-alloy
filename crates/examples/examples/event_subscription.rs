@@ -22,7 +22,7 @@ use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::{sol, SolEvent};
 use futures_util::StreamExt;
 use seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet};
-use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder};
+use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder, ShieldedCallExt};
 
 // See basic_contract.rs for the Solidity source.
 sol! {
@@ -68,7 +68,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Send some transactions that emit events.
     let receipt = contract
         .setNumber(alloy_primitives::aliases::SUInt(U256::from(42)))
-        .seismic()
         .send()
         .await?
         .get_receipt()

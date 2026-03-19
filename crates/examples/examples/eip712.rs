@@ -19,7 +19,7 @@ use alloy_primitives::U256;
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::sol;
 use seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet};
-use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder};
+use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder, ShieldedCallExt};
 
 // See basic_contract.rs for the Solidity source.
 sol! {
@@ -49,12 +49,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Contract deployed at {}", contract.address());
 
     // ---- EIP-712 signed write ----
-    // `.seismic().eip712()` sets message_version = 2, which makes the
-    // transaction get signed via EIP-712 signTypedData and sent as a
-    // TypedDataRequest instead of raw bytes.
+    // `.eip712()` sets message_version = 2, which makes the transaction get
+    // signed via EIP-712 signTypedData and sent as a TypedDataRequest instead
+    // of raw bytes. setNumber has suint256 param so it's auto-encrypted.
     let receipt = contract
         .setNumber(alloy_primitives::aliases::SUInt(U256::from(13)))
-        .seismic()
         .eip712()
         .send()
         .await?
@@ -72,9 +71,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(is_odd);
 
     // ---- Standard signed write (for comparison) ----
+    // setNumber auto-encrypts since suint256 is shielded.
     let receipt = contract
         .setNumber(alloy_primitives::aliases::SUInt(U256::from(4)))
-        .seismic()
         .send()
         .await?
         .get_receipt()

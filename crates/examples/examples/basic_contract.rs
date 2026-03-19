@@ -3,7 +3,8 @@
 //! Demonstrates:
 //! - Building a signed provider
 //! - Deploying a contract via the `sol!` macro's generated `deploy()`
-//! - Shielded (encrypted) reads and writes via `.seismic()`
+//! - Shielded (encrypted) reads and writes — auto-encrypted for functions with
+//!   shielded params, or via `.seismic()` for non-shielded functions
 //! - Transparent (unencrypted) reads and writes
 //!
 //! # Running
@@ -20,7 +21,7 @@ use alloy_primitives::U256;
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::sol;
 use seismic_alloy_network::{foundry::SeismicFoundry, wallet::SeismicWallet};
-use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder};
+use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder, ShieldedCallExt};
 
 // Solidity source (compiled with seismic solc):
 //
@@ -78,10 +79,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("isOdd() = {is_odd} (expected: false)");
     assert!(!is_odd);
 
-    // 4. Shielded write: setNumber(7)
+    // 4. Shielded write: setNumber(7) — auto-encrypts because suint256 is shielded.
     let receipt = contract
         .setNumber(alloy_primitives::aliases::SUInt(U256::from(7)))
-        .seismic()
         .send()
         .await?
         .get_receipt()
