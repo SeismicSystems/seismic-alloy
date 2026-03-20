@@ -29,7 +29,8 @@
 //! ```
 use alloy_provider::{
     fillers::{
-        ChainIdFiller, FillProvider, JoinFill, NonceFiller, SimpleNonceManager, WalletFiller,
+        ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, SimpleNonceManager,
+        WalletFiller,
     },
     ProviderBuilder, RootProvider, WsConnect,
 };
@@ -68,10 +69,10 @@ type SignedFillers<N> = JoinFill<
 >;
 
 /// Filler chain for unsigned providers:
-/// SeismicElements → (Nonce + ChainId) → Gas
+/// (Nonce + ChainId) → Gas
 type UnsignedFillers = JoinFill<
-    JoinFill<SeismicElementsFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
-    SeismicGasFiller,
+    JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>,
+    GasFiller,
 >;
 
 /// A signed Seismic provider: decrypts responses, has a wallet for signing.
@@ -330,7 +331,7 @@ where
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
-    let filler_chain = unsigned_filler_chain(url.clone());
+    let filler_chain = unsigned_filler_chain();
 
     ProviderBuilder::<_, _, N>::default()
         .network::<N>()
@@ -349,7 +350,7 @@ where
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
-    let filler_chain = unsigned_filler_chain(url.clone());
+    let filler_chain = unsigned_filler_chain();
 
     ProviderBuilder::<_, _, N>::default()
         .network::<N>()
@@ -358,12 +359,9 @@ where
         .await
 }
 
-fn unsigned_filler_chain(url: reqwest::Url) -> UnsignedFillers {
+fn unsigned_filler_chain() -> UnsignedFillers {
     JoinFill::new(
-        JoinFill::new(
-            SeismicElementsFiller::new(),
-            JoinFill::new(NonceFiller::<SimpleNonceManager>::simple(), ChainIdFiller::default()),
-        ),
-        SeismicGasFiller::with_url(url),
+        JoinFill::new(NonceFiller::<SimpleNonceManager>::simple(), ChainIdFiller::default()),
+        GasFiller::default(),
     )
 }
