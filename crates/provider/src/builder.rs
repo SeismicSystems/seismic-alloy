@@ -70,10 +70,8 @@ type SignedFillers<N> = JoinFill<
 
 /// Filler chain for unsigned providers:
 /// (Nonce + ChainId) → Gas
-type UnsignedFillers = JoinFill<
-    JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>,
-    GasFiller,
->;
+type UnsignedFillers =
+    JoinFill<JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>, GasFiller>;
 
 /// A signed Seismic provider: decrypts responses, has a wallet for signing.
 pub type SeismicSignedProvider<N> =
