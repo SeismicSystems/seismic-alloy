@@ -6,7 +6,7 @@ mod traits;
 pub use traits::SeismicProviderExt;
 
 mod call_ext;
-pub use call_ext::{IsSignedProvider, SeismicCallExt, ShieldedCallExt};
+pub use call_ext::{SeismicCallExt, ShieldedCallExt, SignedProviderExt};
 
 pub mod error;
 pub use error::SeismicProviderError;

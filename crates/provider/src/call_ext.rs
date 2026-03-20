@@ -32,53 +32,107 @@
 //! let val = contract.getPublicValue().call().await?;
 //! ```
 use alloy_contract::SolCallBuilder;
-use alloy_network::Network;
-use alloy_primitives::{aliases::U96, B256};
-use alloy_provider::{
-    fillers::{FillProvider, TxFiller},
-    PendingTransactionBuilder, Provider, SendableTx,
-};
+use alloy_network::{Network, TransactionBuilder};
+use alloy_primitives::{aliases::U96, Address, Bytes, B256};
+use alloy_provider::{PendingTransactionBuilder, Provider, SendableTx};
 use alloy_sol_types::{private::ShieldedCallBuilder, SolCall};
 use alloy_transport::TransportResult;
 
-use crate::{decrypt::ResponseDecryptProvider, SeismicProviderError, SeismicProviderExt};
+use crate::{SeismicProviderError, SeismicProviderExt};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
-/// Sealed marker trait for signed providers that can decrypt responses.
+// ============================================================================
+// SignedProviderExt — sealed trait for signed providers
+// ============================================================================
+
+/// Sealed trait for signed providers that can encrypt calldata and decrypt responses.
 ///
-/// Implemented only by [`ResponseDecryptProvider`] and references to it.
-/// Users do not need to import this trait — it is used internally as a bound
-/// on [`SeismicCallExt`] and [`ShieldedCallExt`] to restrict seismic
-/// operations to signed providers.
-pub trait IsSignedProvider<N: SeismicNetwork>: SeismicProviderExt<N>
+/// Only implemented by [`ResponseDecryptProvider`] and references to it.
+/// Provides the low-level `seismic_call` and `eip712_send` methods, plus
+/// high-level `shielded_call` and `shielded_send` convenience methods.
+///
+/// Users typically don't interact with this trait directly — use the
+/// call-builder traits ([`SeismicCallExt`], [`ShieldedCallExt`]) instead.
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+pub trait SignedProviderExt<N: SeismicNetwork>: SeismicProviderExt<N>
 where
     N::UnsignedTx: Send + Sync,
     N::TransactionRequest: From<SeismicTransactionRequest>,
 {
+    /// Low-level seismic call. Fills the transaction, sends as `eth_call`,
+    /// and decrypts the response.
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes>;
+
+    /// Send an EIP-712 signed seismic transaction.
+    async fn eip712_send(&self, tx: SendableTx<N>)
+        -> TransportResult<PendingTransactionBuilder<N>>;
+
+    /// Encrypted, signed read call. Encrypts calldata, signs the call
+    /// (preventing `msg.sender` spoofing), and decrypts the response.
+    async fn shielded_call<C: SolCall + Send>(
+        &self,
+        address: Address,
+        call: C,
+    ) -> TransportResult<C::Return>
+    where
+        C::Return: Send,
+    {
+        let encoded = call.abi_encode();
+        let mut tx: N::TransactionRequest =
+            SeismicTransactionRequest::default().to(address).seismic().into();
+        TransactionBuilder::<N>::set_input(&mut tx, encoded);
+
+        let result = self.seismic_call(SendableTx::Builder(tx)).await?;
+
+        C::abi_decode_returns(&result)
+            .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
+    }
+
+    /// Encrypted write transaction. The filler pipeline handles encryption key
+    /// generation, nonce, gas estimation, and signing.
+    async fn shielded_send<C: SolCall + Send>(
+        &self,
+        address: Address,
+        call: C,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        let encoded = call.abi_encode();
+        let mut tx: N::TransactionRequest =
+            SeismicTransactionRequest::default().to(address).seismic().into();
+        TransactionBuilder::<N>::set_input(&mut tx, encoded);
+
+        self.send_transaction(tx).await
+    }
 }
 
-impl<N, F, P> IsSignedProvider<N> for ResponseDecryptProvider<N, FillProvider<F, P, N>>
+/// Blanket impl so `&T: SignedProviderExt` when `T: SignedProviderExt`.
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl<T, N> SignedProviderExt<N> for &T
 where
+    T: SignedProviderExt<N> + Sync,
     N: SeismicNetwork,
     N::TransactionRequest: From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
     Self: SeismicProviderExt<N>,
-    F: TxFiller<N>,
-    P: Provider<N>,
 {
+    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
+        (**self).seismic_call(tx).await
+    }
+
+    async fn eip712_send(
+        &self,
+        tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        (**self).eip712_send(tx).await
+    }
 }
 
-impl<T, N> IsSignedProvider<N> for &T
-where
-    T: IsSignedProvider<N> + Sync,
-    N: SeismicNetwork,
-    N::TransactionRequest: From<SeismicTransactionRequest>,
-    N::UnsignedTx: Send + Sync,
-    Self: SeismicProviderExt<N>,
-{
-}
+// ============================================================================
+// SeismicCallExt — .seismic() on SolCallBuilder
+// ============================================================================
 
 /// Extension trait that adds `.seismic()` to alloy's [`SolCallBuilder`].
 ///
@@ -98,7 +152,7 @@ impl<'a, P, C, N> SeismicCallExt<'a, P, C, N> for SolCallBuilder<&'a P, C, N>
 where
     N: SeismicNetwork,
     C: SolCall,
-    P: IsSignedProvider<N>,
+    P: SignedProviderExt<N>,
     N::TransactionRequest: AsMut<SeismicTransactionRequest> + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
 {
@@ -106,6 +160,10 @@ where
         ShieldedCallBuilder(self)
     }
 }
+
+// ============================================================================
+// ShieldedCallExt — .call(), .send(), builder methods on ShieldedCallBuilder
+// ============================================================================
 
 /// Extension trait for [`ShieldedCallBuilder`] — provides `.call()`, `.send()`,
 /// and builder methods for seismic (encrypted) contract calls.
@@ -165,7 +223,7 @@ impl<'a, P, C, N> ShieldedCallExt<'a, P, C, N> for ShieldedCallBuilder<SolCallBu
 where
     N: SeismicNetwork,
     C: SolCall + Send + Sync,
-    P: IsSignedProvider<N>,
+    P: SignedProviderExt<N>,
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
         + From<SeismicTransactionRequest>,
@@ -215,6 +273,10 @@ where
         mutate_shielded_elements(self, |e| e.message_version = 2)
     }
 }
+
+// ============================================================================
+// Private helpers
+// ============================================================================
 
 /// Build a seismic request from a `SolCallBuilder`'s underlying request.
 fn build_seismic_request<N: SeismicNetwork>(

@@ -5,7 +5,7 @@
 use crate::{
     builder::SeismicSignedProvider,
     test_utils::{ContractTestContext, ISeismicCounter},
-    SeismicProviderExt,
+    SeismicProviderExt, SignedProviderExt,
 };
 use alloy_network::{ReceiptResponse, TransactionBuilder};
 use alloy_node_bindings::{Anvil, AnvilInstance};
@@ -81,14 +81,14 @@ async fn test_seismic_unsigned_call() {
     let unsigned_provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
 
-    // Make a regular (non-seismic) eth_call
+    // Make a regular (non-seismic) eth_call via standard Provider::call
     let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
         .with_input(plaintext)
         .with_kind(TxKind::Create)
         .with_from(from)
         .into();
 
-    let res = unsigned_provider.seismic_call(SendableTx::Builder(tx.into())).await.unwrap();
+    let res = unsigned_provider.call(tx.into()).await.unwrap();
     assert_eq!(res, ContractTestContext::get_code());
 }
 

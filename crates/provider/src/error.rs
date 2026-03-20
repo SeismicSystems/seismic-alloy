@@ -16,11 +16,6 @@ pub enum SeismicProviderError {
     #[error("response decryption failed: {0}")]
     Decryption(String),
 
-    /// A `seismic_call` on `FillProvider` received an already-signed envelope
-    /// when it expected an unsigned builder to fill.
-    #[error("FillProvider::seismic_call received an Envelope; expected a Builder")]
-    UnexpectedEnvelope,
-
     /// Sender address is missing from a filled transaction that requires it
     /// for metadata extraction (e.g., decryption).
     #[error("sender address required for seismic call decryption")]
@@ -33,13 +28,6 @@ pub enum SeismicProviderError {
     /// Expected a seismic envelope for decryption but received a non-seismic one.
     #[error("expected seismic envelope for decryption")]
     NotSeismicEnvelope,
-
-    /// EIP-712 send was attempted without a signed provider.
-    #[error(
-        "EIP-712 sends require a signed provider \
-         (SeismicProviderBuilder::new().wallet(...).connect_http(...))"
-    )]
-    Eip712RequiresSignedProvider,
 
     /// EIP-712 send: the filled transaction is not an EIP-712 seismic envelope.
     #[error("EIP-712 send: filled transaction is not an EIP-712 seismic envelope")]

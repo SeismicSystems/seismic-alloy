@@ -77,7 +77,7 @@ type UnsignedFillers =
 pub type SeismicSignedProvider<N> =
     ResponseDecryptProvider<N, FillProvider<SignedFillers<N>, RootProvider<N>, N>>;
 
-/// An unsigned Seismic provider: encrypts calldata but does not decrypt responses.
+/// An unsigned Seismic provider: standard (unencrypted) reads and writes only.
 pub type SeismicUnsignedProvider<N> = FillProvider<UnsignedFillers, RootProvider<N>, N>;
 
 // ---------------------------------------------------------------------------

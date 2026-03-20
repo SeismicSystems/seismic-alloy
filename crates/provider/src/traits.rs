@@ -1,13 +1,20 @@
-//! Seismic provider trait that extends [`alloy_provider::Provider`] with Seismic-specific
-//! functionality including encrypted (shielded) and standard (transparent) contract interactions.
-use alloy_network::{eip2718::Encodable2718, TransactionBuilder};
-use alloy_primitives::{Address, Bytes};
-use alloy_provider::{
-    fillers::{FillProvider, TxFiller},
-    PendingTransactionBuilder, Provider, RootProvider, SendableTx,
-};
+//! Seismic provider traits.
+//!
+//! Two traits extend alloy's `Provider`:
+//!
+//! - [`SeismicProviderExt`] — available on **all** Seismic providers (signed and unsigned).
+//!   Provides `transparent_call`, `transparent_send`, and `get_tee_pubkey`.
+//!
+//! - [`SignedProviderExt`] — available only on **signed** providers. Provides `shielded_call`,
+//!   `shielded_send`, `seismic_call`, and `eip712_send`. This trait is sealed — only
+//!   [`ResponseDecryptProvider`](crate::decrypt::ResponseDecryptProvider) implements it.
+use alloy_network::TransactionBuilder;
+use alloy_primitives::Address;
+use alloy_provider::{PendingTransactionBuilder, Provider, RootProvider};
 use alloy_sol_types::SolCall;
 use alloy_transport::TransportResult;
+
+use alloy_provider::fillers::{FillProvider, TxFiller};
 
 use crate::SeismicProviderError;
 use seismic_alloy_network::{
@@ -16,43 +23,27 @@ use seismic_alloy_network::{
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use seismic_enclave::secp256k1::PublicKey;
 
-/// Extends [`alloy_provider::Provider`] with Seismic-specific functionality.
+// ============================================================================
+// SeismicProviderExt — base trait for all Seismic providers
+// ============================================================================
+
+/// Base extension trait for all Seismic providers (signed and unsigned).
 ///
-/// Provides low-level [`seismic_call`](SeismicProviderExt::seismic_call) and high-level
-/// ergonomic methods that integrate with alloy's `sol!` macro:
-///
-/// - [`shielded_call`](SeismicProviderExt::shielded_call) — encrypted signed read
-/// - [`shielded_send`](SeismicProviderExt::shielded_send) — encrypted write transaction
-/// - [`transparent_call`](SeismicProviderExt::transparent_call) — standard `eth_call`
-/// - [`transparent_send`](SeismicProviderExt::transparent_send) — standard transaction
-///
-/// For the call-builder equivalent, use `.seismic()` on a `SolCallBuilder` (see
-/// [`SeismicCallExt`](crate::SeismicCallExt)). The `.seismic()` method is only available
-/// on signed providers.
+/// Provides standard (unencrypted) contract interaction methods and TEE key access.
+/// For shielded (encrypted) operations, use a signed provider which also implements
+/// [`SignedProviderExt`].
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// use alloy_sol_types::sol;
+/// use seismic_alloy_provider::SeismicProviderExt;
 ///
-/// sol! {
-///     interface MyContract {
-///         function getValue() public view returns (uint256);
-///         function setValue(uint256 newValue) public;
-///     }
-/// }
-///
-/// // Encrypted read with response decryption (requires signed provider)
-/// let result = provider
-///     .shielded_call(contract_addr, MyContract::getValueCall {})
+/// // Works on any provider (signed or unsigned)
+/// let result: bool = provider
+///     .transparent_call(contract_addr, MyContract::isOddCall {})
 ///     .await?;
 ///
-/// // Encrypted write transaction
-/// let receipt = provider
-///     .shielded_send(contract_addr, MyContract::setValueCall { newValue: U256::from(42) })
-///     .await?
-///     .get_receipt()
-///     .await?;
+/// let tee_pubkey = provider.get_tee_pubkey().await?;
 /// ```
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -61,47 +52,6 @@ where
     N::UnsignedTx: Send + Sync,
     N::TransactionRequest: From<SeismicTransactionRequest>,
 {
-    // ========================================================================
-    // High-level contract interaction methods (sol! macro integration)
-    // ========================================================================
-
-    /// Encrypted, signed read call. Encrypts calldata, signs the call
-    /// (preventing `msg.sender` spoofing), and decrypts the response.
-    /// Requires a **signed provider**.
-    async fn shielded_call<C: SolCall + Send>(
-        &self,
-        address: Address,
-        call: C,
-    ) -> TransportResult<C::Return>
-    where
-        C::Return: Send,
-    {
-        let encoded = call.abi_encode();
-        let mut tx: N::TransactionRequest =
-            SeismicTransactionRequest::default().to(address).seismic().into();
-        TransactionBuilder::<N>::set_input(&mut tx, encoded);
-
-        let result = self.seismic_call(SendableTx::Builder(tx)).await?;
-
-        C::abi_decode_returns(&result)
-            .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
-    }
-
-    /// Encrypted write transaction. The filler pipeline handles encryption key
-    /// generation, nonce, gas estimation, and signing.
-    async fn shielded_send<C: SolCall + Send>(
-        &self,
-        address: Address,
-        call: C,
-    ) -> TransportResult<PendingTransactionBuilder<N>> {
-        let encoded = call.abi_encode();
-        let mut tx: N::TransactionRequest =
-            SeismicTransactionRequest::default().to(address).seismic().into();
-        TransactionBuilder::<N>::set_input(&mut tx, encoded);
-
-        self.send_transaction(tx).await
-    }
-
     /// Standard (unencrypted) `eth_call`. Use for public view functions.
     async fn transparent_call<C: SolCall + Send>(
         &self,
@@ -134,53 +84,6 @@ where
         self.send_transaction(tx).await
     }
 
-    // ========================================================================
-    // Low-level methods
-    // ========================================================================
-
-    /// Low-level seismic call. Sends an `eth_call` RPC request.
-    ///
-    /// The default implementation sends the request directly without filling
-    /// or decryption. [`ResponseDecryptProvider`](crate::decrypt::ResponseDecryptProvider)
-    /// overrides this to fill, send, and decrypt.
-    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        match tx {
-            SendableTx::Builder(builder) => {
-                let output: Bytes = self.client().request("eth_call", (builder,)).await?;
-                Ok(output)
-            }
-            SendableTx::Envelope(envelope) => {
-                // EIP-712 envelopes are sent as TypedDataRequest JSON, not raw bytes
-                if let Some(typed_data_req) = N::to_typed_data_request(&envelope) {
-                    let output: Bytes =
-                        self.client().request("eth_call", (typed_data_req,)).await?;
-                    Ok(output)
-                } else {
-                    let encoded_tx = envelope.encoded_2718();
-                    let output = self.client().request("eth_call", (encoded_tx,)).await?;
-                    Ok(output)
-                }
-            }
-        }
-    }
-
-    /// Send an EIP-712 signed seismic transaction.
-    ///
-    /// Fills the transaction, signs it (producing an EIP-712 typed data signature),
-    /// and sends the result as a [`TypedDataRequest`] instead of raw bytes.
-    /// Requires a signed provider with fill capabilities.
-    ///
-    /// The default implementation returns an error — only
-    /// [`ResponseDecryptProvider`](crate::decrypt::ResponseDecryptProvider) overrides this.
-    ///
-    /// [`TypedDataRequest`]: seismic_alloy_consensus::TypedDataRequest
-    async fn eip712_send(
-        &self,
-        _tx: SendableTx<N>,
-    ) -> TransportResult<PendingTransactionBuilder<N>> {
-        Err(SeismicProviderError::Eip712RequiresSignedProvider.into_transport())
-    }
-
     /// Get the PublicKey of the enclave.
     async fn get_tee_pubkey(&self) -> TransportResult<PublicKey> {
         seismic_alloy_network::fetch_tee_pubkey(self).await
@@ -188,7 +91,7 @@ where
 }
 
 // ---------------------------------------------------------------------------
-// Blanket impls
+// Blanket impls for SeismicProviderExt
 // ---------------------------------------------------------------------------
 
 impl SeismicProviderExt<SeismicReth> for RootProvider<SeismicReth> {}
@@ -205,25 +108,9 @@ where
     N::TransactionRequest: From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
 {
-    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        (**self).seismic_call(tx).await
-    }
-
-    async fn eip712_send(
-        &self,
-        tx: SendableTx<N>,
-    ) -> TransportResult<PendingTransactionBuilder<N>> {
-        (**self).eip712_send(tx).await
-    }
 }
 
-/// Blanket impl for `FillProvider` — fills the transaction then delegates to `RootProvider`.
-///
-/// This is the path used by unsigned providers (which are bare `FillProvider`s).
-/// Signed providers use [`ResponseDecryptProvider`](crate::decrypt::ResponseDecryptProvider)
-/// instead, which fills, sends, AND decrypts.
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+/// Blanket impl for `FillProvider` (used by unsigned providers).
 impl<F, P, N> SeismicProviderExt<N> for FillProvider<F, P, N>
 where
     N: SeismicNetwork,
@@ -231,17 +118,5 @@ where
     F: TxFiller<N>,
     P: Provider<N>,
     N::UnsignedTx: Send + Sync,
-    RootProvider<N>: SeismicProviderExt<N>,
 {
-    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        let builder = match tx {
-            SendableTx::Builder(b) => b,
-            SendableTx::Envelope(_) => {
-                return Err(SeismicProviderError::UnexpectedEnvelope.into_transport());
-            }
-        };
-
-        let filled_tx = self.fill(builder).await?;
-        SeismicProviderExt::seismic_call(self.root(), filled_tx).await
-    }
 }

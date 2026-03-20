@@ -17,7 +17,7 @@ use crate::SeismicProviderError;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
-use crate::SeismicProviderExt;
+use crate::{SeismicProviderExt, SignedProviderExt};
 
 /// Provider wrapper that adds response decryption for shielded reads.
 ///
@@ -71,7 +71,21 @@ where
 }
 
 // ---------------------------------------------------------------------------
-// SeismicProviderExt impl — fills, sends, and decrypts
+// SeismicProviderExt impl — inherits defaults (transparent_call, etc.)
+// ---------------------------------------------------------------------------
+
+impl<N, F, P> SeismicProviderExt<N> for ResponseDecryptProvider<N, FillProvider<F, P, N>>
+where
+    N: SeismicNetwork,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
+    N::UnsignedTx: Send + Sync,
+    F: TxFiller<N>,
+    P: Provider<N>,
+{
+}
+
+// ---------------------------------------------------------------------------
+// SignedProviderExt impl — fills, sends, and decrypts
 // ---------------------------------------------------------------------------
 
 /// Helper: decrypt a response using seismic metadata and crypto keys.
@@ -87,9 +101,36 @@ fn decrypt_response(
         .map_err(|e| SeismicProviderError::Decryption(format!("{e:?}")).into_transport())
 }
 
+/// Helper: send a filled seismic tx as an eth_call RPC (no decryption).
+async fn raw_seismic_call<N: SeismicNetwork>(
+    root: &alloy_provider::RootProvider<N>,
+    tx: SendableTx<N>,
+) -> TransportResult<Bytes>
+where
+    N::UnsignedTx: Send + Sync,
+{
+    use alloy_network::eip2718::Encodable2718;
+    match tx {
+        SendableTx::Builder(builder) => {
+            let output: Bytes = root.client().request("eth_call", (builder,)).await?;
+            Ok(output)
+        }
+        SendableTx::Envelope(envelope) => {
+            if let Some(typed_data_req) = N::to_typed_data_request(&envelope) {
+                let output: Bytes = root.client().request("eth_call", (typed_data_req,)).await?;
+                Ok(output)
+            } else {
+                let encoded_tx = envelope.encoded_2718();
+                let output = root.client().request("eth_call", (encoded_tx,)).await?;
+                Ok(output)
+            }
+        }
+    }
+}
+
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-impl<N, F, P> SeismicProviderExt<N> for ResponseDecryptProvider<N, FillProvider<F, P, N>>
+impl<N, F, P> SignedProviderExt<N> for ResponseDecryptProvider<N, FillProvider<F, P, N>>
 where
     N: SeismicNetwork,
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
@@ -99,7 +140,6 @@ where
     N::UnsignedTx: Send + Sync,
     F: TxFiller<N>,
     P: Provider<N>,
-    RootProvider<N>: SeismicProviderExt<N>,
 {
     async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
@@ -133,8 +173,8 @@ where
                         .ok_or_else(|| SeismicProviderError::NotSeismicEnvelope.into_transport())?,
                 };
 
-                // Send the RPC call
-                let output = self.inner.root().seismic_call(filled_tx).await?;
+                // Send the RPC call (without decryption)
+                let output = raw_seismic_call(self.inner.root(), filled_tx).await?;
 
                 // Decrypt the response
                 decrypt_response(&output, &metadata, &self.tee_pubkey, &self.ephemeral_secret_key)
@@ -143,7 +183,7 @@ where
                 // Envelope passed directly — try to extract seismic metadata
                 if let Some(metadata) = N::extract_seismic_metadata(&envelope) {
                     let output =
-                        self.inner.root().seismic_call(SendableTx::Envelope(envelope)).await?;
+                        raw_seismic_call(self.inner.root(), SendableTx::Envelope(envelope)).await?;
                     decrypt_response(
                         &output,
                         &metadata,
@@ -152,7 +192,7 @@ where
                     )
                 } else {
                     // Not a seismic envelope, pass through
-                    self.inner.root().seismic_call(SendableTx::Envelope(envelope)).await
+                    raw_seismic_call(self.inner.root(), SendableTx::Envelope(envelope)).await
                 }
             }
         }
