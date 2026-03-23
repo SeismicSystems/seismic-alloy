@@ -210,7 +210,7 @@ pub trait ShieldedCallExt<'a, P, C: SolCall, N: Network> {
     /// Set a custom encryption nonce (AEAD nonce).
     ///
     /// By default, the filler generates a random nonce. Only override this
-    /// for deterministic testing — reusing nonces in production breaks encryption.
+    /// for deterministic testing — reusing a (key, nonce) pair breaks encryption.
     fn encryption_nonce(self, nonce: U96) -> Self;
 
     /// Use EIP-712 typed data signing instead of standard RLP signing.
