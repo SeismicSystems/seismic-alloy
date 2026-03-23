@@ -59,8 +59,9 @@ jobs:
       - name: Install sfoundry (sanvil)
         run: |
           curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash
-          echo $PATH
-          echo $XDG_CONFIG_HOME
-          echo "$HOME/.seismic/bin" >> $GITHUB_PATH
+          SEISMIC_BIN="${XDG_CONFIG_HOME:-$HOME}/.seismic/bin"
+          export PATH="$SEISMIC_BIN:$PATH"
+          sfoundryup
+          echo "$SEISMIC_BIN" >> $GITHUB_PATH
       - name: cargo test
         run: cargo test --workspace
