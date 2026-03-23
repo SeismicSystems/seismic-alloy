@@ -64,7 +64,7 @@ Two key primitives:
 
 ## Features
 
-- **Auto-encryption for shielded params** -- Functions with shielded types (`suint256`, `saddress`, etc.) auto-encrypt via `ShieldedCallBuilder` -- `.call()` and `.send()` work directly
+- **Auto-encryption for shielded params** -- Functions with shielded types (`suint256`, `saddress`, etc.) auto-encrypt the entire calldata via `ShieldedCallBuilder` -- `.call()` and `.send()` work directly
 - **`.seismic()` call builder** -- `contract.method().seismic().call()` / `.send()` for non-shielded functions that need encryption
 - **`SeismicProviderBuilder`** -- Typestate builder for signed (wallet) and unsigned (read-only) providers over HTTP or WebSocket
 - **Automatic encryption** -- Filler pipeline handles ECDH key exchange, AES-GCM encryption, and response decryption
