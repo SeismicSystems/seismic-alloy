@@ -4,17 +4,16 @@ A Rust toolkit that extends [Alloy](https://github.com/alloy-rs/alloy) (v1.1.0) 
 
 ```toml
 [dependencies]
-seismic-alloy = { git = "https://github.com/SeismicSystems/seismic-alloy" }
+seismic-alloy-provider = { git = "https://github.com/SeismicSystems/seismic-alloy" }
+seismic-alloy-network = { git = "https://github.com/SeismicSystems/seismic-alloy" }
+seismic-prelude = { git = "https://github.com/SeismicSystems/seismic-alloy" }
 ```
 
 ## Quick Example
 
 ```rust
-use seismic_alloy_network::{reth::SeismicReth, wallet::SeismicWallet};
-use seismic_alloy_provider::{SeismicCallExt, SeismicProviderBuilder};
-use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::sol;
-use alloy_primitives::U256;
+use seismic_prelude::client::*;
+use seismic_alloy_network::reth::SeismicReth;
 
 sol! {
     #[sol(rpc)]
@@ -37,15 +36,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let contract = SeismicCounter::new(contract_address, &provider);
 
-    // Shielded write -- calldata encrypted, sent as a Seismic transaction
+    // Shielded write -- setNumber has suint256, auto-encrypts
     contract.setNumber(U256::from(42).into())
-        .seismic()
         .send()
         .await?
         .get_receipt()
         .await?;
 
-    // Shielded read -- encrypted eth_call with response decryption
+    // Shielded read -- isOdd has no shielded params, use .seismic()
     let is_odd = contract.isOdd().seismic().call().await?;
 
     // Transparent read -- standard eth_call (from address zeroed)
@@ -66,11 +64,12 @@ Two key primitives:
 
 ## Features
 
+- **Auto-encryption for shielded params** -- Functions with shielded types (`suint256`, `saddress`, etc.) auto-encrypt via `ShieldedCallBuilder` -- `.call()` and `.send()` work directly
+- **`.seismic()` call builder** -- `contract.method().seismic().call()` / `.send()` for non-shielded functions that need encryption
 - **`SeismicProviderBuilder`** -- Typestate builder for signed (wallet) and unsigned (read-only) providers over HTTP or WebSocket
-- **`.seismic()` call builder** -- `contract.method().seismic().call()` / `.send()` for ergonomic shielded operations
 - **Automatic encryption** -- Filler pipeline handles ECDH key exchange, AES-GCM encryption, and response decryption
 - **SecurityParams** -- Per-call `.expires_at()`, `.recent_block_hash()`, `.encryption_nonce()` overrides
-- **EIP-712 support** -- `.seismic().eip712()` for browser wallet compatibility (MetaMask)
+- **EIP-712 support** -- `.eip712()` for browser wallet compatibility (MetaMask)
 - **Precompile helpers** -- Encode/decode/call wrappers for Seismic's 6 custom precompiles (RNG, ECDH, AES-GCM encrypt/decrypt, HKDF, secp256k1 sign)
 - **Seismic transaction type (0x4A)** -- Extends standard Ethereum transaction types with encryption metadata
 - **Full Alloy compatibility** -- All standard `Provider` methods work unchanged
@@ -84,19 +83,12 @@ crates/
 ├── provider/       # SeismicProviderBuilder, fillers, precompile helpers
 ├── rpc-types/      # Seismic-specific RPC request/response types
 ├── genesis/        # Genesis configuration with shielded state support
-├── examples/       # Runnable examples (basic_contract, etc.)
+├── examples/       # Runnable examples (basic_contract, eip712, etc.)
+├── sdk/            # Client prelude (use seismic_prelude::client::*)
 └── prelude/        # Internal re-exports for Seismic's Foundry and Reth forks
 ```
 
 **Dependency chain**: `consensus` → `network` → `provider`
-
-Most applications need only two crates:
-
-```toml
-[dependencies]
-seismic-alloy-provider = { git = "https://github.com/SeismicSystems/seismic-alloy" }
-seismic-alloy-network = { git = "https://github.com/SeismicSystems/seismic-alloy" }
-```
 
 ## Prerequisites
 
@@ -124,9 +116,9 @@ cargo test -p seismic-alloy-consensus   # Consensus tests only
 ## Code Quality
 
 ```bash
-cargo fmt --all                         # Format code
-cargo fmt --all --check                 # Check formatting (CI)
-RUSTFLAGS="-D warnings" cargo check     # Warnings as errors (CI)
+cargo +nightly fmt --all                         # Format code
+cargo +nightly fmt --all --check                 # Check formatting (CI)
+RUSTFLAGS="-D warnings" cargo check --all-targets  # Warnings as errors (CI)
 ```
 
 ## Documentation
@@ -152,5 +144,5 @@ at your option.
 Contributions are welcome! Please ensure:
 
 - All tests pass (`cargo test --workspace`)
-- Code is formatted (`cargo fmt --all`)
-- No warnings (`RUSTFLAGS="-D warnings" cargo check`)
+- Code is formatted (`cargo +nightly fmt --all`)
+- No warnings (`RUSTFLAGS="-D warnings" cargo check --all-targets`)

@@ -167,9 +167,9 @@ Tests use `Anvil` from `alloy-node-bindings` to spawn local blockchain instances
 ### Code Quality
 
 ```bash
-cargo fmt --all              # Format code
-cargo fmt --all --check      # Check formatting (CI)
-RUSTFLAGS="-D warnings" cargo check  # Warnings as errors (CI)
+cargo +nightly fmt --all              # Format code
+cargo +nightly fmt --all --check      # Check formatting (CI)
+RUSTFLAGS="-D warnings" cargo check --all-targets  # Warnings as errors (CI)
 ```
 
 The workspace enforces strict linting (see `Cargo.toml` workspace.lints). All warnings must be resolved - CI fails on warnings.
@@ -319,9 +319,9 @@ Use the test utilities in `crates/provider/src/test_utils.rs`. Tests typically s
 These are the commands run in the CI pipeline (`.github/workflows/seismic.yml`):
 
 ```bash
-cargo +nightly fmt --all                # Format code
-cargo +nightly fmt --all --check        # Check if code is formatted correctly
-cargo build                             # Build the project
-RUSTFLAGS="-D warnings" cargo check     # Check for warnings (treats warnings as errors)
-cargo test --workspace                  # Run all tests
+cargo +nightly fmt --all                         # Format code
+cargo +nightly fmt --all --check                 # Check if code is formatted correctly
+cargo build                                      # Build the project
+RUSTFLAGS="-D warnings" cargo check --all-targets  # Check for warnings (treats warnings as errors)
+cargo test --workspace                           # Run all tests
 ```
