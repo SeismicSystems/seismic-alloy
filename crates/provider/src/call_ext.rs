@@ -5,11 +5,15 @@
 //! - [`SeismicCallExt`] — adds `.seismic()` to alloy's `SolCallBuilder`, converting it to a
 //!   [`ShieldedCallBuilder`] that encrypts calldata.
 //! - [`ShieldedCallExt`] — provides `.call()`, `.send()`, and builder methods (`.expires_at()`,
-//!   `.eip712()`, etc.) on [`ShieldedCallBuilder`].
+//!   `.eip712()`, `.with_params()`, etc.) on [`ShieldedCallBuilder`].
 //!
 //! Functions with shielded parameters (e.g., `suint256`, `saddress`) are automatically
 //! wrapped in `ShieldedCallBuilder` by the `sol!` macro, so `.call()` and `.send()`
 //! auto-encrypt without needing `.seismic()`.
+//!
+//! Use [`SecurityParams`](crate::SecurityParams) to override encryption defaults
+//! (expiration, block hash, nonce) via `.with_params()` or individual setters
+//! like `.expires_at()`.
 //!
 //! ```rust,ignore
 //! sol! {
@@ -28,107 +32,25 @@
 //! // Shielded function — auto-encrypts, .seismic() is unnecessary
 //! contract.setSecret(val).send().await?;
 //!
+//! // Custom security parameters via with_params
+//! let val = contract.getPublicValue().seismic()
+//!     .with_params(SecurityParams::default().expires_at(current_block + 10))
+//!     .call().await?;
+//!
 //! // Transparent (default alloy behavior, works on any provider)
 //! let val = contract.getPublicValue().call().await?;
 //! ```
 use alloy_contract::SolCallBuilder;
-use alloy_network::{Network, TransactionBuilder};
-use alloy_primitives::{aliases::U96, Address, Bytes, B256};
+use alloy_network::Network;
+use alloy_primitives::{aliases::U96, B256};
 use alloy_provider::{PendingTransactionBuilder, Provider, SendableTx};
 use alloy_sol_types::{private::ShieldedCallBuilder, SolCall};
 use alloy_transport::TransportResult;
 
-use crate::{SeismicProviderError, SeismicProviderExt};
+use crate::{SeismicProviderError, SignedProviderExt};
 use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
-
-// ============================================================================
-// SignedProviderExt — sealed trait for signed providers
-// ============================================================================
-
-/// Sealed trait for signed providers that can encrypt calldata and decrypt responses.
-///
-/// Only implemented by [`ResponseDecryptProvider`] and references to it.
-/// Provides the low-level `seismic_call` and `eip712_send` methods, plus
-/// high-level `shielded_call` and `shielded_send` convenience methods.
-///
-/// Users typically don't interact with this trait directly — use the
-/// call-builder traits ([`SeismicCallExt`], [`ShieldedCallExt`]) instead.
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-pub trait SignedProviderExt<N: SeismicNetwork>: SeismicProviderExt<N>
-where
-    N::UnsignedTx: Send + Sync,
-    N::TransactionRequest: From<SeismicTransactionRequest>,
-{
-    /// Low-level seismic call. Fills the transaction, sends as `eth_call`,
-    /// and decrypts the response.
-    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes>;
-
-    /// Send an EIP-712 signed seismic transaction.
-    async fn eip712_send(&self, tx: SendableTx<N>)
-        -> TransportResult<PendingTransactionBuilder<N>>;
-
-    /// Encrypted, signed read call. Encrypts calldata, signs the call
-    /// (preventing `msg.sender` spoofing), and decrypts the response.
-    async fn shielded_call<C: SolCall + Send>(
-        &self,
-        address: Address,
-        call: C,
-    ) -> TransportResult<C::Return>
-    where
-        C::Return: Send,
-    {
-        let encoded = call.abi_encode();
-        let mut tx: N::TransactionRequest =
-            SeismicTransactionRequest::default().to(address).seismic().into();
-        TransactionBuilder::<N>::set_input(&mut tx, encoded);
-
-        let result = self.seismic_call(SendableTx::Builder(tx)).await?;
-
-        C::abi_decode_returns(&result)
-            .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
-    }
-
-    /// Encrypted write transaction. The filler pipeline handles encryption key
-    /// generation, nonce, gas estimation, and signing.
-    async fn shielded_send<C: SolCall + Send>(
-        &self,
-        address: Address,
-        call: C,
-    ) -> TransportResult<PendingTransactionBuilder<N>> {
-        let encoded = call.abi_encode();
-        let mut tx: N::TransactionRequest =
-            SeismicTransactionRequest::default().to(address).seismic().into();
-        TransactionBuilder::<N>::set_input(&mut tx, encoded);
-
-        self.send_transaction(tx).await
-    }
-}
-
-/// Blanket impl so `&T: SignedProviderExt` when `T: SignedProviderExt`.
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-impl<T, N> SignedProviderExt<N> for &T
-where
-    T: SignedProviderExt<N> + Sync,
-    N: SeismicNetwork,
-    N::TransactionRequest: From<SeismicTransactionRequest>,
-    N::UnsignedTx: Send + Sync,
-    Self: SeismicProviderExt<N>,
-{
-    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
-        (**self).seismic_call(tx).await
-    }
-
-    async fn eip712_send(
-        &self,
-        tx: SendableTx<N>,
-    ) -> TransportResult<PendingTransactionBuilder<N>> {
-        (**self).eip712_send(tx).await
-    }
-}
 
 // ============================================================================
 // SeismicCallExt — .seismic() on SolCallBuilder
@@ -197,6 +119,9 @@ pub trait ShieldedCallExt<'a, P, C: SolCall, N: Network> {
     #[deprecated = "unnecessary — functions with shielded parameters are automatically sent as seismic transactions. Use .call() or .send() directly."]
     fn seismic(self) -> ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>>;
 
+    /// Apply a [`SecurityParams`] struct to configure encryption parameters.
+    fn with_params(self, params: crate::SecurityParams) -> Self;
+
     /// Set the block number after which this transaction expires.
     ///
     /// By default, the filler sets this to `current_block + BLOCKS_WINDOW` (100).
@@ -234,7 +159,7 @@ where
         C::Return: Send,
     {
         let request = build_seismic_request(&self.0);
-        let result = self.0.provider.seismic_call(SendableTx::Builder(request)).await?;
+        let result = self.0.provider.seismic_call_raw(SendableTx::Builder(request)).await?;
         C::abi_decode_returns(&result)
             .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
     }
@@ -255,6 +180,10 @@ where
 
     fn seismic(self) -> ShieldedCallBuilder<SolCallBuilder<&'a P, C, N>> {
         self
+    }
+
+    fn with_params(self, params: crate::SecurityParams) -> Self {
+        mutate_shielded_elements(self, |e| params.apply_to(e))
     }
 
     fn expires_at(self, block: u64) -> Self {

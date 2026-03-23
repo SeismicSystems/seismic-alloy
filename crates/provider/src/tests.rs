@@ -120,7 +120,7 @@ async fn test_seismic_signed_call() {
         .into()
         .seismic();
 
-    let res = provider.seismic_call(SendableTx::Builder(tx.into())).await;
+    let res = provider.seismic_call_raw(SendableTx::Builder(tx.into())).await;
     assert!(res.is_ok(), "seismic_call failed: {:?}", res.unwrap_err());
     let res = res.unwrap();
 
@@ -595,6 +595,116 @@ async fn test_call_ext_eip712_write_then_eip712_read() {
     // EIP-712 read
     let is_odd = contract.isOdd().seismic().eip712().call().await.unwrap();
     assert!(is_odd, "13 should be odd");
+}
+
+// ========================================================================
+// seismic_call_with / seismic_send_with tests (provider-level _with variants)
+// ========================================================================
+
+#[tokio::test]
+async fn test_seismic_call_with_expires_at() {
+    use crate::SignedProviderExt;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+
+    let current_block = provider.get_block_number().await.unwrap();
+
+    // seismic_call_with using SecurityParams with a custom expires_at
+    let is_odd = provider
+        .seismic_call_with(
+            addr,
+            SeismicCounter::isOddCall {},
+            crate::SecurityParams::default().expires_at(current_block + 10),
+        )
+        .await;
+    assert!(is_odd.is_ok(), "seismic_call_with failed: {:?}", is_odd.unwrap_err());
+    assert!(!is_odd.unwrap());
+}
+
+#[tokio::test]
+async fn test_seismic_send_with_expires_at() {
+    use crate::SignedProviderExt;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+
+    let current_block = provider.get_block_number().await.unwrap();
+
+    // seismic_send_with using SecurityParams with a custom expires_at
+    let receipt = provider
+        .seismic_send_with(
+            addr,
+            SeismicCounter::setNumberCall {
+                newNumber: alloy_primitives::aliases::SUInt(alloy_primitives::U256::from(42)),
+            },
+            crate::SecurityParams::default().expires_at(current_block + 50),
+        )
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+    assert!(receipt.status());
+
+    // Verify the write via a shielded read — 42 is even
+    use crate::{SeismicCallExt, ShieldedCallExt};
+    let contract = SeismicCounter::new(addr, &provider);
+    let is_odd = contract.isOdd().seismic().call().await.unwrap();
+    assert!(!is_odd, "42 should not be odd");
+}
+
+// ========================================================================
+// with_params on the builder path
+// ========================================================================
+
+#[tokio::test]
+async fn test_call_ext_with_params_call() {
+    use crate::{SeismicCallExt, ShieldedCallExt};
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+    let contract = SeismicCounter::new(addr, &provider);
+
+    let current_block = provider.get_block_number().await.unwrap();
+
+    // Use with_params on the builder path for a read
+    let is_odd = contract
+        .isOdd()
+        .seismic()
+        .with_params(crate::SecurityParams::default().expires_at(current_block + 10))
+        .call()
+        .await;
+    assert!(is_odd.is_ok(), "with_params().call() failed: {:?}", is_odd.unwrap_err());
+    assert!(!is_odd.unwrap());
+}
+
+#[tokio::test]
+async fn test_call_ext_with_params_send() {
+    use crate::{SeismicCallExt, ShieldedCallExt};
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let (provider, addr) = deploy_test_contract(&anvil).await;
+    let contract = SeismicCounter::new(addr, &provider);
+
+    let current_block = provider.get_block_number().await.unwrap();
+
+    // Use with_params on the builder path for a write
+    let receipt = contract
+        .setNumber(alloy_primitives::aliases::SUInt(alloy_primitives::U256::from(17)))
+        .seismic()
+        .with_params(crate::SecurityParams::default().expires_at(current_block + 50))
+        .send()
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+    assert!(receipt.status());
+
+    // Verify: 17 is odd
+    let is_odd = contract.isOdd().seismic().call().await.unwrap();
+    assert!(is_odd, "17 should be odd");
 }
 
 fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {

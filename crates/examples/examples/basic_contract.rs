@@ -102,11 +102,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("isOdd() = {is_odd} (expected: false)");
     assert!(!is_odd);
 
-    // 9. Also works with the low-level trait methods.
-    use seismic_alloy_provider::SeismicProviderExt;
+    // 9. Also works with the provider-level trait methods.
+    use seismic_alloy_provider::SignedProviderExt;
 
-    let result = provider.shielded_call(addr, SeismicCounter::isOddCall {}).await?;
-    println!("shielded_call isOdd() = {result}");
+    let result = provider.seismic_call(addr, SeismicCounter::isOddCall {}).await?;
+    println!("seismic_call isOdd() = {result}");
 
     let tee_pubkey = provider.get_tee_pubkey().await?;
     println!("TEE public key: {tee_pubkey}");

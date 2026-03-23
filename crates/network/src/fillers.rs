@@ -181,17 +181,17 @@ where
 pub const BLOCKS_WINDOW: u64 = 100;
 
 /// Generates seismic elements and encrypts transaction input.
-/// Generates one ephemeral keypair for the client that is reused for all transactions.
+/// Generates one provider keypair for the client that is reused for all transactions.
 /// This combines element generation and encryption into a single filler
-/// to avoid the complexity of sharing ephemeral state between separate fillers.
+/// to avoid the complexity of sharing provider state between separate fillers.
 #[derive(Clone, Debug)]
 pub struct SeismicElementsFiller {
     /// Cached TEE public key (fetched once at provider creation, or provided directly)
     tee_pubkey: Option<PublicKey>,
     /// Custom blocks window for transaction expiration (overrides BLOCKS_WINDOW)
     blocks_window: Option<u64>,
-    /// Client's ephemeral secret key for encryption/decryption (generated once at client creation)
-    ephemeral_secret_key: seismic_enclave::secp256k1::SecretKey,
+    /// Client's provider secret key for encryption/decryption (generated once at client creation)
+    provider_secret_key: seismic_enclave::secp256k1::SecretKey,
     /// Whether seismic calls should be marked as signed_read (true for signed providers)
     signed_read: bool,
 }
@@ -199,23 +199,23 @@ pub struct SeismicElementsFiller {
 impl SeismicElementsFiller {
     /// Create a new SeismicElementsFiller with RPC URL (signed_read defaults to false)
     pub fn new() -> Self {
-        let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        let provider_keypair = TxSeismicElements::get_rand_encryption_keypair();
         Self {
             tee_pubkey: None,
             blocks_window: None,
-            ephemeral_secret_key: ephemeral_keypair.secret_key().clone(),
+            provider_secret_key: provider_keypair.secret_key().clone(),
             signed_read: false,
         }
     }
 
-    /// Create with a cached TEE pubkey and RPC URL (avoids fetching per-transaction, signed_read
+    /// Create with a cached TEE pubkey (avoids fetching per-transaction, signed_read
     /// defaults to false)
-    pub fn with_tee_pubkey_and_url(tee_pubkey: PublicKey) -> Self {
-        let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
+    pub fn with_tee_pubkey(tee_pubkey: PublicKey) -> Self {
+        let provider_keypair = TxSeismicElements::get_rand_encryption_keypair();
         Self {
             tee_pubkey: Some(tee_pubkey),
             blocks_window: None,
-            ephemeral_secret_key: ephemeral_keypair.secret_key().clone(),
+            provider_secret_key: provider_keypair.secret_key().clone(),
             signed_read: false,
         }
     }
@@ -232,18 +232,18 @@ impl SeismicElementsFiller {
         self
     }
 
-    /// Get the ephemeral secret key for response decryption
-    pub fn ephemeral_secret_key(&self) -> &seismic_enclave::secp256k1::SecretKey {
-        &self.ephemeral_secret_key
+    /// Get the provider secret key for response decryption
+    pub fn provider_secret_key(&self) -> &seismic_enclave::secp256k1::SecretKey {
+        &self.provider_secret_key
     }
 
     /// Check whether a transaction has already been encrypted by this filler.
     ///
     /// We detect this by comparing the `encryption_pubkey` in the elements to our
     /// ephemeral public key. Users never set the pubkey directly (it's derived from
-    /// the filler's ephemeral secret key), so a match means we already ran.
+    /// the filler's provider secret key), so a match means we already ran.
     fn is_encrypted(&self, tx: &SeismicTransactionRequest) -> bool {
-        let our_pubkey = self.ephemeral_secret_key.public_key(&Secp256k1::new());
+        let our_pubkey = self.provider_secret_key.public_key(&Secp256k1::new());
         tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_pubkey == our_pubkey)
     }
 }
@@ -255,7 +255,7 @@ where
         + InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
 {
-    // Fillable contains: Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)) for fill()
+    // Fillable contains: Some((tee_pubkey, provider_secret_key, elements, plaintext)) for fill()
     // to encrypt
     type Fillable = Option<(
         PublicKey,
@@ -344,11 +344,11 @@ where
         }
         let plaintext = plaintext.clone();
 
-        // Use the client's ephemeral secret key (generated once at client creation)
-        let ephemeral_secret_key = self.ephemeral_secret_key.clone();
+        // Use the client's provider secret key (generated once at client creation)
+        let provider_secret_key = self.provider_secret_key.clone();
 
         // Derive public key from secret key
-        let ephemeral_pubkey = ephemeral_secret_key.public_key(&Secp256k1::new());
+        let provider_pubkey = provider_secret_key.public_key(&Secp256k1::new());
 
         // Get TEE public key (use cached if available, otherwise fetch via RPC)
         let tee_pubkey = if let Some(cached) = &self.tee_pubkey {
@@ -391,7 +391,7 @@ where
 
         // Create seismic elements (without full metadata yet, will encrypt in fill())
         let elements = TxSeismicElements::default()
-            .with_encryption_pubkey(ephemeral_pubkey)
+            .with_encryption_pubkey(provider_pubkey)
             .with_encryption_nonce(encryption_nonce)
             .with_message_version(message_version)
             .with_recent_block_hash(recent_block_hash)
@@ -399,7 +399,7 @@ where
             .with_signed_read(signed_read);
 
         // Return data needed for encryption in fill() (when nonce will be available)
-        Ok(Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)))
+        Ok(Some((tee_pubkey, provider_secret_key, elements, plaintext)))
     }
 
     async fn fill(
@@ -408,7 +408,7 @@ where
         mut tx: SendableTx<N>,
     ) -> TransportResult<SendableTx<N>> {
         // If None, no encryption needed
-        let Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)) = fillable else {
+        let Some((tee_pubkey, provider_secret_key, elements, plaintext)) = fillable else {
             return Ok(tx);
         };
 
@@ -432,7 +432,7 @@ where
 
             // Encrypt using metadata.client_encrypt()
             let encrypted =
-                metadata.client_encrypt(&plaintext, &tee_pubkey, &ephemeral_secret_key).map_err(
+                metadata.client_encrypt(&plaintext, &tee_pubkey, &provider_secret_key).map_err(
                     |e| TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e)),
                 )?;
 

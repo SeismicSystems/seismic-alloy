@@ -250,12 +250,11 @@ where
         url: reqwest::Url,
         tee_pubkey: seismic_enclave::secp256k1::PublicKey,
     ) -> SeismicSignedProvider<N> {
-        let (filler_chain, ephemeral_secret_key) =
-            self.signed_filler_chain(url.clone(), tee_pubkey);
+        let (filler_chain, provider_secret_key) = self.signed_filler_chain(url.clone(), tee_pubkey);
 
         ProviderBuilder::<_, _, N>::default()
             .network::<N>()
-            .layer(ResponseDecryptLayer::new(ephemeral_secret_key, tee_pubkey))
+            .layer(ResponseDecryptLayer::new(provider_secret_key, tee_pubkey))
             .layer(filler_chain)
             .connect_client(RpcClient::new_http(url))
     }
@@ -277,26 +276,25 @@ where
         url: reqwest::Url,
         tee_pubkey: seismic_enclave::secp256k1::PublicKey,
     ) -> TransportResult<SeismicSignedProvider<N>> {
-        let (filler_chain, ephemeral_secret_key) =
-            self.signed_filler_chain(url.clone(), tee_pubkey);
+        let (filler_chain, provider_secret_key) = self.signed_filler_chain(url.clone(), tee_pubkey);
 
         ProviderBuilder::<_, _, N>::default()
             .network::<N>()
-            .layer(ResponseDecryptLayer::new(ephemeral_secret_key, tee_pubkey))
+            .layer(ResponseDecryptLayer::new(provider_secret_key, tee_pubkey))
             .layer(filler_chain)
             .connect_ws(WsConnect::new(url))
             .await
     }
 
-    /// Build the signed filler chain. Returns the chain and the ephemeral secret key
+    /// Build the signed filler chain. Returns the chain and the provider secret key
     /// (needed by ResponseDecryptLayer).
     fn signed_filler_chain(
         self,
         url: reqwest::Url,
         tee_pubkey: seismic_enclave::secp256k1::PublicKey,
     ) -> (SignedFillers<N>, seismic_enclave::secp256k1::SecretKey) {
-        let seismic_filler = SeismicElementsFiller::with_tee_pubkey_and_url(tee_pubkey);
-        let ephemeral_secret_key = seismic_filler.ephemeral_secret_key().clone();
+        let seismic_filler = SeismicElementsFiller::with_tee_pubkey(tee_pubkey);
+        let provider_secret_key = seismic_filler.provider_secret_key().clone();
 
         let filler_chain = JoinFill::new(
             JoinFill::new(
@@ -312,7 +310,7 @@ where
             SeismicGasFiller::with_url(url),
         );
 
-        (filler_chain, ephemeral_secret_key)
+        (filler_chain, provider_secret_key)
     }
 }
 

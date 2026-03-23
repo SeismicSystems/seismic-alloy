@@ -10,8 +10,8 @@
 
 // Seismic provider & call traits
 pub use seismic_alloy_provider::{
-    SeismicCallExt, SeismicProviderBuilder, SeismicProviderExt, SeismicSignedProvider,
-    SeismicUnsignedProvider, ShieldedCallExt, SignedProviderExt,
+    SecurityParams, SeismicCallExt, SeismicProviderBuilder, SeismicProviderExt,
+    SeismicSignedProvider, SeismicUnsignedProvider, ShieldedCallExt, SignedProviderExt,
 };
 
 // Wallet

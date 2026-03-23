@@ -22,7 +22,7 @@ use crate::{SeismicProviderExt, SignedProviderExt};
 /// Provider wrapper that adds response decryption for shielded reads.
 ///
 /// This is the only Seismic-specific provider wrapper. It holds:
-/// - An ephemeral secret key (for ECDH-based decryption)
+/// - A provider secret key (for ECDH-based decryption)
 /// - The TEE public key (fetched once at provider creation)
 ///
 /// For unsigned providers (no decryption needed), use a bare `FillProvider` —
@@ -30,7 +30,7 @@ use crate::{SeismicProviderExt, SignedProviderExt};
 #[derive(Debug, Clone)]
 pub struct ResponseDecryptProvider<N, P> {
     inner: P,
-    ephemeral_secret_key: seismic_enclave::secp256k1::SecretKey,
+    provider_secret_key: seismic_enclave::secp256k1::SecretKey,
     tee_pubkey: seismic_enclave::secp256k1::PublicKey,
     _network: std::marker::PhantomData<N>,
 }
@@ -39,10 +39,10 @@ impl<N, P> ResponseDecryptProvider<N, P> {
     /// Create a new response-decrypting provider.
     pub fn new(
         inner: P,
-        ephemeral_secret_key: seismic_enclave::secp256k1::SecretKey,
+        provider_secret_key: seismic_enclave::secp256k1::SecretKey,
         tee_pubkey: seismic_enclave::secp256k1::PublicKey,
     ) -> Self {
-        Self { inner, ephemeral_secret_key, tee_pubkey, _network: std::marker::PhantomData }
+        Self { inner, provider_secret_key, tee_pubkey, _network: std::marker::PhantomData }
     }
 }
 
@@ -93,11 +93,11 @@ fn decrypt_response(
     output: &Bytes,
     metadata: &seismic_alloy_consensus::TxSeismicMetadata,
     tee_pubkey: &seismic_enclave::secp256k1::PublicKey,
-    ephemeral_secret_key: &seismic_enclave::secp256k1::SecretKey,
+    provider_secret_key: &seismic_enclave::secp256k1::SecretKey,
 ) -> TransportResult<Bytes> {
     metadata
         .seismic_elements
-        .client_decrypt(output, tee_pubkey, ephemeral_secret_key, metadata)
+        .client_decrypt(output, tee_pubkey, provider_secret_key, metadata)
         .map_err(|e| SeismicProviderError::Decryption(format!("{e:?}")).into_transport())
 }
 
@@ -141,7 +141,7 @@ where
     F: TxFiller<N>,
     P: Provider<N>,
 {
-    async fn seismic_call(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
+    async fn seismic_call_raw(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
         match tx {
             SendableTx::Builder(builder) => {
                 // Check if this is a seismic transaction
@@ -177,7 +177,7 @@ where
                 let output = raw_seismic_call(self.inner.root(), filled_tx).await?;
 
                 // Decrypt the response
-                decrypt_response(&output, &metadata, &self.tee_pubkey, &self.ephemeral_secret_key)
+                decrypt_response(&output, &metadata, &self.tee_pubkey, &self.provider_secret_key)
             }
             SendableTx::Envelope(envelope) => {
                 // Envelope passed directly — try to extract seismic metadata
@@ -188,7 +188,7 @@ where
                         &output,
                         &metadata,
                         &self.tee_pubkey,
-                        &self.ephemeral_secret_key,
+                        &self.provider_secret_key,
                     )
                 } else {
                     // Not a seismic envelope, pass through
@@ -231,17 +231,17 @@ where
 /// Layer that wraps a provider with [`ResponseDecryptProvider`].
 #[derive(Debug, Clone)]
 pub struct ResponseDecryptLayer {
-    ephemeral_secret_key: seismic_enclave::secp256k1::SecretKey,
+    provider_secret_key: seismic_enclave::secp256k1::SecretKey,
     tee_pubkey: seismic_enclave::secp256k1::PublicKey,
 }
 
 impl ResponseDecryptLayer {
     /// Create a new response decrypt layer.
     pub fn new(
-        ephemeral_secret_key: seismic_enclave::secp256k1::SecretKey,
+        provider_secret_key: seismic_enclave::secp256k1::SecretKey,
         tee_pubkey: seismic_enclave::secp256k1::PublicKey,
     ) -> Self {
-        Self { ephemeral_secret_key, tee_pubkey }
+        Self { provider_secret_key, tee_pubkey }
     }
 }
 
@@ -254,6 +254,6 @@ where
     type Provider = ResponseDecryptProvider<N, P>;
 
     fn layer(&self, inner: P) -> Self::Provider {
-        ResponseDecryptProvider::new(inner, self.ephemeral_secret_key.clone(), self.tee_pubkey)
+        ResponseDecryptProvider::new(inner, self.provider_secret_key.clone(), self.tee_pubkey)
     }
 }

@@ -62,16 +62,22 @@ Two key primitives:
 - **Shielded writes** -- Calldata is encrypted client-side using ECDH + AES-GCM before submission. Only TEE nodes with the network secret key can decrypt it.
 - **Signed reads** -- `eth_call` sent as a signed transaction so the node can verify the caller's identity (preventing `from` address spoofing). Seismic still supports standard `eth_call`, but the `from` field is zeroed out.
 
+### Key Management
+
+Each signed provider generates a **secp256k1 keypair** at creation time. This keypair is used for ECDH key agreement with the TEE — deriving the shared AES key that encrypts calldata and decrypts responses. The keypair lives for the lifetime of the provider and is **not automatically rotated**.
+
+For long-running processes, consider periodically recreating the provider to rotate the encryption keypair. The per-transaction encryption nonce ensures that each transaction's ciphertext is unique even with the same keypair, but key rotation is a defense-in-depth measure.
+
 ## Features
 
-- **Auto-encryption for shielded params** -- Functions with shielded types (`suint256`, `saddress`, etc.) auto-encrypt the entire calldata via `ShieldedCallBuilder` -- `.call()` and `.send()` work directly
+- **Seismic transaction type (0x4A)** -- Extends standard Ethereum transaction types with encryption metadata
+- **Auto-encryption for shielded functions** -- A function is "shielded" if any of its parameters use shielded types (`suint256`, `saddress`, `sbool`, `sbytes`, `sbytesN`). The `sol!` macro detects this and auto-encrypts the entire calldata via `ShieldedCallBuilder` -- `.call()` and `.send()` work directly
 - **`.seismic()` call builder** -- `contract.method().seismic().call()` / `.send()` for non-shielded functions that need encryption
 - **`SeismicProviderBuilder`** -- Typestate builder for signed (wallet) and unsigned (read-only) providers over HTTP or WebSocket
 - **Automatic encryption** -- Filler pipeline handles ECDH key exchange, AES-GCM encryption, and response decryption
 - **SecurityParams** -- Per-call `.expires_at()`, `.recent_block_hash()`, `.encryption_nonce()` overrides
 - **EIP-712 support** -- `.eip712()` for browser wallet compatibility (MetaMask)
 - **Precompile helpers** -- Encode/decode/call wrappers for Seismic's 6 custom precompiles (RNG, ECDH, AES-GCM encrypt/decrypt, HKDF, secp256k1 sign)
-- **Seismic transaction type (0x4A)** -- Extends standard Ethereum transaction types with encryption metadata
 - **Full Alloy compatibility** -- All standard `Provider` methods work unchanged
 
 ## Project Structure
@@ -92,8 +98,7 @@ crates/
 
 ## Prerequisites
 
-- **Rust**: 1.82 or later
-- **sanvil**: Required for running provider tests (see below)
+- **sanvil**: Required for running provider tests and examples (see below)
 
 ## Building
 

@@ -5,18 +5,20 @@
 //! - [`SeismicProviderExt`] — available on **all** Seismic providers (signed and unsigned).
 //!   Provides `transparent_call`, `transparent_send`, and `get_tee_pubkey`.
 //!
-//! - [`SignedProviderExt`] — available only on **signed** providers. Provides `shielded_call`,
-//!   `shielded_send`, `seismic_call`, and `eip712_send`. This trait is sealed — only
+//! - [`SignedProviderExt`] — available only on **signed** providers. Provides `seismic_call`,
+//!   `seismic_send`, `seismic_call_raw`, and `eip712_send`, plus `_with` variants that accept
+//!   [`SecurityParams`]. This trait is sealed — only
 //!   [`ResponseDecryptProvider`](crate::decrypt::ResponseDecryptProvider) implements it.
 use alloy_network::TransactionBuilder;
-use alloy_primitives::Address;
-use alloy_provider::{PendingTransactionBuilder, Provider, RootProvider};
+use alloy_primitives::{Address, Bytes};
+use alloy_provider::{PendingTransactionBuilder, Provider, RootProvider, SendableTx};
 use alloy_sol_types::SolCall;
 use alloy_transport::TransportResult;
+use seismic_alloy_consensus::TxSeismicElements;
 
 use alloy_provider::fillers::{FillProvider, TxFiller};
 
-use crate::SeismicProviderError;
+use crate::{SecurityParams, SeismicProviderError};
 use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
 };
@@ -119,4 +121,127 @@ where
     P: Provider<N>,
     N::UnsignedTx: Send + Sync,
 {
+}
+
+// ============================================================================
+// SignedProviderExt — sealed trait for signed providers
+// ============================================================================
+
+/// Sealed trait for signed providers that can encrypt calldata and decrypt responses.
+///
+/// Only implemented by [`ResponseDecryptProvider`](crate::decrypt::ResponseDecryptProvider)
+/// and references to it. Provides:
+/// - Low-level: `seismic_call_raw`, `eip712_send`
+/// - High-level: `seismic_call`, `seismic_send` (with `_with` variants for [`SecurityParams`])
+///
+/// Users typically don't interact with this trait directly — use the
+/// call-builder traits ([`SeismicCallExt`](crate::SeismicCallExt),
+/// [`ShieldedCallExt`](crate::ShieldedCallExt)) instead.
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+pub trait SignedProviderExt<N: SeismicNetwork>: SeismicProviderExt<N>
+where
+    N::UnsignedTx: Send + Sync,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
+{
+    /// Low-level seismic call. Fills the transaction, sends as `eth_call`,
+    /// and decrypts the response.
+    async fn seismic_call_raw(&self, tx: SendableTx<N>) -> TransportResult<Bytes>;
+
+    /// Send an EIP-712 signed seismic transaction.
+    async fn eip712_send(&self, tx: SendableTx<N>)
+        -> TransportResult<PendingTransactionBuilder<N>>;
+
+    /// Encrypted, signed read call. Encrypts calldata, signs the call
+    /// (preventing `msg.sender` spoofing), and decrypts the response.
+    async fn seismic_call<C: SolCall + Send>(
+        &self,
+        address: Address,
+        call: C,
+    ) -> TransportResult<C::Return>
+    where
+        C::Return: Send,
+    {
+        self.seismic_call_with(address, call, SecurityParams::default()).await
+    }
+
+    /// Encrypted write transaction. The filler pipeline handles encryption key
+    /// generation, nonce, gas estimation, and signing.
+    async fn seismic_send<C: SolCall + Send>(
+        &self,
+        address: Address,
+        call: C,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        self.seismic_send_with(address, call, SecurityParams::default()).await
+    }
+
+    /// Encrypted, signed read call with custom security parameters.
+    async fn seismic_call_with<C: SolCall + Send>(
+        &self,
+        address: Address,
+        call: C,
+        params: SecurityParams,
+    ) -> TransportResult<C::Return>
+    where
+        C::Return: Send,
+    {
+        let encoded = call.abi_encode();
+        let mut seismic_req = SeismicTransactionRequest::default().to(address).seismic();
+
+        // Apply security params to the partial elements
+        let elements = seismic_req.seismic_elements.get_or_insert_with(TxSeismicElements::default);
+        params.apply_to(elements);
+
+        let mut tx: N::TransactionRequest = seismic_req.into();
+        TransactionBuilder::<N>::set_input(&mut tx, encoded);
+
+        // For reads, EIP-712 affects signing (handled by the filler) but the
+        // call path is the same — always goes through seismic_call_raw.
+        let result = self.seismic_call_raw(SendableTx::Builder(tx)).await?;
+        C::abi_decode_returns(&result)
+            .map_err(|e| SeismicProviderError::AbiDecode(e).into_transport())
+    }
+
+    /// Encrypted write transaction with custom security parameters.
+    async fn seismic_send_with<C: SolCall + Send>(
+        &self,
+        address: Address,
+        call: C,
+        params: SecurityParams,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        let encoded = call.abi_encode();
+        let mut seismic_req = SeismicTransactionRequest::default().to(address).seismic();
+
+        // Apply encryption params to the partial elements
+        let elements = seismic_req.seismic_elements.get_or_insert_with(TxSeismicElements::default);
+        params.apply_to(elements);
+
+        let mut tx: N::TransactionRequest = seismic_req.into();
+        TransactionBuilder::<N>::set_input(&mut tx, encoded);
+
+        self.send_transaction(tx).await
+    }
+}
+
+/// Blanket impl so `&T: SignedProviderExt` when `T: SignedProviderExt`.
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl<T, N> SignedProviderExt<N> for &T
+where
+    T: SignedProviderExt<N> + Sync,
+    N: SeismicNetwork,
+    N::TransactionRequest: From<SeismicTransactionRequest>,
+    N::UnsignedTx: Send + Sync,
+    Self: SeismicProviderExt<N>,
+{
+    async fn seismic_call_raw(&self, tx: SendableTx<N>) -> TransportResult<Bytes> {
+        (**self).seismic_call_raw(tx).await
+    }
+
+    async fn eip712_send(
+        &self,
+        tx: SendableTx<N>,
+    ) -> TransportResult<PendingTransactionBuilder<N>> {
+        (**self).eip712_send(tx).await
+    }
 }
