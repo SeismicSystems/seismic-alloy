@@ -45,22 +45,21 @@ jobs:
       - name: cargo check warnings
         run: RUSTFLAGS="-D warnings" cargo check
   test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      CARGO_HOME: /home/azureuser/.cargo
-      RUSTUP_HOME: /home/azureuser/.rustup
-      HOME: /home/azureuser
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Setup sanvil PATH
-        run: |
-          echo "$HOME/.seismic/bin" >> $GITHUB_PATH
-          echo "sanvil path configured"
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "test-cache"
-      - name: cargo test
+      # Install sfoundry for sanvil. The provider tests are integration tests that start `sanvil` so we need to add it to the PATH.
+      # TODO(samlaf): We probably would want to separate unit tests from integration tests to be able to run unit tests without dependencies.
+      # Would be nice also to run the provider integration tests against the latest stable and latest nightly version (sfoundryup -i nightly) of sanvil.
+      - name: Install sfoundry (sanvil)
         run: |
-          cargo test --workspace
+          curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash
+          ~/.seismic/bin/sfoundryup
+          echo "$HOME/.seismic/bin" >> $GITHUB_PATH
+      - name: cargo test
+        run: cargo test --workspace
