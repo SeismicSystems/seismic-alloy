@@ -58,7 +58,7 @@ jobs:
       # Would be nice also to run the provider integration tests against the latest stable and latest nightly version (sfoundryup -i nightly) of sanvil.
       - name: Install sfoundry (sanvil)
         run: |
-          curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash && sfoundryup
+          curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash
           echo $PATH
           echo $XDG_CONFIG_HOME
           echo "$HOME/.seismic/bin" >> $GITHUB_PATH
