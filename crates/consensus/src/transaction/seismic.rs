@@ -54,9 +54,7 @@ pub trait InputDecryptionElements: Clone {
             let ciphertext = tx.get_input()?;
             let decrypted_data = seismic_elements
                 .decrypt(decryption_key, &ciphertext, &tx_metadata)
-                .map_err(|e| {
-                    InputDecryptionElementsError::DecryptionError(e.to_string())
-                })?;
+                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
             tx.set_input(Bytes::from(decrypted_data))?;
         }
         Ok(tx)

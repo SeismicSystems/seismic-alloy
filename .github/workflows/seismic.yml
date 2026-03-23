@@ -60,8 +60,7 @@ jobs:
         run: |
           curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash
           SEISMIC_BIN="${XDG_CONFIG_HOME:-$HOME}/.seismic/bin"
-          export PATH="$SEISMIC_BIN:$PATH"
-          sfoundryup
+          $SEISMIC_BIN/sfoundryup
           echo "$SEISMIC_BIN" >> $GITHUB_PATH
       - name: cargo test
         run: cargo test --workspace
