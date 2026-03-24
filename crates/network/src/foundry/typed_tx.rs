@@ -22,7 +22,8 @@ impl From<SeismicFoundryTxEnvelope> for SeismicFoundryTypedTransaction {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = envelope {
             Self::Seismic(tx.strip_signature())
         } else {
-            let any_typed: AnyTypedTransaction = envelope.to_any_tx_envelope().into();
+            let any_typed: AnyTypedTransaction =
+                envelope.to_any_tx_envelope().expect("non-Seismic variant").into();
             match any_typed {
                 AnyTypedTransaction::Ethereum(tx) => Self::Ethereum(tx),
                 AnyTypedTransaction::Unknown(tx) => Self::Unknown(tx),

@@ -187,12 +187,13 @@ impl SeismicTransactionRequest {
 
     /// Builds [`SeismicTypedTransaction`] from this builder. See
     /// [`TransactionRequest::build_typed_tx`] for more info.
-    ///
-    /// Note that EIP-4844 transactions are not supported by Seismic and will be converted into
-    /// EIP-1559 transactions.
     pub fn build_typed_tx(self) -> Result<SeismicTypedTransaction, Self> {
         if self.seismic_elements.is_some() {
-            let tx = self.build_seismic().expect("Failed to build seismic transaction.");
+            let fallback = self.clone();
+            let tx = self.build_seismic().map_err(|e| {
+                eprintln!("Failed to build seismic transaction: {e}");
+                fallback
+            })?;
             return Ok(SeismicTypedTransaction::Seismic(tx));
         }
 

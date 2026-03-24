@@ -196,7 +196,7 @@ impl SeismicNetwork for SeismicFoundry {
                 Ok(Self::TxEnvelope::Ethereum(EthereumTxEnvelope::from(signed)))
             }
             Self::UnsignedTx::Unknown(_) => {
-                unimplemented!("Cannot sign unknown transaction type");
+                return Err(alloy_signer::Error::other("Cannot sign unknown transaction type"));
             }
             Self::UnsignedTx::Seismic(mut t) => {
                 let sig = wallet.sign_transaction_inner(sender, &mut t).await?;
