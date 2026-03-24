@@ -520,17 +520,14 @@ impl TxSeismic {
             .map_err(|_| Eip712Error::DecodeError("Failed to serialize message".to_string()))?;
 
         // Extract the explicit isCreate flag
-        let is_create = message
-            .get("isCreate")
-            .and_then(|v| v.as_bool())
-            .ok_or_else(|| {
-                Eip712Error::DecodeError("Missing or invalid isCreate field".to_string())
-            })?;
+        let is_create = message.get("isCreate").and_then(|v| v.as_bool()).ok_or_else(|| {
+            Eip712Error::DecodeError("Missing or invalid isCreate field".to_string())
+        })?;
 
         // Deserialize JSON `message` into `TxSeismic`
         let mut tx: TxSeismic = serde_json::from_value(message)
-        .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
-    
+            .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
+
         // Note: serde deserializes `to: Address::ZERO` as `TxKind::Call(Address::ZERO)`,
         // so we use the isCreate flag to distinguish Create from Call(Address::ZERO).
         if is_create {
