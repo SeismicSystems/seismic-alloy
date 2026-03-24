@@ -465,8 +465,9 @@ impl TxSeismic {
                   { "name": "nonce", "type": "uint64" },
                   { "name": "gasPrice", "type": "uint128" },
                   { "name": "gasLimit", "type": "uint64" },
-                  // if blank, we assume it's a create
+                  // When isCreate=true, to=0x0.
                   { "name": "to", "type": "address" },
+                  { "name": "isCreate", "type": "bool" },
                   { "name": "value", "type": "uint256" },
                   // compressed secp256k1 public key (33 bytes)
                   { "name": "input", "type": "bytes" },
@@ -495,6 +496,7 @@ impl TxSeismic {
                     TxKind::Create => Address::ZERO.to_string(),
                     TxKind::Call(to) => to.to_string(),
                 },
+                "isCreate": self.to.is_create(),
                 "value": self.value.to_string(),
                 "input": self.input.to_string(),
                 "encryptionPubkey": self.seismic_elements.encryption_pubkey.to_string(),
@@ -516,11 +518,22 @@ impl TxSeismic {
         // Extract the `message` field from TypedData (JSON format)
         let message = serde_json::to_value(&typed_data.message)
             .map_err(|_| Eip712Error::DecodeError("Failed to serialize message".to_string()))?;
+
+        // Extract the explicit isCreate flag
+        let is_create = message
+            .get("isCreate")
+            .and_then(|v| v.as_bool())
+            .ok_or_else(|| {
+                Eip712Error::DecodeError("Missing or invalid isCreate field".to_string())
+            })?;
+
         // Deserialize JSON `message` into `TxSeismic`
         let mut tx: TxSeismic = serde_json::from_value(message)
-            .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
-
-        if tx.to == TxKind::Call(Address::ZERO) {
+        .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
+    
+        // Note: serde deserializes `to: Address::ZERO` as `TxKind::Call(Address::ZERO)`,
+        // so we use the isCreate flag to distinguish Create from Call(Address::ZERO).
+        if is_create {
             tx.to = TxKind::Create;
         }
 
