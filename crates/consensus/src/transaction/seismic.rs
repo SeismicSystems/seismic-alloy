@@ -1162,6 +1162,37 @@ mod tests {
         let _signature_hash = decoded.eip712_signature_hash();
     }
 
+    // Verify that Call(Address::ZERO) survives EIP-712 encode/decode round-trip.
+    // We at some point had a bug where this would get serialized to a CREATE tx.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_eip712_call_zero_address_round_trip() {
+        let tx = TxSeismic {
+            chain_id: 1u64,
+            nonce: 42,
+            gas_price: 1_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::from(1u64),
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::default().encryption_pubkey,
+                encryption_nonce: U96::from(1),
+                message_version: 2,
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::default(),
+        };
+
+        let typed_data = tx.eip712_to_type_data();
+        let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
+
+        assert_eq!(tx.to, TxKind::Call(Address::ZERO));
+        assert_eq!(decoded.to, TxKind::Call(Address::ZERO));
+        assert_eq!(decoded, tx);
+    }
+
     #[test]
     fn test_eip712_hash() {
         let tx = TxSeismic {
