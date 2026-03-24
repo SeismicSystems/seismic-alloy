@@ -105,10 +105,9 @@ impl TryFrom<SeismicFoundryTxEnvelope> for AnyTxEnvelope {
         match value {
             SeismicFoundryTxEnvelope::Ethereum(tx) => Ok(AnyTxEnvelope::Ethereum(tx)),
             SeismicFoundryTxEnvelope::Unknown(tx) => Ok(AnyTxEnvelope::Unknown(tx)),
-            v @ SeismicFoundryTxEnvelope::Seismic(_) => Err(ValueError::new_static(
-                v,
-                "Can't convert Seismic transaction to AnyTxEnvelope",
-            )),
+            v @ SeismicFoundryTxEnvelope::Seismic(_) => {
+                Err(ValueError::new_static(v, "Can't convert Seismic transaction to AnyTxEnvelope"))
+            }
         }
     }
 }
