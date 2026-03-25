@@ -337,7 +337,9 @@ impl NetworkWallet<SeismicFoundry> for EthereumWallet {
                 }
                 .into()
             }
-            SeismicFoundryTypedTransaction::Unknown(_) => unreachable!(),
+            SeismicFoundryTypedTransaction::Unknown(_) => {
+                return Err(alloy_signer::Error::other("Cannot sign unknown transaction type"));
+            }
         };
         Ok(signed_envelope)
     }
