@@ -41,6 +41,29 @@ pub trait InputDecryptionElements: Clone {
     /// Returns tx metadata for encryption with AEAD
     fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError>;
 
+    /// Validate block-related security features (expiration and recent block hash).
+    /// Non-Seismic transaction types are passed through without validation.
+    fn validate_block(
+        &self,
+        current_block: u64,
+        recent_blocks: &[B256],
+    ) -> Result<(), SeismicValidationError> {
+        if let Ok(elements) = self.get_decryption_elements() {
+            if current_block > elements.expires_at_block {
+                return Err(SeismicValidationError::TransactionExpired {
+                    current_block,
+                    expires_at_block: elements.expires_at_block,
+                });
+            }
+            if !recent_blocks.contains(&elements.recent_block_hash) {
+                return Err(SeismicValidationError::InvalidRecentBlockHash {
+                    provided_hash: elements.recent_block_hash,
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Creates a copy of the transaction with the input field set to the plaintext.
     /// Errors if the decryption fails, etc.
     fn plaintext_copy(
@@ -610,26 +633,14 @@ impl TxSeismic {
         current_block <= self.seismic_elements.expires_at_block
     }
 
-    /// Validate block-related security features (expiration and recent block hash)
+    /// Validate block-related security features (expiration and recent block hash).
+    /// Delegates to [`InputDecryptionElements::validate_block`].
     pub fn validate_block(
         &self,
         current_block: u64,
         recent_blocks: &[B256],
     ) -> Result<(), SeismicValidationError> {
-        if !self.validate_expiration(current_block) {
-            return Err(SeismicValidationError::TransactionExpired {
-                current_block,
-                expires_at_block: self.seismic_elements.expires_at_block,
-            });
-        }
-
-        if !self.validate_recent_block_hash(recent_blocks) {
-            return Err(SeismicValidationError::InvalidRecentBlockHash {
-                provided_hash: self.seismic_elements.recent_block_hash,
-            });
-        }
-
-        Ok(())
+        InputDecryptionElements::validate_block(self, current_block, recent_blocks)
     }
 }
 
