@@ -431,19 +431,18 @@ impl TxSeismic {
     /// Calculates a heuristic for the in-memory size of the [`TxSeismic`] transaction.
     /// In memory stores the decrypted transaction and the encrypted transaction.
     /// Out of memory stores the encrypted transaction. This is why size and fields_len are
-    /// diffenrent.
+    /// different.
     #[inline]
     pub fn size(&self) -> usize {
         mem::size_of::<ChainId>() + // chain_id
         mem::size_of::<u64>() + // nonce
         mem::size_of::<u128>() + // gas_price
         mem::size_of::<u64>() + // gas_limit
-        mem::size_of::<u128>() + // max_priority_fee_per_gas
         self.to.size() + // to
         mem::size_of::<U256>() + // value
         self.input.len() + // input
-        constants::PUBLIC_KEY_SIZE + // encryption public key
-        mem::size_of::<u64>() + // encryption nonce
+        constants::PUBLIC_KEY_SIZE + // encryption public key (33 bytes)
+        mem::size_of::<U96>() + // encryption nonce (12 bytes)
         mem::size_of::<u8>() + // message_version
         mem::size_of::<B256>() + // recent_block_hash
         mem::size_of::<u64>() + // expires_at_block
@@ -826,11 +825,11 @@ impl SignableTransaction<Signature> for TxSeismic {
 
     fn payload_len_for_signature(&self) -> usize {
         if self.is_eip712() {
-            let typed_data = self.eip712_to_type_data();
-            match typed_data.primary_type == "EIP712Domain" {
-                true => 34,
-                false => 66,
-            }
+            let data = self
+                .eip712_to_type_data()
+                .encode_data()
+                .expect("Failed to encode seismic transaction for signature length");
+            data.len()
         } else {
             self.length() + 1
         }
@@ -1325,5 +1324,56 @@ mod tests {
             seismic_elements.encrypt(&secret_key, &plaintext, &tx_metadata).unwrap();
         let expected_ecd = Bytes::from_hex("0x12fbf3f819e7ae972bfedfc6a5a249983ae527e0").unwrap();
         assert_eq!(encrypted_calldata, expected_ecd);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_payload_len_matches_encoded_for_signing_eip712() {
+        let tx = TxSeismic {
+            chain_id: 4u64,
+            nonce: 2,
+            gas_price: 1000000000,
+            gas_limit: 100000,
+            to: TxKind::Create,
+            value: U256::from(1000000000000000u64),
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::get_rand_encryption_keypair().public_key(),
+                encryption_nonce: U96::from(1),
+                message_version: 2, // EIP-712 mode
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::from_str("0xdeadbeef").unwrap(),
+        };
+
+        let mut buf = vec![];
+        tx.encode_for_signing(&mut buf);
+        assert_eq!(tx.payload_len_for_signature(), buf.len());
+    }
+
+    #[test]
+    fn test_payload_len_matches_encoded_for_signing_legacy() {
+        let tx = TxSeismic {
+            chain_id: 4u64,
+            nonce: 2,
+            gas_price: 1000000000,
+            gas_limit: 100000,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::from(1u64),
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::get_rand_encryption_keypair().public_key(),
+                encryption_nonce: U96::from(1),
+                message_version: 0, // legacy mode
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::default(),
+        };
+
+        let mut buf = vec![];
+        tx.encode_for_signing(&mut buf);
+        assert_eq!(tx.payload_len_for_signature(), buf.len());
     }
 }
