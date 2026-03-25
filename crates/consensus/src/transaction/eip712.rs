@@ -38,6 +38,6 @@ pub trait Decodable712: Sized {
 // that can include EthereumTxEnvelope.
 impl<T> Decodable712 for alloy_consensus::EthereumTxEnvelope<T> {
     fn decode_712(_: &TypedDataRequest) -> Eip712Result<Self> {
-        unimplemented!("Should not be called becuase Ethereum Reth does not support EIP-712")
+        Err(Eip712Error::InvalidType)
     }
 }
