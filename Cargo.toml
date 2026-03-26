@@ -146,13 +146,12 @@ k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 seismic-enclave =  { git = "https://github.com/SeismicSystems/enclave.git", rev = "ac5e28dac1ee8ec0e3922b010e6da072d6e784aa" }
 
 # seismic-alloy-core
-alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "c022ec44af6c6bb60cc5df8f2eada3922f0fc716" }
-alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "c022ec44af6c6bb60cc5df8f2eada3922f0fc716" }
-alloy-json-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "c022ec44af6c6bb60cc5df8f2eada3922f0fc716" }
-alloy-sol-macro-expander = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "c022ec44af6c6bb60cc5df8f2eada3922f0fc716" }
-alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "c022ec44af6c6bb60cc5df8f2eada3922f0fc716" }
-alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "c022ec44af6c6bb60cc5df8f2eada3922f0fc716" }
-alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "c022ec44af6c6bb60cc5df8f2eada3922f0fc716" }
+alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" } alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
+alloy-json-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
+alloy-sol-macro-expander = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
+alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
+alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
+alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
 
 alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "d8425918ced1d62043c3a64b382d6fa1d8c25518" }
 
