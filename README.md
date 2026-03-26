@@ -82,17 +82,20 @@ For long-running processes, consider periodically recreating the provider to rot
 
 ## Project Structure
 
-```
-crates/
-├── consensus/      # Seismic transaction types, receipts, validation
-├── network/        # SeismicNetwork trait, SeismicReth, SeismicFoundry
-├── provider/       # SeismicProviderBuilder, fillers, precompile helpers
-├── rpc-types/      # Seismic-specific RPC request/response types
-├── genesis/        # Genesis configuration with shielded state support
-├── examples/       # Runnable examples (basic_contract, eip712, etc.)
-├── sdk/            # Client prelude (use seismic_prelude::client::*)
-└── prelude/        # Internal re-exports for Seismic's Foundry and Reth forks
-```
+This is a Cargo workspace with six crates. Each crate is an **additive companion** to its
+upstream `alloy-*` counterpart — not a cargo-patch replacement. Both coexist as separate
+dependencies in downstream repos (e.g. seismic-reth depends on both `alloy-consensus` and
+`seismic-alloy-consensus`).
+
+| Crate       | Upstream counterpart | What it adds                                                                  |
+| ----------- | -------------------- | ----------------------------------------------------------------------------- |
+| `consensus` | `alloy-consensus`    | `TxSeismic` (type 74), `SeismicTxEnvelope`, `SeismicTypedTransaction`         |
+| `genesis`   | `alloy-genesis`      | `Genesis`/`GenesisAccount` with `FlaggedStorage` (private storage at genesis) |
+| `network`   | `alloy-network`      | `SeismicNetwork` trait, `SeismicFoundry` (sanvil) and `SeismicReth` impls     |
+| `provider`  | `alloy-provider`     | `SeismicSignedProvider`/`SeismicUnsignedProvider` with encryption support     |
+| `rpc-types` | `alloy-rpc-types`    | Seismic-specific RPC types (receipts, requests, genesis, block simulation)    |
+| `examples`  | —                    | Runnable examples (basic_contract, eip712, precompiles, etc.)                 |
+| `prelude`   | —                    | Convenience re-exports of the above                                           |
 
 **Dependency chain**: `consensus` → `network` → `provider`
 
