@@ -146,7 +146,8 @@ k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 seismic-enclave =  { git = "https://github.com/SeismicSystems/enclave.git", rev = "ac5e28dac1ee8ec0e3922b010e6da072d6e784aa" }
 
 # seismic-alloy-core
-alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" } alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
+alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
+alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
 alloy-json-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
 alloy-sol-macro-expander = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
 alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "e1a9cd00d657dc7b6aca175025cc4ac4053dd094" }
