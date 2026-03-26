@@ -175,7 +175,7 @@ alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", tag = "v
 # alloy-pubsub = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-node-bindings = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-signer-local = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
+alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 
 # revm
 # Temporarily pointing to veridise-audit-feb-2026 branch. Will point back to seismic after the audit is complete.
