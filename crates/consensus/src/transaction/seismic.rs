@@ -449,7 +449,12 @@ impl TxSeismic {
         mem::size_of::<bool>() // signed_read
     }
 
-    /// Encodes a [`TxSeismic`] into a [`TypedData`].
+    /// Encodes a [`TxSeismic`] into a [`TypedData`] for wallet signing via `signTypedData_v4`.
+    ///
+    /// Wallets (e.g. MetaMask) don't recognize the EIP-2718 `TxSeismic` type byte (`0x4a`),
+    /// so they can't sign the RLP-encoded transaction directly. As a workaround, we encode
+    /// the transaction as EIP-712 typed data and request a signature via `signTypedData_v4`.
+    /// Seismic nodes accept both signature types (RLP and EIP-712).
     pub fn eip712_to_type_data(&self) -> TypedData {
         let typed_data_json = serde_json::json!({
             "types": {
@@ -464,7 +469,9 @@ impl TxSeismic {
                   { "name": "nonce", "type": "uint64" },
                   { "name": "gasPrice", "type": "uint128" },
                   { "name": "gasLimit", "type": "uint64" },
-                  // When isCreate=true, to=0x0.
+                  // EIP-712 doesn't support optional types, so we can't have Optional(address) to encode a CREATE tx as not having a `to` field.
+                  // Instead we force CREATE to serialize as (to=0x0, isCreate=true).
+                  // See eip712_decode for the consistency validation.
                   { "name": "to", "type": "address" },
                   { "name": "isCreate", "type": "bool" },
                   { "name": "value", "type": "uint256" },
@@ -527,9 +534,22 @@ impl TxSeismic {
         let mut tx: TxSeismic = serde_json::from_value(message)
             .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
 
-        // Note: serde deserializes `to: Address::ZERO` as `TxKind::Call(Address::ZERO)`,
-        // so we use the isCreate flag to distinguish Create from Call(Address::ZERO).
+        // The EIP-712 schema declares `to` as type `address`, so it must always be
+        // present and valid. TxKind::Create is encoded as (to=0x0, isCreate=true) —
+        // see eip712_to_type_data. Reject null/missing `to` (which serde defaults
+        // to TxKind::Create).
+        let TxKind::Call(to_addr) = tx.to else {
+            return Err(Eip712Error::DecodeError(
+                "to must be a valid address - create txs should use the isCreate field".to_string(),
+            ));
+        };
+
         if is_create {
+            if to_addr != Address::ZERO {
+                return Err(Eip712Error::DecodeError(
+                    "isCreate is true but to is not the zero address".to_string(),
+                ));
+            }
             tx.to = TxKind::Create;
         }
 
@@ -1200,6 +1220,83 @@ mod tests {
         assert_eq!(tx.to, TxKind::Call(Address::ZERO));
         assert_eq!(decoded.to, TxKind::Call(Address::ZERO));
         assert_eq!(decoded, tx);
+    }
+
+    // Verify that isCreate=true with a non-zero `to` address is rejected.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_eip712_decode_rejects_is_create_with_nonzero_to() {
+        // Start with a valid Create tx, encode it, then tamper with the `to` field
+        let tx = TxSeismic {
+            chain_id: 1u64,
+            nonce: 1,
+            gas_price: 1_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Create,
+            value: U256::ZERO,
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::default().encryption_pubkey,
+                encryption_nonce: U96::from(1),
+                message_version: 2,
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::default(),
+        };
+
+        let mut typed_data = tx.eip712_to_type_data();
+
+        // Tamper: set `to` to a non-zero address while isCreate remains true
+        typed_data.message.as_object_mut().unwrap().insert(
+            "to".to_string(),
+            serde_json::Value::String("0x0000000000000000000000000000000000000001".to_string()),
+        );
+
+        let result = TxSeismic::eip712_decode(&typed_data);
+        assert!(result.is_err(), "should reject isCreate=true with non-zero to address");
+    }
+
+    // Verify that isCreate=false with a null `to` field is rejected.
+    // TxKind::Create is the serde default, so null/missing `to` silently
+    // deserializes as Create — the isCreate flag must catch this.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_eip712_decode_rejects_null_to_with_is_create_false() {
+        // Start with a valid Call tx, encode it, then tamper
+        let tx = TxSeismic {
+            chain_id: 1u64,
+            nonce: 1,
+            gas_price: 1_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Call(Address::with_last_byte(1)),
+            value: U256::ZERO,
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::default().encryption_pubkey,
+                encryption_nonce: U96::from(1),
+                message_version: 2,
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::default(),
+        };
+
+        let mut typed_data = tx.eip712_to_type_data();
+
+        // Tamper: set `to` to null while isCreate remains false
+        typed_data
+            .message
+            .as_object_mut()
+            .unwrap()
+            .insert("to".to_string(), serde_json::Value::Null);
+        let result = TxSeismic::eip712_decode(&typed_data);
+        assert!(result.is_err(), "should reject isCreate=false with null to");
+
+        // Tamper: remove `to` entirely while isCreate remains false
+        typed_data.message.as_object_mut().unwrap().remove("to");
+        let result = TxSeismic::eip712_decode(&typed_data);
+        assert!(result.is_err(), "should reject isCreate=false with missing to");
     }
 
     #[test]
