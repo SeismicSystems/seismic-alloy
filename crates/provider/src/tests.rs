@@ -1,4 +1,26 @@
-//! Integration tests for the Seismic provider.
+//! Integration tests for SeismicSignedProvider and SeismicUnsignedProvider.
+//!
+//! All tests spawn a local sanvil (seismic-anvil) instance via `Anvil::at("sanvil").spawn()`.
+//! Requires `sanvil` on PATH (can install via `sfoundryup`).
+//!
+//! ## Test sections
+//!
+//! 1. **Provider basics** — TEE pubkey, send tx, deploy contracts, seismic_call (signed & unsigned)
+//! 2. **Seismic transactions** — send encrypted seismic tx, verify receipt type
+//! 3. **Events** — WebSocket subscription for contract events
+//! 4. **SeismicCallExt** — contract.method().seismic().call()/send(), security params
+//! 5. **EIP-712** — contract.method().seismic().eip712().call()/send()
+//! 6. **Provider-level _with variants** — seismic_call_with / seismic_send_with
+//! 7. **with_params on builder path** — contract.method().seismic().with_params().call()/send()
+//! 8. **Precompile E2E (via contract)** — EncryptedLogs contract exercising RNG + AES-GCM,
+//!    cross-check with local decryption
+//! 9. **Precompile regression** — RNG entropy varies per transaction
+//! 10. **Calldata privacy** — seismic tx input encrypted in getTransaction, legacy tx visible
+//! 11. **Gas estimation** — estimate_gas for contract calls
+//! 12. **Direct precompile calls** — call each Mercury precompile (0x64-0x69) directly via
+//!     eth_call: RNG, ECDH, HKDF, AES-GCM encrypt/decrypt, secp256k1 sign
+//! 13. **Private storage enforcement** — SLOAD on private slot blocked, CLOAD via seismic_call
+//!     works
 #![cfg(test)]
 #![allow(deprecated)] // Tests exercise deprecated .seismic() on ShieldedCallBuilder
 
@@ -24,6 +46,10 @@ use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
 /// Path to local sanvil binary for local testing
 const SANVIL_PATH: &str = "sanvil";
+
+// ========================================================================
+// Provider basics — TEE pubkey, send tx, deploy, seismic_call (signed & unsigned)
+// ========================================================================
 
 #[tokio::test]
 async fn test_get_tee_pubkey() {
@@ -156,6 +182,10 @@ async fn test_send_transaction() {
     assert_eq!(code, ContractTestContext::get_code());
 }
 
+// ========================================================================
+// Seismic transactions — send encrypted seismic tx, verify receipt type
+// ========================================================================
+
 #[tokio::test]
 async fn test_send_seismic_transaction() {
     let plaintext = ContractTestContext::get_deploy_input_plaintext();
@@ -197,6 +227,10 @@ async fn test_send_seismic_transaction() {
         }
     }
 }
+
+// ========================================================================
+// Events — WebSocket subscription for contract events
+// ========================================================================
 
 #[tokio::test]
 async fn test_subscribe_to_events() {
@@ -714,4 +748,637 @@ async fn test_call_ext_with_params_send() {
 fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {
     let bob: PrivateKeySigner = anvil.keys()[1].clone().into();
     SeismicWallet::from(bob)
+}
+
+// ========================================================================
+// Helper functions for precompile tests
+// ========================================================================
+
+/// Helper: build calldata from a 4-byte selector and a B256 value
+fn build_calldata_b256(selector: &[u8; 4], value: alloy_primitives::B256) -> Bytes {
+    let mut data = Vec::with_capacity(36);
+    data.extend_from_slice(selector);
+    data.extend_from_slice(value.as_ref());
+    Bytes::from(data)
+}
+
+/// Helper: build calldata from a 4-byte selector and arbitrary bytes
+fn build_calldata_bytes(selector: &[u8; 4], value: &[u8]) -> Bytes {
+    let mut data = Vec::with_capacity(4 + value.len());
+    data.extend_from_slice(selector);
+    data.extend_from_slice(value);
+    Bytes::from(data)
+}
+
+/// Precompile address helper
+fn precompile_addr(id: u64) -> Address {
+    Address::from_word(alloy_primitives::B256::from(alloy_primitives::U256::from(id)))
+}
+
+// ========================================================================
+// Precompile E2E (via contract) — EncryptedLogs exercising RNG + AES-GCM
+// ========================================================================
+
+/// End-to-end test of AES precompiles via the EncryptedLogs contract:
+/// 1. Deploy contract
+/// 2. Set AES key
+/// 3. Encrypt "hello world" (uses RNG + AES-encrypt precompiles)
+/// 4. Decrypt on-chain via seismic_call (uses AES-decrypt precompile)
+/// 5. Cross-check with local AES decryption
+#[tokio::test]
+async fn test_precompile_aes_encrypt_decrypt() {
+    use crate::test_utils::{Encryption, PrecompileTestContext};
+    use alloy_dyn_abi::EventExt;
+    use alloy_json_abi::{Event, EventParam};
+    use alloy_primitives::{
+        aliases::{B96, U96},
+        IntoLogData, B256,
+    };
+    use alloy_sol_types::{SolCall, SolValue};
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let wallet = get_wallet(&anvil);
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
+        .await
+        .unwrap();
+
+    // 1. Deploy EncryptedLogs contract
+    let deploy_bytecode = PrecompileTestContext::get_deploy_bytecode();
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(deploy_bytecode)
+        .with_kind(TxKind::Create)
+        .into();
+    let receipt =
+        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let contract_addr = receipt.contract_address.unwrap();
+
+    // 2. Set AES key
+    let private_key =
+        B256::from(hex!("7e34abdcd62eade2e803e0a8123a0015ce542b380537eff288d6da420bcc2d3b"));
+    let set_key_selector: [u8; 4] = hex!("a0619040"); // setAESKey(suint256)
+    let set_key_input = build_calldata_b256(&set_key_selector, private_key);
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(set_key_input)
+        .with_kind(TxKind::Call(contract_addr))
+        .into();
+    provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+
+    // 3. Submit "hello world" — triggers RNG precompile for nonce + AES-encrypt precompile
+    let message = Bytes::from("hello world");
+    type PlaintextType = Bytes;
+    let encoded_message = PlaintextType::abi_encode(&message);
+    let submit_selector: [u8; 4] = hex!("28696e36"); // submitMessage(bytes)
+    let submit_input = build_calldata_bytes(&submit_selector, &encoded_message);
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(submit_input)
+        .with_kind(TxKind::Call(contract_addr))
+        .into();
+    let receipt =
+        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+
+    // 4. Extract EncryptedMessage event: EncryptedMessage(uint96 indexed nonce, bytes
+    //    ciphertext)
+    let logs = receipt.inner.inner.logs();
+    assert_eq!(logs.len(), 1, "Expected exactly one EncryptedMessage event");
+
+    let log_data = logs[0].inner.data.clone();
+    let event = Event {
+        name: "EncryptedMessage".into(),
+        inputs: vec![
+            EventParam { ty: "uint96".into(), indexed: true, ..Default::default() },
+            EventParam { ty: "bytes".into(), indexed: false, ..Default::default() },
+        ],
+        anonymous: false,
+    };
+    let decoded = event.decode_log(&log_data.into_log_data()).unwrap();
+
+    let nonce: U96 =
+        U96::from_be_bytes(B96::from_slice(&decoded.indexed[0].abi_encode_packed()).into());
+    let ciphertext = Bytes::from(decoded.body[0].abi_encode_packed());
+
+    // 5. On-chain decrypt via seismic_call (uses AES-decrypt precompile)
+    let call = Encryption::decryptCall { nonce, ciphertext: ciphertext.clone() };
+    let decrypt_input = Bytes::from(call.abi_encode());
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(decrypt_input)
+        .with_kind(TxKind::Call(contract_addr))
+        .into()
+        .seismic();
+    let output = provider.seismic_call_raw(SendableTx::Builder(tx.into())).await.unwrap();
+
+    // 6. Cross-check: local AES decryption
+    let secp_private =
+        seismic_enclave::secp256k1::SecretKey::from_slice(private_key.as_ref()).unwrap();
+    let aes_key: [u8; 32] = secp_private.secret_bytes()[0..32].try_into().unwrap();
+    let nonce_bytes: [u8; 12] = decoded.indexed[0].abi_encode_packed().try_into().unwrap();
+    let decrypted_locally =
+        seismic_enclave::aes_decrypt(&aes_key.into(), &ciphertext, nonce_bytes)
+            .expect("Local AES decryption failed");
+    assert_eq!(decrypted_locally, message, "Local decryption should match original message");
+
+    // 7. Verify on-chain result matches
+    let result_bytes = PlaintextType::abi_decode(&Bytes::from(output))
+        .expect("Failed to decode on-chain decrypt output");
+    let final_string =
+        String::from_utf8(result_bytes.to_vec()).expect("Invalid UTF-8 in decrypted bytes");
+    assert_eq!(final_string, "hello world");
+}
+
+// ========================================================================
+// Precompile regression — RNG entropy varies per transaction
+// ========================================================================
+
+/// Regression test: RNG precompile should produce different output per transaction.
+/// Before a fix, tx_hash defaulted to B256::ZERO causing identical RNG seeds.
+#[tokio::test]
+async fn test_precompile_rng_different_per_tx() {
+    use crate::test_utils::PrecompileTestContext;
+    use alloy_primitives::U256;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let wallet = get_wallet(&anvil);
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
+        .await
+        .unwrap();
+
+    // Deploy two instances of the RNG caller contract
+    let deploy_code = PrecompileTestContext::get_rng_caller_deploy_bytecode();
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(deploy_code.clone())
+        .with_kind(TxKind::Create)
+        .into();
+    let contract_1 = provider
+        .send_transaction(tx.into())
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap()
+        .contract_address
+        .unwrap();
+
+    let tx: SeismicTransactionRequest =
+        seismic_foundry_tx_builder().with_input(deploy_code).with_kind(TxKind::Create).into();
+    let contract_2 = provider
+        .send_transaction(tx.into())
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap()
+        .contract_address
+        .unwrap();
+
+    // Call each contract (triggers RNG precompile, stores result in slot 0)
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::new())
+        .with_kind(TxKind::Call(contract_1))
+        .into();
+    let receipt =
+        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    assert!(receipt.status(), "Call to contract 1 should succeed");
+
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::new())
+        .with_kind(TxKind::Call(contract_2))
+        .into();
+    let receipt =
+        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    assert!(receipt.status(), "Call to contract 2 should succeed");
+
+    // Read stored RNG values from slot 0
+    let rng_a = provider.get_storage_at(contract_1, U256::from(0)).await.unwrap();
+    let rng_b = provider.get_storage_at(contract_2, U256::from(0)).await.unwrap();
+
+    assert_ne!(rng_a, U256::ZERO, "RNG output A should not be zero");
+    assert_ne!(rng_b, U256::ZERO, "RNG output B should not be zero");
+    assert_ne!(
+        rng_a, rng_b,
+        "RNG precompile should produce different output for different transactions"
+    );
+}
+
+// ========================================================================
+// Calldata privacy — seismic tx input encrypted, legacy tx visible
+// ========================================================================
+
+/// Seismic transaction input should be encrypted when retrieved via getTransaction.
+/// The plaintext calldata should NOT appear in the stored transaction.
+#[tokio::test]
+async fn test_seismic_tx_input_is_encrypted() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let wallet = get_wallet(&anvil);
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
+        .await
+        .unwrap();
+
+    // Send a seismic transaction with known plaintext calldata to address(0)
+    let plaintext_data = Bytes::from_static(&hex!("deadbeef"));
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(plaintext_data.clone())
+        .with_kind(TxKind::Call(Address::ZERO))
+        .with_value(alloy_primitives::U256::from(1))
+        .into()
+        .seismic();
+    let receipt =
+        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let tx_hash = receipt.transaction_hash;
+
+    // Retrieve the transaction and check its input field
+    let tx: serde_json::Value =
+        provider.raw_request("eth_getTransactionByHash".into(), (tx_hash,)).await.unwrap();
+    let input = tx["input"].as_str().unwrap_or("");
+
+    // The plaintext "deadbeef" should NOT appear in the stored input
+    assert!(
+        !input.contains("deadbeef"),
+        "Seismic tx input should be encrypted, not contain plaintext. Got: {}",
+        input
+    );
+}
+
+/// Legacy (non-seismic) transaction input should be visible as plaintext.
+#[tokio::test]
+async fn test_legacy_tx_input_is_plaintext() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let wallet = get_wallet(&anvil);
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
+        .await
+        .unwrap();
+
+    // Send a NON-seismic transaction with known calldata
+    let plaintext_data = Bytes::from_static(&hex!("1234567890abcdef"));
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(plaintext_data)
+        .with_kind(TxKind::Call(Address::ZERO))
+        .with_value(alloy_primitives::U256::from(1))
+        .into();
+    let receipt =
+        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let tx_hash = receipt.transaction_hash;
+
+    // Retrieve the transaction and check its input field
+    let tx: serde_json::Value =
+        provider.raw_request("eth_getTransactionByHash".into(), (tx_hash,)).await.unwrap();
+    let input = tx["input"].as_str().unwrap_or("");
+
+    // The plaintext should appear as-is
+    assert!(
+        input.contains("1234567890abcdef"),
+        "Legacy tx input SHOULD contain plaintext. Got: {}",
+        input
+    );
+}
+
+// ========================================================================
+// Gas estimation — estimate_gas for contract calls
+// ========================================================================
+
+/// Gas estimation should work for calls to contracts with shielded storage.
+#[tokio::test]
+async fn test_gas_estimation() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let wallet = get_wallet(&anvil);
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
+        .await
+        .unwrap();
+
+    // Deploy contract
+    let deploy_input = ContractTestContext::get_deploy_input_plaintext();
+    let tx: SeismicTransactionRequest =
+        seismic_foundry_tx_builder().with_input(deploy_input).with_kind(TxKind::Create).into();
+    let receipt =
+        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let contract_addr = receipt.contract_address.unwrap();
+
+    // Estimate gas for a regular call to the contract
+    let call_input = ContractTestContext::get_set_number_input_plaintext();
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(call_input)
+        .with_kind(TxKind::Call(contract_addr))
+        .into();
+
+    let gas = provider.estimate_gas(tx.into()).await.unwrap();
+    assert!(gas > 0, "Gas estimate should be non-zero");
+    assert!(gas < 1_000_000, "Gas estimate should be reasonable (< 1M)");
+}
+
+// ========================================================================
+// Direct precompile calls — call Mercury precompiles (0x64-0x69) via eth_call
+// ========================================================================
+
+/// ECDH precompile: derives shared secret from secret key + public key.
+#[tokio::test]
+async fn test_precompile_ecdh() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
+
+    // Use test keys
+    let sk = hex!("7e38022030c40773cc561c1cc9c0053e48b0be2cee33c13495f096942ea176ef");
+    let pk_secret =
+        seismic_enclave::secp256k1::SecretKey::from_slice(&sk).expect("valid secret key");
+    let pk_public = pk_secret.public_key(&seismic_enclave::secp256k1::Secp256k1::new());
+    let pk_bytes = pk_public.serialize(); // 33 bytes compressed
+
+    // Calldata: 32 bytes secret key + 33 bytes compressed public key
+    let mut calldata = Vec::with_capacity(65);
+    calldata.extend_from_slice(&sk);
+    calldata.extend_from_slice(&pk_bytes);
+
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from(calldata))
+        .with_kind(TxKind::Call(precompile_addr(0x65)))
+        .into();
+
+    let result = provider.call(tx.into()).await.unwrap();
+    assert_eq!(result.len(), 32, "ECDH should return 32-byte shared secret");
+    assert_ne!(result, Bytes::from(vec![0u8; 32]), "ECDH result should not be all zeros");
+
+    // Cross-check: compute ECDH + HKDF locally and verify it matches
+    let shared_secret =
+        seismic_enclave::secp256k1::ecdh::SharedSecret::new(&pk_public, &pk_secret);
+    let local_aes_key =
+        seismic_enclave::derive_aes_key(&shared_secret).expect("HKDF derivation failed");
+    assert_eq!(
+        result.as_ref(),
+        local_aes_key.as_slice(),
+        "ECDH precompile should match local derivation"
+    );
+}
+
+/// HKDF precompile: derives key from input key material.
+#[tokio::test]
+async fn test_precompile_hkdf_string() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
+
+    let input = Bytes::from("HelloHKDF");
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(input)
+        .with_kind(TxKind::Call(precompile_addr(0x68)))
+        .into();
+
+    let result = provider.call(tx.into()).await.unwrap();
+    assert_eq!(result.len(), 32, "HKDF should return 32-byte derived key");
+
+    // Known test vector from TS tests
+    let expected = hex!("7f527a655fecfa58cd49e00b13684f2df335a3e1a3b9bee749f4d494087038f2");
+    assert_eq!(result.as_ref(), expected, "HKDF output should match known test vector");
+}
+
+/// HKDF precompile with hex input.
+#[tokio::test]
+async fn test_precompile_hkdf_hex() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
+
+    let input = Bytes::from_static(&hex!("1234abcd"));
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(input)
+        .with_kind(TxKind::Call(precompile_addr(0x68)))
+        .into();
+
+    let result = provider.call(tx.into()).await.unwrap();
+    assert_eq!(result.len(), 32, "HKDF should return 32-byte derived key");
+
+    let expected = hex!("67b4c8f882a3a82e4eb12b97aa70652afd62167d0ffd28f81b22e1684c1e8fb2");
+    assert_eq!(result.as_ref(), expected, "HKDF hex output should match known test vector");
+}
+
+/// secp256k1 precompile: signs a message hash with a secret key.
+#[tokio::test]
+async fn test_precompile_secp256k1_sign() {
+    use alloy_primitives::keccak256;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
+
+    // Use a known secret key
+    let sk_bytes = hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
+    let msg_hash = keccak256("test message for secp256k1 precompile");
+
+    // Calldata: 32 bytes secret key + 32 bytes message hash = 64 bytes
+    let mut calldata = Vec::with_capacity(64);
+    calldata.extend_from_slice(&sk_bytes);
+    calldata.extend_from_slice(msg_hash.as_ref());
+
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from(calldata))
+        .with_kind(TxKind::Call(precompile_addr(0x69)))
+        .into();
+
+    let result = provider.call(tx.into()).await.unwrap();
+    assert_eq!(result.len(), 65, "secp256k1 should return 65 bytes (64 sig + 1 recovery)");
+
+    // Verify: the signature should be non-zero
+    assert_ne!(result.as_ref(), &[0u8; 65][..], "secp256k1 signature should not be all zeros");
+
+    // Verify the recovery id is valid (0 or 1)
+    assert!(result[64] <= 1, "Recovery id should be 0 or 1, got {}", result[64]);
+
+    // Cross-check: recover the signer's public key using ecrecover.
+    // The precompile signs the raw 32-byte digest (no extra hashing).
+    let sk =
+        seismic_enclave::secp256k1::SecretKey::from_slice(&sk_bytes).expect("valid secret key");
+    let expected_pk = sk.public_key(&seismic_enclave::secp256k1::Secp256k1::new()).serialize();
+
+    let sig = seismic_enclave::secp256k1::ecdsa::RecoverableSignature::from_compact(
+        &result[..64],
+        seismic_enclave::secp256k1::ecdsa::RecoveryId::try_from(result[64] as i32).unwrap(),
+    )
+    .expect("valid recoverable signature");
+    let msg = seismic_enclave::secp256k1::Message::from_digest(*msg_hash);
+    let recovered = seismic_enclave::secp256k1::Secp256k1::new()
+        .recover_ecdsa(&msg, &sig)
+        .expect("recovery should succeed");
+    assert_eq!(recovered.serialize(), expected_pk, "Recovered public key should match signer");
+}
+
+/// RNG precompile: direct call returns random bytes.
+#[tokio::test]
+async fn test_precompile_rng_direct() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
+
+    // Request 32 random bytes: calldata is uint32(32) big-endian
+    let calldata = Bytes::from_static(&hex!("00000020"));
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(calldata)
+        .with_kind(TxKind::Call(precompile_addr(0x64)))
+        .into();
+
+    let result = provider.call(tx.into()).await.unwrap();
+    assert_eq!(result.len(), 32, "RNG should return 32 bytes");
+    assert_ne!(result, Bytes::from(vec![0u8; 32]), "RNG output should not be all zeros");
+}
+
+/// RNG precompile with personalization data.
+#[tokio::test]
+async fn test_precompile_rng_with_personalization() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
+
+    // 4 bytes num_bytes (32) + personalization "test"
+    let mut calldata = Vec::new();
+    calldata.extend_from_slice(&hex!("00000020"));
+    calldata.extend_from_slice(b"test");
+
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from(calldata))
+        .with_kind(TxKind::Call(precompile_addr(0x64)))
+        .into();
+
+    let result = provider.call(tx.into()).await.unwrap();
+    assert_eq!(result.len(), 32, "RNG with pers should return 32 bytes");
+    assert_ne!(result, Bytes::from(vec![0u8; 32]), "RNG with pers should not be all zeros");
+}
+
+/// AES-GCM encrypt then decrypt roundtrip via precompiles.
+#[tokio::test]
+async fn test_precompile_aes_gcm_roundtrip() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let provider =
+        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
+
+    // AES key (32 bytes) + nonce (12 bytes) + plaintext
+    let key = [0u8; 32]; // zero key for test
+    let nonce = [0u8; 12];
+    let plaintext = b"HelloAESGCM";
+
+    // Encrypt: call 0x66
+    let mut encrypt_data = Vec::new();
+    encrypt_data.extend_from_slice(&key);
+    encrypt_data.extend_from_slice(&nonce);
+    encrypt_data.extend_from_slice(plaintext);
+
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from(encrypt_data))
+        .with_kind(TxKind::Call(precompile_addr(0x66)))
+        .into();
+    let ciphertext = provider.call(tx.into()).await.unwrap();
+    assert!(!ciphertext.is_empty(), "Ciphertext should not be empty");
+    assert_ne!(ciphertext.as_ref(), plaintext, "Ciphertext should differ from plaintext");
+
+    // Decrypt: call 0x67 with same key + nonce + ciphertext
+    let mut decrypt_data = Vec::new();
+    decrypt_data.extend_from_slice(&key);
+    decrypt_data.extend_from_slice(&nonce);
+    decrypt_data.extend_from_slice(&ciphertext);
+
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from(decrypt_data))
+        .with_kind(TxKind::Call(precompile_addr(0x67)))
+        .into();
+    let decrypted = provider.call(tx.into()).await.unwrap();
+    assert_eq!(decrypted.as_ref(), plaintext, "Decrypted should match original plaintext");
+}
+
+// ========================================================================
+// Private storage enforcement — SLOAD blocked, CLOAD via seismic_call works
+// ========================================================================
+
+/// Deploy a contract with both public and private storage, then verify
+/// that SLOAD on a private slot is rejected while CLOAD works.
+#[tokio::test]
+async fn test_private_storage_enforcement() {
+    use crate::test_utils::FlaggedStorageTestContext;
+    use alloy_primitives::U256;
+
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let wallet = get_wallet(&anvil);
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
+        .await
+        .unwrap();
+
+    // Deploy FlaggedStorageTestContract
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(FlaggedStorageTestContext::get_deploy_bytecode())
+        .with_kind(TxKind::Create)
+        .into();
+    let receipt =
+        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let contract_addr = receipt.contract_address.unwrap();
+
+    // Set public storage: setPublic(42)
+    let mut set_public = Vec::new();
+    set_public.extend_from_slice(&hex!("31845f7d")); // setPublic selector
+    set_public.extend_from_slice(&U256::from(42).to_be_bytes::<32>());
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from(set_public))
+        .with_kind(TxKind::Call(contract_addr))
+        .into();
+    provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+
+    // Set private storage: setPrivate(99)
+    let mut set_private = Vec::new();
+    set_private.extend_from_slice(&hex!("420f38f8")); // setPrivate selector
+    set_private.extend_from_slice(&U256::from(99).to_be_bytes::<32>());
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from(set_private))
+        .with_kind(TxKind::Call(contract_addr))
+        .into();
+    provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+
+    // readPublicSload() — should succeed and return 42
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from_static(&hex!("717d5de3")))
+        .with_kind(TxKind::Call(contract_addr))
+        .into();
+    let result = provider.call(tx.into()).await.unwrap();
+    let value = U256::from_be_slice(&result);
+    assert_eq!(value, U256::from(42), "readPublicSload should return 42");
+
+    // readPrivateSloadRaw() — raw SLOAD on private slot should be blocked.
+    // sanvil returns an error or zero (depending on configuration), never the actual value.
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from_static(&hex!("4e0d898c")))
+        .with_kind(TxKind::Call(contract_addr))
+        .into();
+    let result = provider.call(tx.into()).await;
+    match result {
+        Err(_) => {} // error is expected behavior
+        Ok(data) => {
+            // If it returns data, it must be zero (private slot hidden)
+            let value = U256::from_be_slice(&data);
+            assert_eq!(
+                value,
+                U256::ZERO,
+                "Raw SLOAD on private storage should return 0, not the actual value (99)"
+            );
+        }
+    }
+
+    // readPrivateCload() — CLOAD on private slot via seismic_call, should SUCCEED
+    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
+        .with_input(Bytes::from_static(&hex!("9ad95ef8")))
+        .with_kind(TxKind::Call(contract_addr))
+        .into()
+        .seismic();
+    let result = provider.seismic_call_raw(SendableTx::Builder(tx.into())).await.unwrap();
+    let value = U256::from_be_slice(&result);
+    assert_eq!(value, U256::from(99), "readPrivateCload should return 99");
 }
