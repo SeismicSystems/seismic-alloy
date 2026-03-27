@@ -28,8 +28,8 @@ use crate::{
     builder::SeismicSignedProvider,
     precompiles,
     test_utils::{
-        ContractTestContext, EncryptedLogs, FlaggedStorageTest, ISeismicCounter,
-        get_rng_caller_deploy_bytecode,
+        get_rng_caller_deploy_bytecode, ContractTestContext, EncryptedLogs, FlaggedStorageTest,
+        ISeismicCounter,
     },
     SeismicCallExt, SeismicProviderExt, ShieldedCallExt, SignedProviderExt,
 };
