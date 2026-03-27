@@ -1238,7 +1238,8 @@ async fn test_precompile_aes_gcm_roundtrip() {
 /// that SLOAD on a private slot is rejected while CLOAD works.
 #[tokio::test]
 async fn test_private_storage_enforcement() {
-    use crate::test_utils::FlaggedStorageTestContext;
+    use crate::test_utils::FlaggedStorageTest;
+    use crate::{SeismicCallExt, ShieldedCallExt};
     use alloy_primitives::U256;
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
@@ -1250,70 +1251,40 @@ async fn test_private_storage_enforcement() {
         .await
         .unwrap();
 
-    // Deploy FlaggedStorageTestContract
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(FlaggedStorageTestContext::get_deploy_bytecode())
-        .with_kind(TxKind::Create)
-        .into();
-    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
-    let contract_addr = receipt.contract_address.unwrap();
+    // Deploy FlaggedStorageTest contract
+    let contract = FlaggedStorageTest::deploy(&provider).await.unwrap();
 
     // Set public storage: setPublic(42)
-    let mut set_public = Vec::new();
-    set_public.extend_from_slice(&hex!("31845f7d")); // setPublic selector
-    set_public.extend_from_slice(&U256::from(42).to_be_bytes::<32>());
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(Bytes::from(set_public))
-        .with_kind(TxKind::Call(contract_addr))
-        .into();
-    provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    contract.setPublic(U256::from(42)).send().await.unwrap().get_receipt().await.unwrap();
 
-    // Set private storage: setPrivate(99)
-    let mut set_private = Vec::new();
-    set_private.extend_from_slice(&hex!("420f38f8")); // setPrivate selector
-    set_private.extend_from_slice(&U256::from(99).to_be_bytes::<32>());
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(Bytes::from(set_private))
-        .with_kind(TxKind::Call(contract_addr))
-        .into();
-    provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    // Set private storage: setPrivate(99) — suint256 param, auto-encrypts
+    contract
+        .setPrivate(alloy_primitives::aliases::SUInt(U256::from(99)))
+        .send()
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
 
     // readPublicSload() — should succeed and return 42
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(Bytes::from_static(&hex!("717d5de3")))
-        .with_kind(TxKind::Call(contract_addr))
-        .into();
-    let result = provider.call(tx.into()).await.unwrap();
-    let value = U256::from_be_slice(&result);
+    let value = contract.readPublicSload().call().await.unwrap();
     assert_eq!(value, U256::from(42), "readPublicSload should return 42");
 
     // readPrivateSloadRaw() — raw SLOAD on private slot should be blocked.
-    // sanvil returns an error or zero (depending on configuration), never the actual value.
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(Bytes::from_static(&hex!("4e0d898c")))
-        .with_kind(TxKind::Call(contract_addr))
-        .into();
-    let result = provider.call(tx.into()).await;
+    let result = contract.readPrivateSloadRaw().call().await;
     match result {
         Err(_) => {} // error is expected behavior
         Ok(data) => {
-            // If it returns data, it must be zero (private slot hidden)
-            let value = U256::from_be_slice(&data);
             assert_eq!(
-                value,
+                data,
                 U256::ZERO,
                 "Raw SLOAD on private storage should return 0, not the actual value (99)"
             );
         }
     }
 
-    // readPrivateCload() — CLOAD on private slot via seismic_call, should SUCCEED
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(Bytes::from_static(&hex!("9ad95ef8")))
-        .with_kind(TxKind::Call(contract_addr))
-        .into()
-        .seismic();
-    let result = provider.seismic_call_raw(SendableTx::Builder(tx.into())).await.unwrap();
-    let value = U256::from_be_slice(&result);
+    // readPrivateCload() — CLOAD via seismic signed read, should SUCCEED
+    let value = contract.readPrivateCload().seismic().call().await.unwrap();
     assert_eq!(value, U256::from(99), "readPrivateCload should return 99");
 }
