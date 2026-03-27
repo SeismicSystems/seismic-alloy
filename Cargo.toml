@@ -40,6 +40,7 @@ seismic-alloy-consensus = { version = "0.0.1", path = "crates/consensus", defaul
 seismic-alloy-rpc-types = { version = "0.0.1", path = "crates/rpc-types", default-features = false }
 seismic-alloy-network = { version = "0.0.1", path = "crates/network", default-features = false }
 seismic-alloy-provider = { version = "0.0.1", path = "crates/provider", default-features = false }
+seismic-prelude = { version = "0.0.1", path = "crates/prelude" }
 
 seismic-enclave = "0.1.0"
 
@@ -65,6 +66,7 @@ alloy-rpc-types = { version = "=1.1.0", default-features = false }
 alloy-serde = { version = "=1.1.0", default-features = false }
 alloy-signer = { version = "=1.1.0", default-features = false }
 alloy-signer-local = { version = "=1.1.0", default-features = false }
+alloy-contract = { version = "=1.1.0", default-features = false }
 alloy-transport = { version = "=1.1.0", default-features = false }
 alloy-genesis = { version = "=1.1.0", default-features = false }
 
@@ -144,13 +146,13 @@ k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 seismic-enclave =  { git = "https://github.com/SeismicSystems/enclave.git", rev = "ac5e28dac1ee8ec0e3922b010e6da072d6e784aa" }
 
 # seismic-alloy-core
-alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
-alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
-alloy-json-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
-alloy-sol-macro-expander = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
-alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
-alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
-alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "fa63d477d6aa01e7203b677632c31cb3eba00640" }
+alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
+alloy-primitives = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
+alloy-json-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
+alloy-sol-macro-expander = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
+alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
+alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
+alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
 
 alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "d8425918ced1d62043c3a64b382d6fa1d8c25518" }
 
@@ -173,7 +175,7 @@ alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", tag = "v
 # alloy-pubsub = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-node-bindings = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 # alloy-signer-local = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
+alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 
 # revm
 # Temporarily pointing to veridise-audit-feb-2026 branch. Will point back to seismic after the audit is complete.

@@ -53,9 +53,7 @@ impl SeismicGasFiller {
     pub fn with_url(rpc_url: reqwest::Url) -> Self {
         Self { inner: GasFiller::default(), rpc_url: Some(rpc_url) }
     }
-}
 
-impl SeismicGasFiller {
     fn is_seismic_tx<N>(&self, tx: &N::TransactionRequest) -> bool
     where
         N: SeismicNetwork,
@@ -75,10 +73,10 @@ where
         + InputDecryptionElements,
     <N as Network>::UnsignedTx: Send + Sync,
 {
-    // (Option<GasFillable>, Option<(u128, reqwest::Url)>)
+    // (Option<GasFillable>, Option<(u128, RpcClient)>)
     // First: Gas values if already set
-    // Second: (gas_price, rpc_url) for deferred estimation in fill() for seismic tx
-    type Fillable = (Option<GasFillable>, Option<(u128, reqwest::Url)>);
+    // Second: (gas_price, rpc_client) for deferred estimation in fill() for seismic tx
+    type Fillable = (Option<GasFillable>, Option<(u128, RpcClient)>);
 
     fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
         if self.is_seismic_tx::<N>(tx) {
@@ -127,11 +125,12 @@ where
                 // Gas limit already set, no need to estimate
                 Ok((Some(GasFillable::Legacy { gas_limit: limit, gas_price }), None))
             } else {
-                // Defer estimation to fill() - need RPC URL
+                // Defer estimation to fill() — create client now, estimate after encryption
                 let rpc_url = self.rpc_url.as_ref().ok_or_else(|| {
                     TransportErrorKind::custom_str("RPC URL required for seismic gas estimation")
                 })?;
-                Ok((None, Some((gas_price, rpc_url.clone()))))
+                let client = RpcClient::new_http(rpc_url.clone());
+                Ok((None, Some((gas_price, client))))
             }
         } else {
             // For non-seismic transactions, use regular GasFiller logic
@@ -149,15 +148,11 @@ where
         if let Some(gas_fillable) = immediate_fill {
             // Gas values already determined in prepare()
             GasFiller::fill(&self.inner, gas_fillable, tx).await
-        } else if let Some((gas_price, rpc_url)) = deferred_estimate {
+        } else if let Some((gas_price, client)) = deferred_estimate {
             // Need to estimate gas now (after encryption)
             let tx_for_estimate = match &tx {
-                SendableTx::Builder(builder) => {
-                    // Clone the builder's transaction for estimation
-                    builder.clone()
-                }
+                SendableTx::Builder(builder) => builder.clone(),
                 SendableTx::Envelope(_) => {
-                    // Already signed, can't estimate
                     return Err(TransportErrorKind::custom_str(
                         "Cannot estimate gas on already-signed transaction",
                     )
@@ -165,8 +160,7 @@ where
                 }
             };
 
-            // Create temporary provider for estimate_gas call
-            let client = RpcClient::new_http(rpc_url);
+            // Use the pre-created client for gas estimation (fill() has no provider access)
             let gas_estimate_provider =
                 ProviderBuilder::<_, _, N>::default().network::<N>().connect_client(client);
 
@@ -187,17 +181,17 @@ where
 pub const BLOCKS_WINDOW: u64 = 100;
 
 /// Generates seismic elements and encrypts transaction input.
-/// Generates one ephemeral keypair for the client that is reused for all transactions.
+/// Generates one provider keypair for the client that is reused for all transactions.
 /// This combines element generation and encryption into a single filler
-/// to avoid the complexity of sharing ephemeral state between separate fillers.
+/// to avoid the complexity of sharing provider state between separate fillers.
 #[derive(Clone, Debug)]
 pub struct SeismicElementsFiller {
     /// Cached TEE public key (fetched once at provider creation, or provided directly)
     tee_pubkey: Option<PublicKey>,
     /// Custom blocks window for transaction expiration (overrides BLOCKS_WINDOW)
     blocks_window: Option<u64>,
-    /// Client's ephemeral secret key for encryption/decryption (generated once at client creation)
-    ephemeral_secret_key: seismic_enclave::secp256k1::SecretKey,
+    /// Client's provider secret key for encryption/decryption (generated once at client creation)
+    provider_secret_key: seismic_enclave::secp256k1::SecretKey,
     /// Whether seismic calls should be marked as signed_read (true for signed providers)
     signed_read: bool,
 }
@@ -205,23 +199,23 @@ pub struct SeismicElementsFiller {
 impl SeismicElementsFiller {
     /// Create a new SeismicElementsFiller with RPC URL (signed_read defaults to false)
     pub fn new() -> Self {
-        let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
+        let provider_keypair = TxSeismicElements::get_rand_encryption_keypair();
         Self {
             tee_pubkey: None,
             blocks_window: None,
-            ephemeral_secret_key: ephemeral_keypair.secret_key().clone(),
+            provider_secret_key: provider_keypair.secret_key().clone(),
             signed_read: false,
         }
     }
 
-    /// Create with a cached TEE pubkey and RPC URL (avoids fetching per-transaction, signed_read
+    /// Create with a cached TEE pubkey (avoids fetching per-transaction, signed_read
     /// defaults to false)
-    pub fn with_tee_pubkey_and_url(tee_pubkey: PublicKey) -> Self {
-        let ephemeral_keypair = TxSeismicElements::get_rand_encryption_keypair();
+    pub fn with_tee_pubkey(tee_pubkey: PublicKey) -> Self {
+        let provider_keypair = TxSeismicElements::get_rand_encryption_keypair();
         Self {
             tee_pubkey: Some(tee_pubkey),
             blocks_window: None,
-            ephemeral_secret_key: ephemeral_keypair.secret_key().clone(),
+            provider_secret_key: provider_keypair.secret_key().clone(),
             signed_read: false,
         }
     }
@@ -238,9 +232,19 @@ impl SeismicElementsFiller {
         self
     }
 
-    /// Get the ephemeral secret key for response decryption
-    pub fn ephemeral_secret_key(&self) -> &seismic_enclave::secp256k1::SecretKey {
-        &self.ephemeral_secret_key
+    /// Get the provider secret key for response decryption
+    pub fn provider_secret_key(&self) -> &seismic_enclave::secp256k1::SecretKey {
+        &self.provider_secret_key
+    }
+
+    /// Check whether a transaction has already been encrypted by this filler.
+    ///
+    /// We detect this by comparing the `encryption_pubkey` in the elements to our
+    /// ephemeral public key. Users never set the pubkey directly (it's derived from
+    /// the filler's provider secret key), so a match means we already ran.
+    fn is_encrypted(&self, tx: &SeismicTransactionRequest) -> bool {
+        let our_pubkey = self.provider_secret_key.public_key(&Secp256k1::new());
+        tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_pubkey == our_pubkey)
     }
 }
 
@@ -251,7 +255,7 @@ where
         + InputDecryptionElements,
     N::UnsignedTx: Send + Sync,
 {
-    // Fillable contains: Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)) for fill()
+    // Fillable contains: Some((tee_pubkey, provider_secret_key, elements, plaintext)) for fill()
     // to encrypt
     type Fillable = Option<(
         PublicKey,
@@ -280,11 +284,12 @@ where
             let has_input = N::get_request_input(tx).map_or(false, |i| !i.is_empty());
 
             if has_input {
-                // If elements are set AND encryption_nonce is non-zero, encryption is complete
-                if seismic_tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_nonce != 0) {
+                // Encryption is complete when the encryption_pubkey matches our ephemeral key.
+                // We can't use encryption_nonce != 0 as a sentinel because users can now
+                // set custom nonces via SecurityParams.
+                if self.is_encrypted(seismic_tx) {
                     FillerControlFlow::Finished
                 } else {
-                    // No elements yet or incomplete elements - needs encryption
                     FillerControlFlow::Ready
                 }
             } else {
@@ -313,10 +318,8 @@ where
         // Validate consistency
         seismic_tx.validate_seismic_consistency().map_err(|e| TransportErrorKind::custom_str(e))?;
 
-        // If encryption already happened (encryption_nonce is non-zero), we're done
-        if seismic_tx.is_seismic() &&
-            seismic_tx.seismic_elements.as_ref().map_or(false, |e| e.encryption_nonce != 0)
-        {
+        // If encryption already happened (our pubkey is set), we're done
+        if seismic_tx.is_seismic() && self.is_encrypted(seismic_tx) {
             return Ok(None);
         }
 
@@ -341,11 +344,11 @@ where
         }
         let plaintext = plaintext.clone();
 
-        // Use the client's ephemeral secret key (generated once at client creation)
-        let ephemeral_secret_key = self.ephemeral_secret_key.clone();
+        // Use the client's provider secret key (generated once at client creation)
+        let provider_secret_key = self.provider_secret_key.clone();
 
         // Derive public key from secret key
-        let ephemeral_pubkey = ephemeral_secret_key.public_key(&Secp256k1::new());
+        let provider_pubkey = provider_secret_key.public_key(&Secp256k1::new());
 
         // Get TEE public key (use cached if available, otherwise fetch via RPC)
         let tee_pubkey = if let Some(cached) = &self.tee_pubkey {
@@ -354,44 +357,49 @@ where
             fetch_tee_pubkey(provider).await?
         };
 
-        // Get latest block number for expiration calculation
+        // Extract user-provided overrides from partial elements (if any)
+        let partial = seismic_tx.seismic_elements.as_ref();
+        let user_recent_block_hash = partial.map(|e| e.recent_block_hash).filter(|h| !h.is_zero());
+        let user_encryption_nonce =
+            partial.map(|e| e.encryption_nonce).filter(|n| *n != alloy_primitives::Uint::ZERO);
+        let user_expires_at = partial.map(|e| e.expires_at_block).filter(|&b| b > 0);
+        let signed_read = partial.map_or(self.signed_read, |e| e.signed_read);
+        let message_version = partial.map(|e| e.message_version).filter(|&v| v > 0).unwrap_or(0);
 
-        // Get recent block hash (one block behind for finalization)
-        let block = provider
-            .get_block_by_number(BlockNumberOrTag::Latest)
-            .await
-            .map_err(|_| TransportErrorKind::custom_str("Failed to fetch recent block"))?
-            .ok_or_else(|| TransportErrorKind::custom_str("Block not found"))?;
-        let block_header = block.header();
-        let recent_block_hash = block_header.hash();
-        let latest_block = block_header.number();
-
-        // Calculate expires_at_block and get signed_read from existing partial elements if present
-        let (expires_at_block, signed_read) = if let Some(elements) = &seismic_tx.seismic_elements {
-            let expires = if elements.expires_at_block > 0 {
-                elements.expires_at_block // User manually set it
+        // Fetch block info only if we need recent_block_hash or expires_at_block
+        let (recent_block_hash, latest_block) =
+            if user_recent_block_hash.is_some() && user_expires_at.is_some() {
+                // User provided both — skip the RPC call entirely
+                (user_recent_block_hash.unwrap(), 0)
             } else {
-                let window = self.blocks_window.unwrap_or(BLOCKS_WINDOW);
-                latest_block + window
+                let block = provider
+                    .get_block_by_number(BlockNumberOrTag::Latest)
+                    .await
+                    .map_err(|_| TransportErrorKind::custom_str("Failed to fetch recent block"))?
+                    .ok_or_else(|| TransportErrorKind::custom_str("Block not found"))?;
+                let header = block.header();
+                (user_recent_block_hash.unwrap_or_else(|| header.hash()), header.number())
             };
-            (expires, elements.signed_read) // Preserve signed_read from partial elements
-        } else {
+
+        let expires_at_block = user_expires_at.unwrap_or_else(|| {
             let window = self.blocks_window.unwrap_or(BLOCKS_WINDOW);
-            (latest_block + window, self.signed_read) // Use filler default
-        };
+            latest_block + window
+        });
+
+        let encryption_nonce =
+            user_encryption_nonce.unwrap_or_else(TxSeismicElements::get_rand_encryption_nonce);
 
         // Create seismic elements (without full metadata yet, will encrypt in fill())
         let elements = TxSeismicElements::default()
-            .with_encryption_pubkey(ephemeral_pubkey)
-            .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce())
-            // message version != 0 is for typescript / Eip712 signed transactions
-            .with_message_version(0)
+            .with_encryption_pubkey(provider_pubkey)
+            .with_encryption_nonce(encryption_nonce)
+            .with_message_version(message_version)
             .with_recent_block_hash(recent_block_hash)
             .with_expires_at_block(expires_at_block)
             .with_signed_read(signed_read);
 
         // Return data needed for encryption in fill() (when nonce will be available)
-        Ok(Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)))
+        Ok(Some((tee_pubkey, provider_secret_key, elements, plaintext)))
     }
 
     async fn fill(
@@ -400,7 +408,7 @@ where
         mut tx: SendableTx<N>,
     ) -> TransportResult<SendableTx<N>> {
         // If None, no encryption needed
-        let Some((tee_pubkey, ephemeral_secret_key, elements, plaintext)) = fillable else {
+        let Some((tee_pubkey, provider_secret_key, elements, plaintext)) = fillable else {
             return Ok(tx);
         };
 
@@ -424,7 +432,7 @@ where
 
             // Encrypt using metadata.client_encrypt()
             let encrypted =
-                metadata.client_encrypt(&plaintext, &tee_pubkey, &ephemeral_secret_key).map_err(
+                metadata.client_encrypt(&plaintext, &tee_pubkey, &provider_secret_key).map_err(
                     |e| TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e)),
                 )?;
 

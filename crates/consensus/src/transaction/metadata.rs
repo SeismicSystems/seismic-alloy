@@ -75,7 +75,7 @@ impl TxSeismicMetadata {
         self.seismic_elements.decrypt(secret_key, ciphertext, self)
     }
 
-    /// client-side encrypt: takes TEE public key and ephemeral secret key
+    /// client-side encrypt: takes TEE public key and provider secret key
     /// This is the method that should be used when encrypting transaction calldata
     /// from the client side (before sending to the network)
     pub fn client_encrypt(
@@ -87,7 +87,7 @@ impl TxSeismicMetadata {
         self.seismic_elements.client_encrypt(plaintext, network_pk, client_sk, self)
     }
 
-    /// client-side decrypt: takes TEE public key and ephemeral secret key
+    /// client-side decrypt: takes TEE public key and provider secret key
     /// This is the method that should be used when decrypting transaction calldata
     /// from the client side (after receiving from thenetwork)
     pub fn client_decrypt(
