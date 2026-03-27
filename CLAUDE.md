@@ -73,15 +73,19 @@ The `SeismicNetwork` trait abstracts over differences between test and productio
 
 Implements blockchain interaction with Seismic-specific extensions:
 
-- `crates/provider/src/provider.rs` - `SeismicSignedProvider` and `SeismicUnsignedProvider`
-- `crates/provider/src/traits.rs` - `SeismicProviderExt` trait
+- `crates/provider/src/builder.rs` - `SeismicProviderBuilder`, `SeismicSignedProvider`, and `SeismicUnsignedProvider`
+- `crates/provider/src/traits.rs` - `SeismicProviderExt` (base) and `SignedProviderExt` (encrypted ops)
+- `crates/provider/src/decrypt.rs` - `ResponseDecryptProvider` (response decryption layer)
+- `crates/provider/src/call_ext.rs` - `SeismicCallExt` and `ShieldedCallExt` (contract call builder extensions)
+- `crates/provider/src/security_params.rs` - `SecurityParams` for per-call encryption overrides
 
 The provider layer handles:
 - Fetching public keys for encryption
 - Encrypting transaction inputs before submission
-- Decrypting responses
+- Decrypting responses via `ResponseDecryptProvider`
 - Conditional signing based on transaction type
 - Standard Alloy provider functionality (eth_call, send transaction, logs, etc.)
+- Per-call security parameter overrides via `SecurityParams` and `_with` method variants
 
 ### rpc-types
 
@@ -110,7 +114,14 @@ The `SeismicNetwork` trait allows the same provider code to work with both Seism
 
 ### Provider Extension Pattern
 
-Rather than fork Alloy's provider system, `SeismicProviderExt` (in `crates/provider/src/traits.rs`) extends it with Seismic-specific methods like `seismic_call()`. This maintains compatibility with Alloy's ecosystem while adding encrypted call functionality.
+Rather than fork Alloy's provider system, two extension traits (in `crates/provider/src/traits.rs`) extend it:
+
+- `SeismicProviderExt` — base trait for all Seismic providers (signed and unsigned). Provides `transparent_call`, `transparent_send`, and `get_tee_pubkey`.
+- `SignedProviderExt` — sealed trait for signed providers only. Provides `seismic_call`, `seismic_send`, `seismic_call_raw`, `eip712_send`, and `_with` variants that accept `SecurityParams`.
+
+For contract-level calls, `SeismicCallExt` and `ShieldedCallExt` (in `crates/provider/src/call_ext.rs`) add `.seismic()`, `.call()`, `.send()`, `.with_params()`, `.expires_at()`, and `.eip712()` to alloy's `SolCallBuilder`.
+
+This maintains compatibility with Alloy's ecosystem while adding encrypted call functionality.
 
 ### Encryption Metadata Design
 
@@ -138,7 +149,10 @@ These forks are necessary because Seismic requires modifications to core Ethereu
 - `crates/consensus/src/transaction/seismic.rs` - Core Seismic transaction type, implements `InputDecryptionElements` trait
 - `crates/consensus/src/transaction/envelope.rs` - Transaction envelope with Seismic support
 - `crates/network/src/seismic_network.rs` - Network trait defining encryption/signing behavior
-- `crates/provider/src/provider.rs` - Provider implementations with encryption support
+- `crates/provider/src/builder.rs` - Provider builder and type aliases
+- `crates/provider/src/traits.rs` - `SeismicProviderExt` and `SignedProviderExt` traits
+- `crates/provider/src/decrypt.rs` - `ResponseDecryptProvider` for response decryption
+- `crates/provider/src/call_ext.rs` - Contract call builder extensions (`SeismicCallExt`, `ShieldedCallExt`)
 - `crates/rpc-types/src/genesis.rs` - Genesis format with private state support
 - `Cargo.toml` - Workspace configuration with pinned fork dependencies
 
@@ -167,9 +181,9 @@ Tests use `Anvil` from `alloy-node-bindings` to spawn local blockchain instances
 ### Code Quality
 
 ```bash
-cargo fmt --all              # Format code
-cargo fmt --all --check      # Check formatting (CI)
-RUSTFLAGS="-D warnings" cargo check  # Warnings as errors (CI)
+cargo +nightly fmt --all              # Format code
+cargo +nightly fmt --all --check      # Check formatting (CI)
+RUSTFLAGS="-D warnings" cargo check --all-targets  # Warnings as errors (CI)
 ```
 
 The workspace enforces strict linting (see `Cargo.toml` workspace.lints). All warnings must be resolved - CI fails on warnings.
@@ -215,7 +229,9 @@ The `InputDecryptionElements` trait (defined in `crates/consensus/src/transactio
 
 ### Builder Pattern for Transactions
 
-Transaction builders support fluent interfaces with methods like `.with_encryption_pubkey()`, `.with_encryption_nonce()`, `.with_block_hash()`, and `.with_expiration()`. The provider automatically populates these fields when `seismic_call()` is used.
+Transaction builders support fluent interfaces. For contract calls, use `.seismic()` to opt in to encryption, then chain `.call()` or `.send()`. Override encryption defaults with individual setters (`.expires_at()`, `.encryption_nonce()`, `.recent_block_hash()`, `.eip712()`) or bulk override with `.with_params(SecurityParams { ... })`.
+
+For provider-level calls, use `seismic_call` / `seismic_send` (default parameters) or `seismic_call_with` / `seismic_send_with` (custom `SecurityParams`).
 
 ### Feature Flags
 
@@ -238,7 +254,7 @@ Key error types:
 
 ### Seismic Transaction Type ID
 
-The Seismic transaction type ID is `123`. This is hardcoded and must not change without coordinated chain upgrade.
+The Seismic transaction type ID is `0x4A` (74 decimal). This is hardcoded and must not change without coordinated chain upgrade.
 
 ### Encryption Public Key Format
 
@@ -303,7 +319,7 @@ Use the test utilities in `crates/provider/src/test_utils.rs`. Tests typically s
 ### Avoid
 
 - Do not modify vendored dependencies (seismic-enclave, seismic-revm, etc.) directly in this repo
-- Do not change the Seismic transaction type ID (123) without chain upgrade coordination
+- Do not change the Seismic transaction type ID (0x4A / 74) without chain upgrade coordination
 - Do not add dependencies that conflict with Alloy's version requirements
 - Do not implement partial features - ensure encryption/decryption pairs are complete
 - Do not skip CI checks - all warnings must be resolved
@@ -319,9 +335,9 @@ Use the test utilities in `crates/provider/src/test_utils.rs`. Tests typically s
 These are the commands run in the CI pipeline (`.github/workflows/seismic.yml`):
 
 ```bash
-cargo +nightly fmt --all                # Format code
-cargo +nightly fmt --all --check        # Check if code is formatted correctly
-cargo build                             # Build the project
-RUSTFLAGS="-D warnings" cargo check     # Check for warnings (treats warnings as errors)
-cargo test --workspace                  # Run all tests
+cargo +nightly fmt --all                         # Format code
+cargo +nightly fmt --all --check                 # Check if code is formatted correctly
+cargo build                                      # Build the project
+RUSTFLAGS="-D warnings" cargo check --all-targets  # Check for warnings (treats warnings as errors)
+cargo test --workspace                           # Run all tests
 ```

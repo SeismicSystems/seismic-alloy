@@ -43,7 +43,7 @@ jobs:
         with:
           shared-key: "warnings-cache"
       - name: cargo check warnings
-        run: RUSTFLAGS="-D warnings" cargo check
+        run: RUSTFLAGS="-D warnings" cargo check --all-targets
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -64,3 +64,10 @@ jobs:
           echo "$SEISMIC_BIN" >> $GITHUB_PATH
       - name: cargo test
         run: cargo test --workspace
+      - name: run examples
+        run: |
+          cargo run -p seismic-examples --example basic_contract
+          # cargo run -p seismic-examples --example eip-712 # TODO: Fix circular anvil example dependency
+          cargo run -p seismic-examples --example security_params
+          cargo run -p seismic-examples --example event_subscription
+          cargo run -p seismic-examples --example precompiles

@@ -1,4 +1,8 @@
-//! Seismic overrides to types commonly used in reth & foundry
-//! We do this to reduce future merge conflicts
+//! Seismic preludes for different audiences.
+//!
+//! - `client` — User-facing SDK prelude (`use seismic_prelude::client::*`)
+//! - `foundry` — Internal prelude for seismic-foundry
+//! - `reth` — Internal prelude for seismic-reth
+pub mod client;
 pub mod foundry;
 pub mod reth;
