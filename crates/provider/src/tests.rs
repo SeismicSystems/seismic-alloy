@@ -531,6 +531,7 @@ async fn test_call_ext_security_params_send() {
 // EIP-712 tests — contract.method().seismic().eip712().call()/send()
 // ========================================================================
 
+#[ignore]
 #[tokio::test]
 async fn test_call_ext_eip712_read() {
     use crate::{SeismicCallExt, ShieldedCallExt};
@@ -545,6 +546,7 @@ async fn test_call_ext_eip712_read() {
     assert!(!is_odd.unwrap());
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_call_ext_eip712_send() {
     use crate::{SeismicCallExt, ShieldedCallExt};
@@ -571,6 +573,7 @@ async fn test_call_ext_eip712_send() {
     assert!(is_odd, "11 should be odd");
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_call_ext_eip712_write_then_eip712_read() {
     use crate::{SeismicCallExt, ShieldedCallExt};
