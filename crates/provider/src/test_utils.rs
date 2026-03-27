@@ -20,6 +20,7 @@ sol! {
 sol! {
     #[derive(Debug, PartialEq)]
     interface Encryption {
+        event EncryptedMessage(uint96 indexed nonce, bytes ciphertext);
         function setAESKey(suint256 key) external;
         function submitMessage(bytes calldata message) external;
         function decrypt(uint96 nonce, bytes calldata ciphertext)

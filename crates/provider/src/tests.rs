@@ -26,16 +26,18 @@
 
 use crate::{
     builder::SeismicSignedProvider,
-    test_utils::{ContractTestContext, ISeismicCounter},
-    SeismicProviderExt, SignedProviderExt,
+    precompiles,
+    test_utils::{ContractTestContext, Encryption, FlaggedStorageTest, ISeismicCounter,
+        PrecompileTestContext},
+    SeismicCallExt, SeismicProviderExt, ShieldedCallExt, SignedProviderExt,
 };
 use alloy_network::{ReceiptResponse, TransactionBuilder};
 use alloy_node_bindings::{Anvil, AnvilInstance};
-use alloy_primitives::{address, hex, Address, Bytes, TxKind};
+use alloy_primitives::{address, hex, Address, Bytes, FixedBytes, TxKind, U256, B256, keccak256};
 use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
 use alloy_rpc_types_eth::Filter;
 use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::{sol, SolEvent};
+use alloy_sol_types::{sol, SolCall, SolEvent, SolValue};
 use futures_util::StreamExt;
 use seismic_alloy_consensus::SeismicReceiptEnvelope;
 use seismic_alloy_network::{
@@ -372,8 +374,6 @@ async fn deploy_test_contract(
 
 #[tokio::test]
 async fn test_call_ext_shielded_read() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
 
@@ -387,7 +387,6 @@ async fn test_call_ext_shielded_read() {
 
 #[tokio::test]
 async fn test_call_ext_shielded_write_then_read() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -413,7 +412,6 @@ async fn test_call_ext_shielded_write_then_read() {
 
 #[tokio::test]
 async fn test_call_ext_shielded_increment() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -431,8 +429,6 @@ async fn test_call_ext_shielded_increment() {
 
 #[tokio::test]
 async fn test_call_ext_shielded_read_write_read() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
 
@@ -474,7 +470,6 @@ async fn test_call_ext_transparent_call() {
 
 #[tokio::test]
 async fn test_call_ext_transparent_send_then_shielded_read() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -499,7 +494,6 @@ async fn test_call_ext_transparent_send_then_shielded_read() {
 
 #[tokio::test]
 async fn test_call_ext_security_params_expires_at() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -515,7 +509,6 @@ async fn test_call_ext_security_params_expires_at() {
 
 #[tokio::test]
 async fn test_call_ext_security_params_encryption_nonce() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -535,7 +528,6 @@ async fn test_call_ext_security_params_encryption_nonce() {
 
 #[tokio::test]
 async fn test_call_ext_security_params_send() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -569,7 +561,6 @@ async fn test_call_ext_security_params_send() {
 #[ignore]
 #[tokio::test]
 async fn test_call_ext_eip712_read() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -584,7 +575,6 @@ async fn test_call_ext_eip712_read() {
 #[ignore]
 #[tokio::test]
 async fn test_call_ext_eip712_send() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -611,7 +601,6 @@ async fn test_call_ext_eip712_send() {
 #[ignore]
 #[tokio::test]
 async fn test_call_ext_eip712_write_then_eip712_read() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -641,7 +630,6 @@ async fn test_call_ext_eip712_write_then_eip712_read() {
 
 #[tokio::test]
 async fn test_seismic_call_with_expires_at() {
-    use crate::SignedProviderExt;
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -662,7 +650,6 @@ async fn test_seismic_call_with_expires_at() {
 
 #[tokio::test]
 async fn test_seismic_send_with_expires_at() {
-    use crate::SignedProviderExt;
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -686,7 +673,6 @@ async fn test_seismic_send_with_expires_at() {
     assert!(receipt.status());
 
     // Verify the write via a shielded read — 42 is even
-    use crate::{SeismicCallExt, ShieldedCallExt};
     let contract = SeismicCounter::new(addr, &provider);
     let is_odd = contract.isOdd().seismic().call().await.unwrap();
     assert!(!is_odd, "42 should not be odd");
@@ -698,7 +684,6 @@ async fn test_seismic_send_with_expires_at() {
 
 #[tokio::test]
 async fn test_call_ext_with_params_call() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -719,7 +704,6 @@ async fn test_call_ext_with_params_call() {
 
 #[tokio::test]
 async fn test_call_ext_with_params_send() {
-    use crate::{SeismicCallExt, ShieldedCallExt};
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let (provider, addr) = deploy_test_contract(&anvil).await;
@@ -762,15 +746,6 @@ fn get_wallet(anvil: &AnvilInstance) -> SeismicWallet<SeismicFoundry> {
 /// 5. Cross-check with local AES decryption
 #[tokio::test]
 async fn test_precompile_aes_encrypt_decrypt() {
-    use crate::test_utils::{Encryption, PrecompileTestContext};
-    use alloy_dyn_abi::EventExt;
-    use alloy_json_abi::{Event, EventParam};
-    use alloy_primitives::{
-        aliases::{B96, U96},
-        IntoLogData, B256,
-    };
-    use alloy_sol_types::{SolCall, SolValue};
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let wallet = get_wallet(&anvil);
     let provider = crate::SeismicProviderBuilder::new()
@@ -801,7 +776,8 @@ async fn test_precompile_aes_encrypt_decrypt() {
     let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
         .with_input(set_key_input)
         .with_kind(TxKind::Call(contract_addr))
-        .into();
+        .into()
+        .seismic();
     provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
 
     // 3. Submit "hello world" — triggers RNG precompile for nonce + AES-encrypt precompile
@@ -820,20 +796,9 @@ async fn test_precompile_aes_encrypt_decrypt() {
     let logs = receipt.inner.inner.logs();
     assert_eq!(logs.len(), 1, "Expected exactly one EncryptedMessage event");
 
-    let log_data = logs[0].inner.data.clone();
-    let event = Event {
-        name: "EncryptedMessage".into(),
-        inputs: vec![
-            EventParam { ty: "uint96".into(), indexed: true, ..Default::default() },
-            EventParam { ty: "bytes".into(), indexed: false, ..Default::default() },
-        ],
-        anonymous: false,
-    };
-    let decoded = event.decode_log(&log_data.into_log_data()).unwrap();
-
-    let nonce: U96 =
-        U96::from_be_bytes(B96::from_slice(&decoded.indexed[0].abi_encode_packed()).into());
-    let ciphertext = Bytes::from(decoded.body[0].abi_encode_packed());
+    let log = logs[0].log_decode::<Encryption::EncryptedMessage>().unwrap();
+    let nonce = log.inner.data.nonce;
+    let ciphertext = log.inner.data.ciphertext;
 
     // 5. On-chain decrypt via seismic_call (uses AES-decrypt precompile)
     let call = Encryption::decryptCall { nonce, ciphertext: ciphertext.clone() };
@@ -849,7 +814,7 @@ async fn test_precompile_aes_encrypt_decrypt() {
     let secp_private =
         seismic_enclave::secp256k1::SecretKey::from_slice(private_key.as_ref()).unwrap();
     let aes_key: [u8; 32] = secp_private.secret_bytes()[0..32].try_into().unwrap();
-    let nonce_bytes: [u8; 12] = decoded.indexed[0].abi_encode_packed().try_into().unwrap();
+    let nonce_bytes: [u8; 12] = nonce.to_be_bytes();
     let decrypted_locally = seismic_enclave::aes_decrypt(&aes_key.into(), &ciphertext, nonce_bytes)
         .expect("Local AES decryption failed");
     assert_eq!(decrypted_locally, message, "Local decryption should match original message");
@@ -870,17 +835,10 @@ async fn test_precompile_aes_encrypt_decrypt() {
 /// Before a fix, tx_hash defaulted to B256::ZERO causing identical RNG seeds.
 #[tokio::test]
 async fn test_precompile_rng_different_per_tx() {
-    use crate::test_utils::PrecompileTestContext;
-    use alloy_primitives::U256;
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
-    let wallet = get_wallet(&anvil);
     let provider = crate::SeismicProviderBuilder::new()
         .foundry()
-        .wallet(wallet)
-        .connect_http(anvil.endpoint_url())
-        .await
-        .unwrap();
+        .connect_http(anvil.endpoint_url());
 
     // Deploy two instances of the RNG caller contract
     let deploy_code = PrecompileTestContext::get_rng_caller_deploy_bytecode();
@@ -1055,9 +1013,6 @@ async fn test_gas_estimation() {
 /// ECDH precompile: derives shared secret from secret key + public key.
 #[tokio::test]
 async fn test_precompile_ecdh() {
-    use crate::precompiles;
-    use alloy_primitives::FixedBytes;
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
@@ -1089,8 +1044,6 @@ async fn test_precompile_ecdh() {
 /// HKDF precompile: derives key from input key material.
 #[tokio::test]
 async fn test_precompile_hkdf_string() {
-    use crate::precompiles;
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
@@ -1107,8 +1060,6 @@ async fn test_precompile_hkdf_string() {
 /// HKDF precompile with hex input.
 #[tokio::test]
 async fn test_precompile_hkdf_hex() {
-    use crate::precompiles;
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
@@ -1123,9 +1074,6 @@ async fn test_precompile_hkdf_hex() {
 /// secp256k1 precompile: signs a message hash with a secret key.
 #[tokio::test]
 async fn test_precompile_secp256k1_sign() {
-    use crate::precompiles;
-    use alloy_primitives::{keccak256, FixedBytes};
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
@@ -1172,8 +1120,6 @@ async fn test_precompile_secp256k1_sign() {
 /// RNG precompile: direct call returns random bytes.
 #[tokio::test]
 async fn test_precompile_rng_direct() {
-    use crate::precompiles;
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
@@ -1186,8 +1132,6 @@ async fn test_precompile_rng_direct() {
 /// RNG precompile with personalization data.
 #[tokio::test]
 async fn test_precompile_rng_with_personalization() {
-    use crate::precompiles;
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
@@ -1200,9 +1144,6 @@ async fn test_precompile_rng_with_personalization() {
 /// AES-GCM encrypt then decrypt roundtrip via precompiles.
 #[tokio::test]
 async fn test_precompile_aes_gcm_roundtrip() {
-    use crate::precompiles;
-    use alloy_primitives::FixedBytes;
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
@@ -1233,9 +1174,6 @@ async fn test_precompile_aes_gcm_roundtrip() {
 /// that SLOAD on a private slot is rejected while CLOAD works.
 #[tokio::test]
 async fn test_private_storage_enforcement() {
-    use crate::{test_utils::FlaggedStorageTest, SeismicCallExt, ShieldedCallExt};
-    use alloy_primitives::U256;
-
     let anvil = Anvil::at(SANVIL_PATH).spawn();
     let wallet = get_wallet(&anvil);
     let provider = crate::SeismicProviderBuilder::new()
