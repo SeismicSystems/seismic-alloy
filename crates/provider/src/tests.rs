@@ -28,7 +28,8 @@ use crate::{
     builder::SeismicSignedProvider,
     precompiles,
     test_utils::{
-        ContractTestContext, Encryption, FlaggedStorageTest, ISeismicCounter, PrecompileTestContext,
+        ContractTestContext, EncryptedLogs, FlaggedStorageTest, ISeismicCounter,
+        get_rng_caller_deploy_bytecode,
     },
     SeismicCallExt, SeismicProviderExt, ShieldedCallExt, SignedProviderExt,
 };
@@ -38,7 +39,7 @@ use alloy_primitives::{address, hex, keccak256, Address, Bytes, FixedBytes, TxKi
 use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
 use alloy_rpc_types_eth::Filter;
 use alloy_signer_local::PrivateKeySigner;
-use alloy_sol_types::{sol, SolCall, SolEvent, SolValue};
+use alloy_sol_types::{sol, SolEvent};
 use futures_util::StreamExt;
 use seismic_alloy_consensus::SeismicReceiptEnvelope;
 use seismic_alloy_network::{
@@ -744,59 +745,41 @@ async fn test_precompile_aes_encrypt_decrypt() {
         .unwrap();
 
     // 1. Deploy EncryptedLogs contract
-    let deploy_bytecode = PrecompileTestContext::get_deploy_bytecode();
-    let tx: SeismicTransactionRequest =
-        seismic_foundry_tx_builder().with_input(deploy_bytecode).with_kind(TxKind::Create).into();
-    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
-    let contract_addr = receipt.contract_address.unwrap();
+    let contract = EncryptedLogs::deploy(&provider).await.unwrap();
 
-    // 2. Set AES key
+    // 2. Set AES key — suint256 param, auto-encrypts
     let private_key =
         B256::from(hex!("7e34abdcd62eade2e803e0a8123a0015ce542b380537eff288d6da420bcc2d3b"));
-    let set_key_input = Bytes::from(
-        Encryption::setAESKeyCall {
-            key: alloy_primitives::aliases::SUInt::<256, 4>(alloy_primitives::U256::from_be_bytes(
-                *private_key,
-            )),
-        }
-        .abi_encode(),
-    );
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(set_key_input)
-        .with_kind(TxKind::Call(contract_addr))
-        .into()
-        .seismic();
-    provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    contract
+        .setAESKey(alloy_primitives::aliases::SUInt(U256::from_be_bytes(*private_key)))
+        .send()
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
 
     // 3. Submit "hello world" — triggers RNG precompile for nonce + AES-encrypt precompile
     let message = Bytes::from("hello world");
-    type PlaintextType = Bytes;
-    let submit_input = Bytes::from(
-        Encryption::submitMessageCall { message: message.to_vec().into() }.abi_encode(),
-    );
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(submit_input)
-        .with_kind(TxKind::Call(contract_addr))
-        .into();
-    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = contract
+        .submitMessage(message.to_vec().into())
+        .send()
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
 
     // 4. Extract EncryptedMessage event: EncryptedMessage(uint96 indexed nonce, bytes ciphertext)
     let logs = receipt.inner.inner.logs();
     assert_eq!(logs.len(), 1, "Expected exactly one EncryptedMessage event");
 
-    let log = logs[0].log_decode::<Encryption::EncryptedMessage>().unwrap();
+    let log = logs[0].log_decode::<EncryptedLogs::EncryptedMessage>().unwrap();
     let nonce = log.inner.data.nonce;
     let ciphertext = log.inner.data.ciphertext;
 
-    // 5. On-chain decrypt via seismic_call (uses AES-decrypt precompile)
-    let call = Encryption::decryptCall { nonce, ciphertext: ciphertext.clone() };
-    let decrypt_input = Bytes::from(call.abi_encode());
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(decrypt_input)
-        .with_kind(TxKind::Call(contract_addr))
-        .into()
-        .seismic();
-    let output = provider.seismic_call_raw(SendableTx::Builder(tx.into())).await.unwrap();
+    // 5. On-chain decrypt via seismic signed read (uses AES-decrypt precompile)
+    let output = contract.decrypt(nonce, ciphertext.clone()).seismic().call().await.unwrap();
 
     // 6. Cross-check: local AES decryption
     let secp_private =
@@ -808,10 +791,8 @@ async fn test_precompile_aes_encrypt_decrypt() {
     assert_eq!(decrypted_locally, message, "Local decryption should match original message");
 
     // 7. Verify on-chain result matches
-    let result_bytes = PlaintextType::abi_decode(&Bytes::from(output))
-        .expect("Failed to decode on-chain decrypt output");
     let final_string =
-        String::from_utf8(result_bytes.to_vec()).expect("Invalid UTF-8 in decrypted bytes");
+        String::from_utf8(output.to_vec()).expect("Invalid UTF-8 in decrypted bytes");
     assert_eq!(final_string, "hello world");
 }
 
@@ -833,7 +814,7 @@ async fn test_precompile_rng_different_per_tx() {
         .unwrap();
 
     // Deploy two instances of the RNG caller contract
-    let deploy_code = PrecompileTestContext::get_rng_caller_deploy_bytecode();
+    let deploy_code = get_rng_caller_deploy_bytecode();
     let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
         .with_input(deploy_code.clone())
         .with_kind(TxKind::Create)
