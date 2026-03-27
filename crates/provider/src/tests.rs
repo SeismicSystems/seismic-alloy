@@ -792,9 +792,9 @@ async fn test_precompile_aes_encrypt_decrypt() {
         B256::from(hex!("7e34abdcd62eade2e803e0a8123a0015ce542b380537eff288d6da420bcc2d3b"));
     let set_key_input = Bytes::from(
         Encryption::setAESKeyCall {
-            key: alloy_primitives::aliases::SUInt::<256, 4>(
-                alloy_primitives::U256::from_be_bytes(*private_key),
-            ),
+            key: alloy_primitives::aliases::SUInt::<256, 4>(alloy_primitives::U256::from_be_bytes(
+                *private_key,
+            )),
         }
         .abi_encode(),
     );
@@ -1070,8 +1070,9 @@ async fn test_precompile_ecdh() {
     let pk_bytes = pk_public.serialize(); // 33 bytes compressed
 
     let sk_fixed = FixedBytes::<32>::from(sk);
-    let result =
-        precompiles::call::ecdh::<SeismicFoundry, _>(&provider, &sk_fixed, &pk_bytes).await.unwrap();
+    let result = precompiles::call::ecdh::<SeismicFoundry, _>(&provider, &sk_fixed, &pk_bytes)
+        .await
+        .unwrap();
     assert_ne!(result, FixedBytes::<32>::ZERO, "ECDH result should not be all zeros");
 
     // Cross-check: compute ECDH + HKDF locally and verify it matches
@@ -1113,8 +1114,7 @@ async fn test_precompile_hkdf_hex() {
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
 
     let input = hex!("1234abcd");
-    let result =
-        precompiles::call::hkdf::<SeismicFoundry, _>(&provider, &input).await.unwrap();
+    let result = precompiles::call::hkdf::<SeismicFoundry, _>(&provider, &input).await.unwrap();
 
     let expected = hex!("67b4c8f882a3a82e4eb12b97aa70652afd62167d0ffd28f81b22e1684c1e8fb2");
     assert_eq!(result.as_slice(), expected, "HKDF hex output should match known test vector");
@@ -1136,11 +1136,10 @@ async fn test_precompile_secp256k1_sign() {
 
     let sk_fixed = FixedBytes::<32>::from(sk_bytes);
     let msg_fixed = FixedBytes::<32>::from(*msg_hash);
-    let sig = precompiles::call::secp256k1_sign::<SeismicFoundry, _>(
-        &provider, &sk_fixed, &msg_fixed,
-    )
-    .await
-    .unwrap();
+    let sig =
+        precompiles::call::secp256k1_sign::<SeismicFoundry, _>(&provider, &sk_fixed, &msg_fixed)
+            .await
+            .unwrap();
 
     // Verify: the signature should be non-zero
     assert_ne!(
@@ -1179,8 +1178,7 @@ async fn test_precompile_rng_direct() {
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
 
-    let result =
-        precompiles::call::rng::<SeismicFoundry, _>(&provider, 32, &[]).await.unwrap();
+    let result = precompiles::call::rng::<SeismicFoundry, _>(&provider, 32, &[]).await.unwrap();
     assert_eq!(result.len(), 32, "RNG should return 32 bytes");
     assert_ne!(result, Bytes::from(vec![0u8; 32]), "RNG output should not be all zeros");
 }
@@ -1194,8 +1192,7 @@ async fn test_precompile_rng_with_personalization() {
     let provider =
         crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
 
-    let result =
-        precompiles::call::rng::<SeismicFoundry, _>(&provider, 32, b"test").await.unwrap();
+    let result = precompiles::call::rng::<SeismicFoundry, _>(&provider, 32, b"test").await.unwrap();
     assert_eq!(result.len(), 32, "RNG with pers should return 32 bytes");
     assert_ne!(result, Bytes::from(vec![0u8; 32]), "RNG with pers should not be all zeros");
 }
@@ -1214,19 +1211,17 @@ async fn test_precompile_aes_gcm_roundtrip() {
     let nonce = FixedBytes::<12>::ZERO;
     let plaintext = b"HelloAESGCM";
 
-    let ciphertext = precompiles::call::aes_encrypt::<SeismicFoundry, _>(
-        &provider, &key, &nonce, plaintext,
-    )
-    .await
-    .unwrap();
+    let ciphertext =
+        precompiles::call::aes_encrypt::<SeismicFoundry, _>(&provider, &key, &nonce, plaintext)
+            .await
+            .unwrap();
     assert!(!ciphertext.is_empty(), "Ciphertext should not be empty");
     assert_ne!(ciphertext.as_ref(), plaintext, "Ciphertext should differ from plaintext");
 
-    let decrypted = precompiles::call::aes_decrypt::<SeismicFoundry, _>(
-        &provider, &key, &nonce, &ciphertext,
-    )
-    .await
-    .unwrap();
+    let decrypted =
+        precompiles::call::aes_decrypt::<SeismicFoundry, _>(&provider, &key, &nonce, &ciphertext)
+            .await
+            .unwrap();
     assert_eq!(decrypted.as_ref(), plaintext, "Decrypted should match original plaintext");
 }
 
@@ -1238,8 +1233,7 @@ async fn test_precompile_aes_gcm_roundtrip() {
 /// that SLOAD on a private slot is rejected while CLOAD works.
 #[tokio::test]
 async fn test_private_storage_enforcement() {
-    use crate::test_utils::FlaggedStorageTest;
-    use crate::{SeismicCallExt, ShieldedCallExt};
+    use crate::{test_utils::FlaggedStorageTest, SeismicCallExt, ShieldedCallExt};
     use alloy_primitives::U256;
 
     let anvil = Anvil::at(SANVIL_PATH).spawn();
