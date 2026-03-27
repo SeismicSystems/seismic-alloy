@@ -807,12 +807,9 @@ async fn test_precompile_aes_encrypt_decrypt() {
 
     // 1. Deploy EncryptedLogs contract
     let deploy_bytecode = PrecompileTestContext::get_deploy_bytecode();
-    let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
-        .with_input(deploy_bytecode)
-        .with_kind(TxKind::Create)
-        .into();
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let tx: SeismicTransactionRequest =
+        seismic_foundry_tx_builder().with_input(deploy_bytecode).with_kind(TxKind::Create).into();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
     let contract_addr = receipt.contract_address.unwrap();
 
     // 2. Set AES key
@@ -836,11 +833,9 @@ async fn test_precompile_aes_encrypt_decrypt() {
         .with_input(submit_input)
         .with_kind(TxKind::Call(contract_addr))
         .into();
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
 
-    // 4. Extract EncryptedMessage event: EncryptedMessage(uint96 indexed nonce, bytes
-    //    ciphertext)
+    // 4. Extract EncryptedMessage event: EncryptedMessage(uint96 indexed nonce, bytes ciphertext)
     let logs = receipt.inner.inner.logs();
     assert_eq!(logs.len(), 1, "Expected exactly one EncryptedMessage event");
 
@@ -874,9 +869,8 @@ async fn test_precompile_aes_encrypt_decrypt() {
         seismic_enclave::secp256k1::SecretKey::from_slice(private_key.as_ref()).unwrap();
     let aes_key: [u8; 32] = secp_private.secret_bytes()[0..32].try_into().unwrap();
     let nonce_bytes: [u8; 12] = decoded.indexed[0].abi_encode_packed().try_into().unwrap();
-    let decrypted_locally =
-        seismic_enclave::aes_decrypt(&aes_key.into(), &ciphertext, nonce_bytes)
-            .expect("Local AES decryption failed");
+    let decrypted_locally = seismic_enclave::aes_decrypt(&aes_key.into(), &ciphertext, nonce_bytes)
+        .expect("Local AES decryption failed");
     assert_eq!(decrypted_locally, message, "Local decryption should match original message");
 
     // 7. Verify on-chain result matches
@@ -940,16 +934,14 @@ async fn test_precompile_rng_different_per_tx() {
         .with_input(Bytes::new())
         .with_kind(TxKind::Call(contract_1))
         .into();
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
     assert!(receipt.status(), "Call to contract 1 should succeed");
 
     let tx: SeismicTransactionRequest = seismic_foundry_tx_builder()
         .with_input(Bytes::new())
         .with_kind(TxKind::Call(contract_2))
         .into();
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
     assert!(receipt.status(), "Call to contract 2 should succeed");
 
     // Read stored RNG values from slot 0
@@ -989,8 +981,7 @@ async fn test_seismic_tx_input_is_encrypted() {
         .with_value(alloy_primitives::U256::from(1))
         .into()
         .seismic();
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
     let tx_hash = receipt.transaction_hash;
 
     // Retrieve the transaction and check its input field
@@ -1025,8 +1016,7 @@ async fn test_legacy_tx_input_is_plaintext() {
         .with_kind(TxKind::Call(Address::ZERO))
         .with_value(alloy_primitives::U256::from(1))
         .into();
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
     let tx_hash = receipt.transaction_hash;
 
     // Retrieve the transaction and check its input field
@@ -1062,8 +1052,7 @@ async fn test_gas_estimation() {
     let deploy_input = ContractTestContext::get_deploy_input_plaintext();
     let tx: SeismicTransactionRequest =
         seismic_foundry_tx_builder().with_input(deploy_input).with_kind(TxKind::Create).into();
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
     let contract_addr = receipt.contract_address.unwrap();
 
     // Estimate gas for a regular call to the contract
@@ -1111,8 +1100,7 @@ async fn test_precompile_ecdh() {
     assert_ne!(result, Bytes::from(vec![0u8; 32]), "ECDH result should not be all zeros");
 
     // Cross-check: compute ECDH + HKDF locally and verify it matches
-    let shared_secret =
-        seismic_enclave::secp256k1::ecdh::SharedSecret::new(&pk_public, &pk_secret);
+    let shared_secret = seismic_enclave::secp256k1::ecdh::SharedSecret::new(&pk_public, &pk_secret);
     let local_aes_key =
         seismic_enclave::derive_aes_key(&shared_secret).expect("HKDF derivation failed");
     assert_eq!(
@@ -1319,8 +1307,7 @@ async fn test_private_storage_enforcement() {
         .with_input(FlaggedStorageTestContext::get_deploy_bytecode())
         .with_kind(TxKind::Create)
         .into();
-    let receipt =
-        provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
+    let receipt = provider.send_transaction(tx.into()).await.unwrap().get_receipt().await.unwrap();
     let contract_addr = receipt.contract_address.unwrap();
 
     // Set public storage: setPublic(42)
