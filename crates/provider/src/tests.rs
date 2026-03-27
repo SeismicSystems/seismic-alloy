@@ -531,6 +531,7 @@ async fn test_call_ext_security_params_send() {
 // EIP-712 tests — contract.method().seismic().eip712().call()/send()
 // ========================================================================
 
+// TODO: Fix circular anvil dependency in integration tests to avoid test failures.
 #[ignore]
 #[tokio::test]
 async fn test_call_ext_eip712_read() {
