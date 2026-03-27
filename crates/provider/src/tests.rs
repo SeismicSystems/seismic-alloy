@@ -824,8 +824,13 @@ async fn test_precompile_aes_encrypt_decrypt() {
 #[tokio::test]
 async fn test_precompile_rng_different_per_tx() {
     let anvil = Anvil::at(SANVIL_PATH).spawn();
-    let provider =
-        crate::SeismicProviderBuilder::new().foundry().connect_http(anvil.endpoint_url());
+    let wallet = get_wallet(&anvil);
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet)
+        .connect_http(anvil.endpoint_url())
+        .await
+        .unwrap();
 
     // Deploy two instances of the RNG caller contract
     let deploy_code = PrecompileTestContext::get_rng_caller_deploy_bytecode();
