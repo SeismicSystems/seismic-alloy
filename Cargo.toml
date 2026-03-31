@@ -143,7 +143,7 @@ k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 
 [patch.crates-io]
 # Seismic enclave
-seismic-enclave =  { git = "https://github.com/SeismicSystems/enclave.git", rev = "ac5e28dac1ee8ec0e3922b010e6da072d6e784aa" }
+seismic-enclave =  { git = "https://github.com/SeismicSystems/enclave.git", rev = "f90b02f38a6190e8b2ff2d051d9043f3480cd3ac" }
 
 # seismic-alloy-core
 alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
@@ -154,7 +154,7 @@ alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy
 alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
 
-alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "d8425918ced1d62043c3a64b382d6fa1d8c25518" }
+alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "175e8b591c3d40ba81468e4f9e1d7a3ad599fba3" }
 
 alloy-consensus = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 alloy-eips = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
@@ -179,5 +179,5 @@ alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 
 # revm
 # Temporarily pointing to veridise-audit-feb-2026 branch. Will point back to seismic after the audit is complete.
-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5ba06828ab6f0f8d0d62d745efd8a35862f8603c" }
-seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "5ba06828ab6f0f8d0d62d745efd8a35862f8603c" }
+revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "e2915bad927dc3e6239498716241ed41ea91de4c" }
+seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "e2915bad927dc3e6239498716241ed41ea91de4c" }
