@@ -154,7 +154,7 @@ alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy
 alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
 
-alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "175e8b591c3d40ba81468e4f9e1d7a3ad599fba3" }
+alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "2787e2265d492fa8eaee00424585b8f7e522178f" }
 
 alloy-consensus = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 alloy-eips = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
