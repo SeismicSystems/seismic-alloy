@@ -45,7 +45,7 @@ impl Network for SeismicReth {
 // TODO: unclear if this is correct
 impl RecommendedFillers for SeismicReth {
     type RecommendedFillers = JoinFill<
-        SeismicGasFiller,
+        SeismicGasFiller<SeismicReth>,
         JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
     >;
 

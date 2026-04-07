@@ -3,13 +3,14 @@
 //! Normally fillers go in alloy-provider, but we need to put them here because
 //! we need it to impl RecommendedFillers for the [`Seismic`] network.
 
-use crate::seismic_network::SeismicNetwork;
+use crate::{seismic_network::SeismicNetwork, wallet::SeismicWallet};
 use alloy_consensus::BlockHeader;
-use alloy_network::{BlockResponse, Network, TransactionBuilder};
+use alloy_network::{eip2718::Encodable2718, BlockResponse, Network, TransactionBuilder};
 use alloy_network_primitives::HeaderResponse;
+use alloy_primitives::{Bytes, U256};
 use alloy_provider::{
     fillers::{FillerControlFlow, GasFillable, TxFiller},
-    Provider, ProviderBuilder, SendableTx,
+    Provider, SendableTx,
 };
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_eth::BlockNumberOrTag;
@@ -34,58 +35,67 @@ where
         .map_err(|e| TransportErrorKind::custom_str(&format!("Error parsing TEE pubkey: {:?}", e)))
 }
 
-/// A wrapper for alloy_provider::fillers::GasFiller that handles gas for seismic transactions
-/// Seismic tx are treated like legacy transactions
+/// Gas filler for the Seismic provider. The node sanitizes `from` on all
+/// unsigned `eth_estimateGas` requests to prevent caller-spoofing attacks
+/// against msg.sender-gated private state. When a wallet is available, the
+/// filler signs the tx before sending to `eth_estimateGas` so the node can
+/// authenticate the sender. Without a wallet (RecommendedFillers default),
+/// falls back to the standard unsigned GasFiller.
 #[derive(Clone, Debug)]
-pub struct SeismicGasFiller {
+pub struct SeismicGasFiller<N: SeismicNetwork>
+where
+    N::UnsignedTx: Send + Sync,
+{
     inner: GasFiller,
     rpc_url: Option<reqwest::Url>,
+    wallet: Option<SeismicWallet<N>>,
 }
 
-impl Default for SeismicGasFiller {
+impl<N: SeismicNetwork> Default for SeismicGasFiller<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
     fn default() -> Self {
-        Self { inner: GasFiller::default(), rpc_url: None }
+        Self { inner: GasFiller::default(), rpc_url: None, wallet: None }
     }
 }
 
-impl SeismicGasFiller {
-    /// Create a new SeismicGasFiller with RPC URL for gas estimation in fill() phase
-    pub fn with_url(rpc_url: reqwest::Url) -> Self {
-        Self { inner: GasFiller::default(), rpc_url: Some(rpc_url) }
-    }
-
-    fn is_seismic_tx<N>(&self, tx: &N::TransactionRequest) -> bool
-    where
-        N: SeismicNetwork,
-        N::TransactionRequest: InputDecryptionElements,
-        <N as Network>::UnsignedTx: Send + Sync,
-    {
-        // Only treat as seismic if elements are actually set
-        // This ensures estimate_gas is called on regular tx during prepare() phase
-        tx.get_decryption_elements().is_ok()
+impl<N: SeismicNetwork> SeismicGasFiller<N>
+where
+    N::UnsignedTx: Send + Sync,
+{
+    /// Create a new SeismicGasFiller with wallet for signed gas estimation.
+    pub fn new(rpc_url: reqwest::Url, wallet: SeismicWallet<N>) -> Self {
+        Self { inner: GasFiller::default(), rpc_url: Some(rpc_url), wallet: Some(wallet) }
     }
 }
 
-impl<N: SeismicNetwork> TxFiller<N> for SeismicGasFiller
+impl<N: SeismicNetwork> TxFiller<N> for SeismicGasFiller<N>
 where
     <N as Network>::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
         + InputDecryptionElements,
     <N as Network>::UnsignedTx: Send + Sync,
 {
-    // (Option<GasFillable>, Option<(u128, RpcClient)>)
-    // First: Gas values if already set
-    // Second: (gas_price, rpc_client) for deferred estimation in fill() for seismic tx
-    type Fillable = (Option<GasFillable>, Option<(u128, RpcClient)>);
+    // (Option<GasFillable>, Option<(u128, u64, RpcClient)>)
+    // First: gas values already determined (no estimation needed)
+    // Second: (gas_price, block_gas_limit, rpc_client) for signed estimation in fill()
+    type Fillable = (Option<GasFillable>, Option<(u128, u64, RpcClient)>);
 
     fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
-        if self.is_seismic_tx::<N>(tx) {
-            // Seismic transaction - treat like legacy
+        if self.wallet.is_some() {
+            // With wallet: treat all txs as legacy for status purposes.
+            // Gas estimation is deferred to fill() where we can sign.
             if tx.gas_price().is_some() && tx.gas_limit().is_some() {
                 return FillerControlFlow::Finished;
-            } else {
-                return FillerControlFlow::Ready;
             }
+            if tx.max_fee_per_gas().is_some() &&
+                tx.max_priority_fee_per_gas().is_some() &&
+                tx.gas_limit().is_some()
+            {
+                return FillerControlFlow::Finished;
+            }
+            FillerControlFlow::Ready
         } else {
             <GasFiller as TxFiller<N>>::status(&self.inner, tx)
         }
@@ -101,18 +111,14 @@ where
     where
         P: Provider<N>,
     {
-        // Check if transaction is marked as seismic (by tx type or has elements)
-        let seismic_tx: &SeismicTransactionRequest = tx.as_ref();
-        if seismic_tx.is_seismic() {
+        if self.wallet.is_some() {
             // Seismic transactions cannot be CREATE transactions
-            if tx.to().is_none() {
+            let seismic_tx: &SeismicTransactionRequest = tx.as_ref();
+            if seismic_tx.is_seismic() && tx.to().is_none() {
                 return Err(TransportErrorKind::custom_str(
                     "Seismic transactions cannot be CREATE transactions (no `to` address). Deploy contracts with regular transactions."
                 ).into());
             }
-
-            // For seismic transactions, always defer gas estimation to fill() phase
-            // (after encryption is done by SeismicElementsFiller)
 
             // Fetch gas_price if not set
             let gas_price = match tx.gas_price() {
@@ -120,20 +126,23 @@ where
                 None => provider.get_gas_price().await?,
             };
 
-            // Check if gas_limit is already set
             if let Some(limit) = tx.gas_limit() {
-                // Gas limit already set, no need to estimate
                 Ok((Some(GasFillable::Legacy { gas_limit: limit, gas_price }), None))
             } else {
-                // Defer estimation to fill() — create client now, estimate after encryption
+                // Defer estimation to fill() where we sign the tx before sending.
                 let rpc_url = self.rpc_url.as_ref().ok_or_else(|| {
                     TransportErrorKind::custom_str("RPC URL required for seismic gas estimation")
                 })?;
                 let client = RpcClient::new_http(rpc_url.clone());
-                Ok((None, Some((gas_price, client))))
+                let latest_block =
+                    provider.get_block_by_number(BlockNumberOrTag::Latest).await?.ok_or_else(
+                        || TransportErrorKind::custom_str("Failed to fetch latest block"),
+                    )?;
+                let block_gas_limit = latest_block.header().gas_limit();
+                Ok((None, Some((gas_price, block_gas_limit, client))))
             }
         } else {
-            // For non-seismic transactions, use regular GasFiller logic
+            // No wallet — fall back to standard unsigned GasFiller
             Ok((Some(GasFiller::prepare(&self.inner, provider, tx).await?), None))
         }
     }
@@ -146,11 +155,13 @@ where
         let (immediate_fill, deferred_estimate) = fillable;
 
         if let Some(gas_fillable) = immediate_fill {
-            // Gas values already determined in prepare()
             GasFiller::fill(&self.inner, gas_fillable, tx).await
-        } else if let Some((gas_price, client)) = deferred_estimate {
-            // Need to estimate gas now (after encryption)
-            let tx_for_estimate = match &tx {
+        } else if let Some((gas_price, block_gas_limit, client)) = deferred_estimate {
+            let wallet = self.wallet.as_ref().ok_or_else(|| {
+                TransportErrorKind::custom_str("Wallet required for seismic gas estimation")
+            })?;
+
+            let mut tx_for_estimate = match &tx {
                 SendableTx::Builder(builder) => builder.clone(),
                 SendableTx::Envelope(_) => {
                     return Err(TransportErrorKind::custom_str(
@@ -160,13 +171,22 @@ where
                 }
             };
 
-            // Use the pre-created client for gas estimation (fill() has no provider access)
-            let gas_estimate_provider =
-                ProviderBuilder::<_, _, N>::default().network::<N>().connect_client(client);
+            // Set temporary gas fields so the tx is complete enough to sign
+            tx_for_estimate.set_gas_limit(block_gas_limit);
+            tx_for_estimate.set_gas_price(gas_price);
 
-            let gas_limit = gas_estimate_provider.estimate_gas(tx_for_estimate).await?;
+            // Sign and send as bytes so the node can authenticate the sender
+            let envelope = tx_for_estimate
+                .build(wallet)
+                .await
+                .map_err(|e| TransportErrorKind::custom_str(&format!("{e:?}")))?;
+            let encoded_tx = Bytes::from(envelope.encoded_2718());
+            let gas: U256 = client.request("eth_estimateGas", (encoded_tx,)).await?;
+            let gas_limit: u64 = gas
+                .try_into()
+                .map_err(|_| TransportErrorKind::custom_str("Gas estimate exceeds u64::MAX"))?;
+
             let gas_fillable = GasFillable::Legacy { gas_limit, gas_price };
-
             GasFiller::fill(&self.inner, gas_fillable, tx).await
         } else {
             Err(TransportErrorKind::custom_str(

@@ -65,7 +65,7 @@ type SignedFillers<N> = JoinFill<
         >,
         SeismicElementsFiller,
     >,
-    SeismicGasFiller,
+    SeismicGasFiller<N>,
 >;
 
 /// Filler chain for unsigned providers:
@@ -296,6 +296,7 @@ where
         let seismic_filler = SeismicElementsFiller::with_tee_pubkey(tee_pubkey);
         let provider_secret_key = seismic_filler.provider_secret_key().clone();
 
+        let gas_filler = SeismicGasFiller::new(url, self.wallet.clone());
         let filler_chain = JoinFill::new(
             JoinFill::new(
                 JoinFill::new(
@@ -307,7 +308,7 @@ where
                 ),
                 seismic_filler,
             ),
-            SeismicGasFiller::with_url(url),
+            gas_filler,
         );
 
         (filler_chain, provider_secret_key)
