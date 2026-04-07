@@ -438,6 +438,9 @@ pub struct TxSeismic {
     /// Optional list of EIP-7702 authorization tuples for smart account delegation.
     /// Unlike TxEip7702 where an empty auth list is invalid, TxSeismic's primary purpose
     /// is encryption, so an empty list is perfectly valid (means "no delegations").
+    // Defaults to empty vec when the key is missing in JSON (e.g., from older SDKs or
+    // third-party tools that don't include the field). We don't use skip_serializing_if,
+    // so our own serialization always writes the key.
     #[cfg_attr(feature = "serde", serde(default))]
     pub authorization_list: Vec<SignedAuthorization>,
 }
