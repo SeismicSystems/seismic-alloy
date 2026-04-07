@@ -1262,6 +1262,7 @@ mod tests {
                 signed_read: false,
             },
             input: Bytes::default(),
+            authorization_list: vec![],
         };
 
         let typed_data = tx.eip712_to_type_data();
@@ -1293,6 +1294,7 @@ mod tests {
                 signed_read: false,
             },
             input: Bytes::default(),
+            authorization_list: vec![],
         };
 
         let mut typed_data = tx.eip712_to_type_data();
@@ -1330,6 +1332,7 @@ mod tests {
                 signed_read: false,
             },
             input: Bytes::default(),
+            authorization_list: vec![],
         };
 
         let mut typed_data = tx.eip712_to_type_data();
@@ -1490,6 +1493,7 @@ mod tests {
                 signed_read: false,
             },
             input: Bytes::from_str("0xdeadbeef").unwrap(),
+            authorization_list: vec![],
         };
 
         let mut buf = vec![];
@@ -1515,6 +1519,7 @@ mod tests {
                 signed_read: false,
             },
             input: Bytes::default(),
+            authorization_list: vec![],
         };
 
         let mut buf = vec![];
