@@ -181,9 +181,12 @@ impl From<SeismicFoundryTypedTransaction> for SeismicFoundryTransactionRequest {
                 EthereumTypedTransaction::Eip2930(tx) => WithOtherFields::new(tx.into()),
                 EthereumTypedTransaction::Legacy(tx) => WithOtherFields::new(tx.into()),
             },
-            SeismicFoundryTypedTransaction::Unknown(_) => {
-                unimplemented!("Unknown typed transaction")
-            }
+            // Required by alloy Network trait bounds; Unknown variants should be
+            // filtered before reaching this conversion.
+            SeismicFoundryTypedTransaction::Unknown(ref tx) => unreachable!(
+                "Unknown typed transaction (type={}) should not reach request conversion",
+                tx.ty()
+            ),
             SeismicFoundryTypedTransaction::Seismic(tx) => WithOtherFields::new(tx.into()),
         }
     }
@@ -193,7 +196,12 @@ impl From<SeismicFoundryTxEnvelope> for SeismicFoundryTransactionRequest {
     fn from(value: SeismicFoundryTxEnvelope) -> Self {
         match value {
             SeismicFoundryTxEnvelope::Ethereum(tx) => WithOtherFields::new(tx.into()),
-            SeismicFoundryTxEnvelope::Unknown(_) => unimplemented!("Unknown tx envelope"),
+            // Required by alloy Network trait bounds; Unknown variants should be
+            // filtered before reaching this conversion.
+            SeismicFoundryTxEnvelope::Unknown(ref tx) => unreachable!(
+                "Unknown tx envelope (type={}) should not reach request conversion",
+                tx.ty()
+            ),
             SeismicFoundryTxEnvelope::Seismic(tx) => WithOtherFields::new(tx.into()),
         }
     }

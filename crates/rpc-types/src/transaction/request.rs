@@ -188,12 +188,13 @@ impl SeismicTransactionRequest {
 
     /// Builds [`SeismicTypedTransaction`] from this builder. See
     /// [`TransactionRequest::build_typed_tx`] for more info.
-    ///
-    /// Note that EIP-4844 transactions are not supported by Seismic and will be converted into
-    /// EIP-1559 transactions.
     pub fn build_typed_tx(self) -> Result<SeismicTypedTransaction, Self> {
         if self.seismic_elements.is_some() {
-            let tx = self.build_seismic().expect("Failed to build seismic transaction.");
+            let fallback = self.clone();
+            let tx = self.build_seismic().map_err(|e| {
+                eprintln!("Failed to build seismic transaction: {e}");
+                fallback
+            })?;
             return Ok(SeismicTypedTransaction::Seismic(tx));
         }
 
@@ -231,11 +232,15 @@ impl SeismicTransactionRequest {
                 }
             };
             let tx_metadata = self.metadata(sender)?;
-            let ciphertext = self.inner.input.input().unwrap();
-            let plaintext = tx_metadata
-                .decrypt(secret_key, ciphertext)
-                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
-            return Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()));
+            return match self.inner.input.input() {
+                Some(ciphertext) => {
+                    let plaintext = tx_metadata.decrypt(secret_key, ciphertext).map_err(|e| {
+                        InputDecryptionElementsError::DecryptionError(e.to_string())
+                    })?;
+                    Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()))
+                }
+                None => Err(InputDecryptionElementsError::MissingField("input")),
+            };
         }
         return Err(InputDecryptionElementsError::NoElements);
     }
@@ -570,8 +575,11 @@ impl InputDecryptionElements for SeismicTransactionRequest {
         self.seismic_elements.ok_or(InputDecryptionElementsError::NoElements)
     }
 
-    fn get_input(&self) -> Bytes {
-        self.inner.input.clone().into_input().unwrap()
+    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
+        match self.inner.input.clone().into_input() {
+            Some(input) => Ok(input),
+            None => Err(InputDecryptionElementsError::MissingField("input")),
+        }
     }
 
     fn set_input(
@@ -697,12 +705,44 @@ mod tests {
     #[test]
     fn test_set_input_for_request() {
         let mut req = SeismicTransactionRequest::from_transaction(TxEip1559::default());
-        let start_input = req.get_input();
+        let start_input = req.get_input().unwrap();
         let data = Bytes::from("test");
         assert_ne!(data, start_input);
 
         req.set_input(data.clone()).unwrap();
-        let end_input = req.get_input();
+        let end_input = req.get_input().unwrap();
         assert_eq!(data, end_input);
+    }
+
+    /// Regression test: get_input() must return an error instead of panicking
+    /// when called on a SeismicTransactionRequest with no input data.
+    #[test]
+    fn get_input_returns_error_when_input_missing() {
+        let req = SeismicTransactionRequest::default()
+            .from(Address::ZERO)
+            .nonce(0)
+            .to(Address::ZERO)
+            .seismic_elements(TxSeismicElements::default())
+            .seismic();
+
+        let result = req.get_input();
+        assert!(result.is_err(), "get_input should return Err when input is missing");
+    }
+
+    /// Regression test: to_transaction_request() must return an error instead of
+    /// panicking when seismic elements are present but calldata is missing.
+    #[test]
+    fn to_transaction_request_returns_error_when_input_missing() {
+        let mut req = SeismicTransactionRequest::default()
+            .from(Address::ZERO)
+            .nonce(0)
+            .to(Address::ZERO)
+            .seismic_elements(TxSeismicElements::default())
+            .seismic();
+        req.inner.chain_id = Some(1);
+
+        let sk = seismic_enclave::get_unsecure_sample_secp256k1_sk();
+        let result = req.to_transaction_request(&sk);
+        assert!(result.is_err(), "to_transaction_request should return Err when input is missing");
     }
 }

@@ -33,13 +33,36 @@ pub trait InputDecryptionElements: Clone {
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
 
     /// Returns the 'input' field of the transaction.
-    fn get_input(&self) -> Bytes;
+    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError>;
 
     /// Sets the 'input' field of the transaction to the provided data.
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
 
     /// Returns tx metadata for encryption with AEAD
     fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError>;
+
+    /// Validate block-related security features (expiration and recent block hash).
+    /// Non-Seismic transaction types are passed through without validation.
+    fn validate_block(
+        &self,
+        current_block: u64,
+        recent_blocks: &[B256],
+    ) -> Result<(), SeismicValidationError> {
+        if let Ok(elements) = self.get_decryption_elements() {
+            if current_block > elements.expires_at_block {
+                return Err(SeismicValidationError::TransactionExpired {
+                    current_block,
+                    expires_at_block: elements.expires_at_block,
+                });
+            }
+            if !recent_blocks.contains(&elements.recent_block_hash) {
+                return Err(SeismicValidationError::InvalidRecentBlockHash {
+                    provided_hash: elements.recent_block_hash,
+                });
+            }
+        }
+        Ok(())
+    }
 
     /// Creates a copy of the transaction with the input field set to the plaintext.
     /// Errors if the decryption fails, etc.
@@ -51,7 +74,7 @@ pub trait InputDecryptionElements: Clone {
         let mut tx = self.clone();
         if let Ok(seismic_elements) = tx.get_decryption_elements() {
             let tx_metadata = self.metadata(sender)?;
-            let ciphertext = tx.get_input();
+            let ciphertext = tx.get_input()?;
             let decrypted_data = seismic_elements
                 .decrypt(decryption_key, &ciphertext, &tx_metadata)
                 .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
@@ -107,7 +130,7 @@ where
         self.inner.get_decryption_elements()
     }
 
-    fn get_input(&self) -> alloy_primitives::Bytes {
+    fn get_input(&self) -> Result<alloy_primitives::Bytes, InputDecryptionElementsError> {
         self.inner.get_input()
     }
 
@@ -456,19 +479,18 @@ impl TxSeismic {
     /// Calculates a heuristic for the in-memory size of the [`TxSeismic`] transaction.
     /// In memory stores the decrypted transaction and the encrypted transaction.
     /// Out of memory stores the encrypted transaction. This is why size and fields_len are
-    /// diffenrent.
+    /// different.
     #[inline]
     pub fn size(&self) -> usize {
         mem::size_of::<ChainId>() + // chain_id
         mem::size_of::<u64>() + // nonce
         mem::size_of::<u128>() + // gas_price
         mem::size_of::<u64>() + // gas_limit
-        mem::size_of::<u128>() + // max_priority_fee_per_gas
         self.to.size() + // to
         mem::size_of::<U256>() + // value
         self.input.len() + // input
-        constants::PUBLIC_KEY_SIZE + // encryption public key
-        mem::size_of::<u64>() + // encryption nonce
+        constants::PUBLIC_KEY_SIZE + // encryption public key (33 bytes)
+        mem::size_of::<U96>() + // encryption nonce (12 bytes)
         mem::size_of::<u8>() + // message_version
         mem::size_of::<B256>() + // recent_block_hash
         mem::size_of::<u64>() + // expires_at_block
@@ -476,7 +498,12 @@ impl TxSeismic {
         self.authorization_list.capacity() * mem::size_of::<SignedAuthorization>() // authorization_list
     }
 
-    /// Encodes a [`TxSeismic`] into a [`TypedData`].
+    /// Encodes a [`TxSeismic`] into a [`TypedData`] for wallet signing via `signTypedData_v4`.
+    ///
+    /// Wallets (e.g. MetaMask) don't recognize the EIP-2718 `TxSeismic` type byte (`0x4a`),
+    /// so they can't sign the RLP-encoded transaction directly. As a workaround, we encode
+    /// the transaction as EIP-712 typed data and request a signature via `signTypedData_v4`.
+    /// Seismic nodes accept both signature types (RLP and EIP-712).
     pub fn eip712_to_type_data(&self) -> TypedData {
         let typed_data_json = serde_json::json!({
             "types": {
@@ -491,8 +518,11 @@ impl TxSeismic {
                   { "name": "nonce", "type": "uint64" },
                   { "name": "gasPrice", "type": "uint128" },
                   { "name": "gasLimit", "type": "uint64" },
-                  // if blank, we assume it's a create
+                  // EIP-712 doesn't support optional types, so we can't have Optional(address) to encode a CREATE tx as not having a `to` field.
+                  // Instead we force CREATE to serialize as (to=0x0, isCreate=true).
+                  // See eip712_decode for the consistency validation.
                   { "name": "to", "type": "address" },
+                  { "name": "isCreate", "type": "bool" },
                   { "name": "value", "type": "uint256" },
                   // compressed secp256k1 public key (33 bytes)
                   { "name": "input", "type": "bytes" },
@@ -521,6 +551,7 @@ impl TxSeismic {
                     TxKind::Create => Address::ZERO.to_string(),
                     TxKind::Call(to) => to.to_string(),
                 },
+                "isCreate": self.to.is_create(),
                 "value": self.value.to_string(),
                 "input": self.input.to_string(),
                 "encryptionPubkey": self.seismic_elements.encryption_pubkey.to_string(),
@@ -542,11 +573,32 @@ impl TxSeismic {
         // Extract the `message` field from TypedData (JSON format)
         let message = serde_json::to_value(&typed_data.message)
             .map_err(|_| Eip712Error::DecodeError("Failed to serialize message".to_string()))?;
+
+        // Extract the explicit isCreate flag
+        let is_create = message.get("isCreate").and_then(|v| v.as_bool()).ok_or_else(|| {
+            Eip712Error::DecodeError("Missing or invalid isCreate field".to_string())
+        })?;
+
         // Deserialize JSON `message` into `TxSeismic`
         let mut tx: TxSeismic = serde_json::from_value(message)
             .map_err(|_| Eip712Error::DecodeError("Failed to deserialize message".to_string()))?;
 
-        if tx.to == TxKind::Call(Address::ZERO) {
+        // The EIP-712 schema declares `to` as type `address`, so it must always be
+        // present and valid. TxKind::Create is encoded as (to=0x0, isCreate=true) —
+        // see eip712_to_type_data. Reject null/missing `to` (which serde defaults
+        // to TxKind::Create).
+        let TxKind::Call(to_addr) = tx.to else {
+            return Err(Eip712Error::DecodeError(
+                "to must be a valid address - create txs should use the isCreate field".to_string(),
+            ));
+        };
+
+        if is_create {
+            if to_addr != Address::ZERO {
+                return Err(Eip712Error::DecodeError(
+                    "isCreate is true but to is not the zero address".to_string(),
+                ));
+            }
             tx.to = TxKind::Create;
         }
 
@@ -627,26 +679,14 @@ impl TxSeismic {
         current_block <= self.seismic_elements.expires_at_block
     }
 
-    /// Validate block-related security features (expiration and recent block hash)
+    /// Validate block-related security features (expiration and recent block hash).
+    /// Delegates to [`InputDecryptionElements::validate_block`].
     pub fn validate_block(
         &self,
         current_block: u64,
         recent_blocks: &[B256],
     ) -> Result<(), SeismicValidationError> {
-        if !self.validate_expiration(current_block) {
-            return Err(SeismicValidationError::TransactionExpired {
-                current_block,
-                expires_at_block: self.seismic_elements.expires_at_block,
-            });
-        }
-
-        if !self.validate_recent_block_hash(recent_blocks) {
-            return Err(SeismicValidationError::InvalidRecentBlockHash {
-                provided_hash: self.seismic_elements.recent_block_hash,
-            });
-        }
-
-        Ok(())
+        InputDecryptionElements::validate_block(self, current_block, recent_blocks)
     }
 }
 
@@ -805,8 +845,8 @@ impl InputDecryptionElements for TxSeismic {
         Ok(self.seismic_elements)
     }
 
-    fn get_input(&self) -> Bytes {
-        self.input.clone()
+    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
+        Ok(self.input.clone())
     }
 
     fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
@@ -845,11 +885,11 @@ impl SignableTransaction<Signature> for TxSeismic {
 
     fn payload_len_for_signature(&self) -> usize {
         if self.is_eip712() {
-            let typed_data = self.eip712_to_type_data();
-            match typed_data.primary_type == "EIP712Domain" {
-                true => 34,
-                false => 66,
-            }
+            let data = self
+                .eip712_to_type_data()
+                .encode_data()
+                .expect("Failed to encode seismic transaction for signature length");
+            data.len()
         } else {
             self.length() + 1
         }
@@ -1201,6 +1241,114 @@ mod tests {
         let _signature_hash = decoded.eip712_signature_hash();
     }
 
+    // Verify that Call(Address::ZERO) survives EIP-712 encode/decode round-trip.
+    // We at some point had a bug where this would get serialized to a CREATE tx.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_eip712_call_zero_address_round_trip() {
+        let tx = TxSeismic {
+            chain_id: 1u64,
+            nonce: 42,
+            gas_price: 1_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::from(1u64),
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::default().encryption_pubkey,
+                encryption_nonce: U96::from(1),
+                message_version: 2,
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::default(),
+        };
+
+        let typed_data = tx.eip712_to_type_data();
+        let decoded = TxSeismic::eip712_decode(&typed_data).unwrap();
+
+        assert_eq!(tx.to, TxKind::Call(Address::ZERO));
+        assert_eq!(decoded.to, TxKind::Call(Address::ZERO));
+        assert_eq!(decoded, tx);
+    }
+
+    // Verify that isCreate=true with a non-zero `to` address is rejected.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_eip712_decode_rejects_is_create_with_nonzero_to() {
+        // Start with a valid Create tx, encode it, then tamper with the `to` field
+        let tx = TxSeismic {
+            chain_id: 1u64,
+            nonce: 1,
+            gas_price: 1_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Create,
+            value: U256::ZERO,
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::default().encryption_pubkey,
+                encryption_nonce: U96::from(1),
+                message_version: 2,
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::default(),
+        };
+
+        let mut typed_data = tx.eip712_to_type_data();
+
+        // Tamper: set `to` to a non-zero address while isCreate remains true
+        typed_data.message.as_object_mut().unwrap().insert(
+            "to".to_string(),
+            serde_json::Value::String("0x0000000000000000000000000000000000000001".to_string()),
+        );
+
+        let result = TxSeismic::eip712_decode(&typed_data);
+        assert!(result.is_err(), "should reject isCreate=true with non-zero to address");
+    }
+
+    // Verify that isCreate=false with a null `to` field is rejected.
+    // TxKind::Create is the serde default, so null/missing `to` silently
+    // deserializes as Create — the isCreate flag must catch this.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_eip712_decode_rejects_null_to_with_is_create_false() {
+        // Start with a valid Call tx, encode it, then tamper
+        let tx = TxSeismic {
+            chain_id: 1u64,
+            nonce: 1,
+            gas_price: 1_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Call(Address::with_last_byte(1)),
+            value: U256::ZERO,
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::default().encryption_pubkey,
+                encryption_nonce: U96::from(1),
+                message_version: 2,
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::default(),
+        };
+
+        let mut typed_data = tx.eip712_to_type_data();
+
+        // Tamper: set `to` to null while isCreate remains false
+        typed_data
+            .message
+            .as_object_mut()
+            .unwrap()
+            .insert("to".to_string(), serde_json::Value::Null);
+        let result = TxSeismic::eip712_decode(&typed_data);
+        assert!(result.is_err(), "should reject isCreate=false with null to");
+
+        // Tamper: remove `to` entirely while isCreate remains false
+        typed_data.message.as_object_mut().unwrap().remove("to");
+        let result = TxSeismic::eip712_decode(&typed_data);
+        assert!(result.is_err(), "should reject isCreate=false with missing to");
+    }
+
     #[test]
     fn test_eip712_hash() {
         let tx = TxSeismic {
@@ -1321,5 +1469,56 @@ mod tests {
             seismic_elements.encrypt(&secret_key, &plaintext, &tx_metadata).unwrap();
         let expected_ecd = Bytes::from_hex("0x12fbf3f819e7ae972bfedfc6a5a249983ae527e0").unwrap();
         assert_eq!(encrypted_calldata, expected_ecd);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_payload_len_matches_encoded_for_signing_eip712() {
+        let tx = TxSeismic {
+            chain_id: 4u64,
+            nonce: 2,
+            gas_price: 1000000000,
+            gas_limit: 100000,
+            to: TxKind::Create,
+            value: U256::from(1000000000000000u64),
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::get_rand_encryption_keypair().public_key(),
+                encryption_nonce: U96::from(1),
+                message_version: 2, // EIP-712 mode
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::from_str("0xdeadbeef").unwrap(),
+        };
+
+        let mut buf = vec![];
+        tx.encode_for_signing(&mut buf);
+        assert_eq!(tx.payload_len_for_signature(), buf.len());
+    }
+
+    #[test]
+    fn test_payload_len_matches_encoded_for_signing_legacy() {
+        let tx = TxSeismic {
+            chain_id: 4u64,
+            nonce: 2,
+            gas_price: 1000000000,
+            gas_limit: 100000,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::from(1u64),
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::get_rand_encryption_keypair().public_key(),
+                encryption_nonce: U96::from(1),
+                message_version: 0, // legacy mode
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            input: Bytes::default(),
+        };
+
+        let mut buf = vec![];
+        tx.encode_for_signing(&mut buf);
+        assert_eq!(tx.payload_len_for_signature(), buf.len());
     }
 }

@@ -29,19 +29,26 @@ pub enum SeismicFoundryTxEnvelope {
 }
 
 impl SeismicFoundryTxEnvelope {
-    /// Convert to AnyTxEnvelope
-    pub fn to_any_tx_envelope(&self) -> AnyTxEnvelope {
+    /// Convert to AnyTxEnvelope.
+    ///
+    /// Returns an error for Seismic transactions, which have no AnyTxEnvelope
+    /// representation.
+    pub fn to_any_tx_envelope(&self) -> Result<AnyTxEnvelope, ValueError<&Self>> {
         match self {
-            SeismicFoundryTxEnvelope::Ethereum(tx) => AnyTxEnvelope::Ethereum(tx.clone()),
-            SeismicFoundryTxEnvelope::Unknown(tx) => AnyTxEnvelope::Unknown(tx.clone()),
-            SeismicFoundryTxEnvelope::Seismic(_) => {
-                panic!("Can't convert Seismic transaction to AnyTxEnvelope")
-            }
+            SeismicFoundryTxEnvelope::Ethereum(tx) => Ok(AnyTxEnvelope::Ethereum(tx.clone())),
+            SeismicFoundryTxEnvelope::Unknown(tx) => Ok(AnyTxEnvelope::Unknown(tx.clone())),
+            SeismicFoundryTxEnvelope::Seismic(_) => Err(ValueError::new_static(
+                self,
+                "Can't convert Seismic transaction to AnyTxEnvelope",
+            )),
         }
     }
 
-    /// Set the input of the transaction
-    pub fn set_input(&mut self, input: Bytes) {
+    /// Set the input of the transaction.
+    ///
+    /// Returns an error for unknown transaction types whose inner format is
+    /// opaque.
+    pub fn set_input(&mut self, input: Bytes) -> Result<(), &'static str> {
         match self {
             SeismicFoundryTxEnvelope::Seismic(tx) => {
                 let tx = tx.tx_mut();
@@ -70,9 +77,10 @@ impl SeismicFoundryTxEnvelope {
                 }
             },
             SeismicFoundryTxEnvelope::Unknown(_) => {
-                unimplemented!("Can't set input for unknown transaction");
+                return Err("Can't set input for unknown transaction");
             }
         }
+        Ok(())
     }
 
     /// Returns true if this is the ethereum transaction variant
@@ -90,9 +98,17 @@ impl SeismicFoundryTxEnvelope {
     }
 }
 
-impl From<SeismicFoundryTxEnvelope> for AnyTxEnvelope {
-    fn from(value: SeismicFoundryTxEnvelope) -> Self {
-        value.to_any_tx_envelope()
+impl TryFrom<SeismicFoundryTxEnvelope> for AnyTxEnvelope {
+    type Error = ValueError<SeismicFoundryTxEnvelope>;
+
+    fn try_from(value: SeismicFoundryTxEnvelope) -> Result<Self, Self::Error> {
+        match value {
+            SeismicFoundryTxEnvelope::Ethereum(tx) => Ok(AnyTxEnvelope::Ethereum(tx)),
+            SeismicFoundryTxEnvelope::Unknown(tx) => Ok(AnyTxEnvelope::Unknown(tx)),
+            v @ SeismicFoundryTxEnvelope::Seismic(_) => {
+                Err(ValueError::new_static(v, "Can't convert Seismic transaction to AnyTxEnvelope"))
+            }
+        }
     }
 }
 
@@ -101,7 +117,8 @@ impl Typed2718 for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.ty()
         } else {
-            self.to_any_tx_envelope().ty()
+            // SAFETY: Seismic variant handled above; Ethereum/Unknown always succeed
+            self.to_any_tx_envelope().expect("non-Seismic variant").ty()
         }
     }
 }
@@ -111,14 +128,14 @@ impl Encodable2718 for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.encode_2718(out);
         } else {
-            self.to_any_tx_envelope().encode_2718(out);
+            self.to_any_tx_envelope().expect("non-Seismic variant").encode_2718(out);
         }
     }
     fn encode_2718_len(&self) -> usize {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.encode_2718_len()
         } else {
-            self.to_any_tx_envelope().encode_2718_len()
+            self.to_any_tx_envelope().expect("non-Seismic variant").encode_2718_len()
         }
     }
 
@@ -126,7 +143,7 @@ impl Encodable2718 for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.trie_hash()
         } else {
-            self.to_any_tx_envelope().trie_hash()
+            self.to_any_tx_envelope().expect("non-Seismic variant").trie_hash()
         }
     }
 }
@@ -155,7 +172,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().chain_id()
         } else {
-            self.to_any_tx_envelope().chain_id()
+            self.to_any_tx_envelope().expect("non-Seismic variant").chain_id()
         }
     }
 
@@ -163,7 +180,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().nonce()
         } else {
-            self.to_any_tx_envelope().nonce()
+            self.to_any_tx_envelope().expect("non-Seismic variant").nonce()
         }
     }
 
@@ -171,7 +188,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().gas_limit()
         } else {
-            self.to_any_tx_envelope().gas_limit()
+            self.to_any_tx_envelope().expect("non-Seismic variant").gas_limit()
         }
     }
 
@@ -180,7 +197,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().gas_price()
         } else {
-            self.to_any_tx_envelope().gas_price()
+            self.to_any_tx_envelope().expect("non-Seismic variant").gas_price()
         }
     }
 
@@ -188,7 +205,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().max_fee_per_gas()
         } else {
-            self.to_any_tx_envelope().max_fee_per_gas()
+            self.to_any_tx_envelope().expect("non-Seismic variant").max_fee_per_gas()
         }
     }
 
@@ -196,7 +213,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().max_priority_fee_per_gas()
         } else {
-            self.to_any_tx_envelope().max_priority_fee_per_gas()
+            self.to_any_tx_envelope().expect("non-Seismic variant").max_priority_fee_per_gas()
         }
     }
 
@@ -204,7 +221,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().max_fee_per_blob_gas()
         } else {
-            self.to_any_tx_envelope().max_fee_per_blob_gas()
+            self.to_any_tx_envelope().expect("non-Seismic variant").max_fee_per_blob_gas()
         }
     }
 
@@ -212,7 +229,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().priority_fee_or_price()
         } else {
-            self.to_any_tx_envelope().priority_fee_or_price()
+            self.to_any_tx_envelope().expect("non-Seismic variant").priority_fee_or_price()
         }
     }
 
@@ -220,7 +237,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().effective_gas_price(base_fee)
         } else {
-            self.to_any_tx_envelope().effective_gas_price(base_fee)
+            self.to_any_tx_envelope().expect("non-Seismic variant").effective_gas_price(base_fee)
         }
     }
 
@@ -228,7 +245,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().effective_tip_per_gas(base_fee)
         } else {
-            self.to_any_tx_envelope().effective_tip_per_gas(base_fee)
+            self.to_any_tx_envelope().expect("non-Seismic variant").effective_tip_per_gas(base_fee)
         }
     }
 
@@ -236,7 +253,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().is_dynamic_fee()
         } else {
-            self.to_any_tx_envelope().is_dynamic_fee()
+            self.to_any_tx_envelope().expect("non-Seismic variant").is_dynamic_fee()
         }
     }
 
@@ -244,7 +261,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().kind()
         } else {
-            self.to_any_tx_envelope().kind()
+            self.to_any_tx_envelope().expect("non-Seismic variant").kind()
         }
     }
 
@@ -252,7 +269,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().is_create()
         } else {
-            self.to_any_tx_envelope().is_create()
+            self.to_any_tx_envelope().expect("non-Seismic variant").is_create()
         }
     }
 
@@ -260,7 +277,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().to()
         } else {
-            self.to_any_tx_envelope().to()
+            self.to_any_tx_envelope().expect("non-Seismic variant").to()
         }
     }
 
@@ -268,7 +285,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().value()
         } else {
-            self.to_any_tx_envelope().value()
+            self.to_any_tx_envelope().expect("non-Seismic variant").value()
         }
     }
 
@@ -308,7 +325,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().blob_count()
         } else {
-            self.to_any_tx_envelope().blob_count()
+            self.to_any_tx_envelope().expect("non-Seismic variant").blob_count()
         }
     }
 
@@ -317,7 +334,7 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().blob_gas_used()
         } else {
-            self.to_any_tx_envelope().blob_gas_used()
+            self.to_any_tx_envelope().expect("non-Seismic variant").blob_gas_used()
         }
     }
 
@@ -333,12 +350,12 @@ impl TransactionTrait for SeismicFoundryTxEnvelope {
         if let SeismicFoundryTxEnvelope::Seismic(tx) = self {
             tx.tx().authorization_count()
         } else {
-            self.to_any_tx_envelope().authorization_count()
+            self.to_any_tx_envelope().expect("non-Seismic variant").authorization_count()
         }
     }
 }
 
-impl<Eip4844> From<SeismicFoundryTxEnvelope> for SeismicTxEnvelope<Eip4844>
+impl<Eip4844> TryFrom<SeismicFoundryTxEnvelope> for SeismicTxEnvelope<Eip4844>
 where
     Eip4844: RlpEcdsaEncodableTx
         + RlpEcdsaDecodableTx
@@ -348,19 +365,24 @@ where
         + SignableTransaction<Signature>,
     TxEip4844Variant: Into<Eip4844>,
 {
-    fn from(foundry_tx: SeismicFoundryTxEnvelope) -> Self {
+    type Error = ValueError<SeismicFoundryTxEnvelope>;
+
+    fn try_from(foundry_tx: SeismicFoundryTxEnvelope) -> Result<Self, Self::Error> {
         match foundry_tx {
-            SeismicFoundryTxEnvelope::Seismic(tx) => SeismicTxEnvelope::Seismic(tx),
+            SeismicFoundryTxEnvelope::Seismic(tx) => Ok(SeismicTxEnvelope::Seismic(tx)),
             SeismicFoundryTxEnvelope::Ethereum(tx_envelope) => match tx_envelope {
-                EthereumTxEnvelope::Eip1559(tx) => SeismicTxEnvelope::Eip1559(tx),
-                EthereumTxEnvelope::Eip2930(tx) => SeismicTxEnvelope::Eip2930(tx),
+                EthereumTxEnvelope::Eip1559(tx) => Ok(SeismicTxEnvelope::Eip1559(tx)),
+                EthereumTxEnvelope::Eip2930(tx) => Ok(SeismicTxEnvelope::Eip2930(tx)),
                 EthereumTxEnvelope::Eip4844(tx) => {
-                    SeismicTxEnvelope::Eip4844(tx.map(|inner_tx| inner_tx.into()))
+                    Ok(SeismicTxEnvelope::Eip4844(tx.map(|inner_tx| inner_tx.into())))
                 }
-                EthereumTxEnvelope::Eip7702(tx) => SeismicTxEnvelope::Eip7702(tx),
-                EthereumTxEnvelope::Legacy(tx) => SeismicTxEnvelope::Legacy(tx),
+                EthereumTxEnvelope::Eip7702(tx) => Ok(SeismicTxEnvelope::Eip7702(tx)),
+                EthereumTxEnvelope::Legacy(tx) => Ok(SeismicTxEnvelope::Legacy(tx)),
             },
-            SeismicFoundryTxEnvelope::Unknown(_) => unimplemented!(),
+            v @ SeismicFoundryTxEnvelope::Unknown(_) => Err(ValueError::new_static(
+                v,
+                "Can't convert unknown transaction to SeismicTxEnvelope",
+            )),
         }
     }
 }
@@ -380,11 +402,11 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
         }
     }
 
-    fn get_input(&self) -> Bytes {
+    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
         match self {
             SeismicFoundryTxEnvelope::Seismic(tx) => tx.tx().get_input(),
-            SeismicFoundryTxEnvelope::Ethereum(tx) => tx.input().clone(),
-            SeismicFoundryTxEnvelope::Unknown(tx) => tx.input().clone(),
+            SeismicFoundryTxEnvelope::Ethereum(tx) => Ok(tx.input().clone()),
+            SeismicFoundryTxEnvelope::Unknown(tx) => Ok(tx.input().clone()),
         }
     }
 

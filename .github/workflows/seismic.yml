@@ -43,24 +43,31 @@ jobs:
         with:
           shared-key: "warnings-cache"
       - name: cargo check warnings
-        run: RUSTFLAGS="-D warnings" cargo check
+        run: RUSTFLAGS="-D warnings" cargo check --all-targets
   test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      CARGO_HOME: /home/azureuser/.cargo
-      RUSTUP_HOME: /home/azureuser/.rustup
-      HOME: /home/azureuser
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Setup sanvil PATH
-        run: |
-          echo "$HOME/.seismic/bin" >> $GITHUB_PATH
-          echo "sanvil path configured"
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "test-cache"
-      - name: cargo test
+      # Install sfoundry for sanvil. The provider tests are integration tests that start `sanvil` so we need to add it to the PATH.
+      # TODO(samlaf): We probably would want to separate unit tests from integration tests to be able to run unit tests without dependencies.
+      # Would be nice also to run the provider integration tests against the latest stable and latest nightly version (sfoundryup -i nightly) of sanvil.
+      - name: Install sfoundry (sanvil)
         run: |
-          cargo test --workspace
+          curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash
+          SEISMIC_BIN="${XDG_CONFIG_HOME:-$HOME}/.seismic/bin"
+          $SEISMIC_BIN/sfoundryup
+          echo "$SEISMIC_BIN" >> $GITHUB_PATH
+      - name: cargo test
+        run: cargo test --workspace
+      - name: run examples
+        run: |
+          cargo run -p seismic-examples --example basic_contract
+          # cargo run -p seismic-examples --example eip-712 # TODO: Fix circular anvil example dependency
+          cargo run -p seismic-examples --example security_params
+          cargo run -p seismic-examples --example event_subscription
+          cargo run -p seismic-examples --example precompiles

@@ -1,4 +1,49 @@
-//! Alloy genesis types
+//! Seismic genesis types — extends upstream [`alloy_genesis`] with [`FlaggedStorage`] support.
+//!
+//! A genesis file in a Seismic blockchain is a JSON-formatted file used to define the initial
+//! state of the blockchain at the time of its creation. Unlike standard Ethereum, Seismic
+//! allows for private state at genesis.
+//!
+//! # Relationship to `alloy-genesis`
+//!
+//! This crate is an **additive companion** to upstream `alloy-genesis`, not a cargo-patch
+//! replacement. Both crates coexist as separate dependencies (downstream crates like
+//! seismic-reth depend on both `alloy-genesis` and `seismic-alloy-genesis`).
+//! This follows the same pattern as the other seismic-alloy crates (`seismic-alloy-consensus`,
+//! `seismic-alloy-network`, etc.), which all add Seismic-specific types alongside their
+//! upstream counterparts.
+//!
+//! The key difference is that storage values use [`FlaggedStorage`] (which carries an
+//! `is_private` flag) instead of plain `B256`:
+//!
+//! | | `alloy-genesis` (upstream) | `seismic-alloy-genesis` (this crate) |
+//! |---|---|---|
+//! | `GenesisAccount.storage` | `Option<BTreeMap<B256, B256>>` | `Option<BTreeMap<B256, FlaggedStorage>>` |
+//! | `into_trie_account()` | passes `U256` to `storage_root_unhashed` | passes `FlaggedStorage` directly |
+//! | deserialization | hex strings only | hex strings (→ public) **and** `{value, is_private}` objects |
+//!
+//! This crate reuses types that don't need modification ([`ChainConfig`], [`CliqueConfig`])
+//! directly from `alloy-genesis`, and provides [`From`] conversions to go from upstream
+//! types to Seismic types (defaulting storage to public):
+//! - `From<alloy_genesis::Genesis> for Genesis`
+//! - `From<alloy_genesis::GenesisAccount> for GenesisAccount`
+//!
+//! # Usage across the Seismic codebase
+//!
+//! - **seismic-reth** depends on both crates. Privacy-aware code uses
+//!   `seismic_alloy_genesis::{Genesis, GenesisAccount}`. Upstream reth code that still references
+//!   `alloy_genesis::Genesis` converts via `.into()`.
+//! - **seismic-foundry** uses upstream `alloy_genesis` directly (anvil/forge don't need
+//!   privacy-aware genesis handling).
+//!
+//! # Why `alloy-genesis` still compiles (and why it matters)
+//!
+//! Because this crate depends on `alloy-genesis`, and our workspace patches `alloy-trie`
+//! to `seismic-trie`, the upstream `alloy_genesis::GenesisAccount::into_trie_account()`
+//! ends up calling `seismic-trie::storage_root_unhashed<T: Into<FlaggedStorage>>` with
+//! `U256` values. This requires `From<U256> for FlaggedStorage` to exist even though the
+//! Seismic codebase never calls that upstream code path. See the `From<U256>` impl on
+//! `FlaggedStorage` for details.
 
 #![doc = include_str!(".././README.md")]
 #![doc(
