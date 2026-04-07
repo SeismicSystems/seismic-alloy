@@ -943,6 +943,14 @@ impl Decodable for TxSeismic {
 }
 
 /// Bincode-compatible [`TxSeismic`] serde implementation.
+///
+/// Bincode is a positional, non-self-describing format that can't handle serde attributes
+/// like `#[serde(flatten)]` (used on `seismic_elements`) or `#[serde(skip_serializing_if)]`.
+/// This module provides a flat struct with all fields explicitly listed so bincode can
+/// (de)serialize it correctly.
+///
+/// Used by reth for ExEx IPC, headers sync, etc. (not for DB storage, which uses Compact encoding).
+/// See alloy-rs/alloy#1349 and alloy-rs/alloy#1397.
 #[cfg(all(feature = "serde", feature = "serde-bincode-compat"))]
 pub(super) mod serde_bincode_compat {
     use std::borrow::Cow;
@@ -976,11 +984,17 @@ pub(super) mod serde_bincode_compat {
         nonce: u64,
         gas_price: u128,
         gas_limit: u64,
+        // Carried over from upstream TxLegacy. No-op for bincode (TxKind always serializes
+        // as Option<Address>, never skipped), but kept for consistency with upstream pattern.
+        // See https://github.com/alloy-rs/alloy/blob/876b889ddddfabdfa81bfcd381c9c26c60584016/crates/consensus/src/transaction/legacy.rs#L646
         #[serde(default)]
         to: TxKind,
         value: U256,
         seismic_elements: TxSeismicElements,
         input: Cow<'a, Bytes>,
+        // Defensive: defaults to empty vec if an older node (without this field) sends bincode
+        // during a rolling upgrade. Not strictly needed if all nodes upgrade atomically.
+        // Upstream TxEip7702 doesn't do this since authorization_list existed from day one.
         #[serde(default)]
         authorization_list: Cow<'a, Vec<SignedAuthorization>>,
     }
