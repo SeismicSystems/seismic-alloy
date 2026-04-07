@@ -182,6 +182,7 @@ impl SeismicTransactionRequest {
             seismic_elements: self
                 .seismic_elements
                 .ok_or("Missing 'seismic_elements' for seismic transaction.")?,
+            authorization_list: self.inner.authorization_list.unwrap_or_default(),
         })
     }
 
@@ -400,8 +401,17 @@ impl From<TxEip4844> for SeismicTransactionRequest {
 impl From<TxSeismic> for SeismicTransactionRequest {
     fn from(tx: TxSeismic) -> Self {
         let ty = tx.ty();
-        let TxSeismic { chain_id, nonce, gas_price, gas_limit, to, value, input, seismic_elements } =
-            tx;
+        let TxSeismic {
+            chain_id,
+            nonce,
+            gas_price,
+            gas_limit,
+            to,
+            value,
+            input,
+            seismic_elements,
+            authorization_list,
+        } = tx;
 
         let inner = TransactionRequest {
             to: Some(to.into()),
@@ -412,6 +422,11 @@ impl From<TxSeismic> for SeismicTransactionRequest {
             nonce: Some(nonce),
             chain_id: Some(chain_id),
             transaction_type: Some(ty),
+            authorization_list: if authorization_list.is_empty() {
+                None
+            } else {
+                Some(authorization_list)
+            },
             ..Default::default()
         };
 
