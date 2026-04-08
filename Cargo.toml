@@ -178,5 +178,5 @@ alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", tag = "v
 alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 
 # revm
-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "863c1fe6c66502e75217c5dcd20f8238a0282b51" }
-seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "863c1fe6c66502e75217c5dcd20f8238a0282b51" }
+revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "dc05eece19f14516ab9f996611fa7c63e1d1a8ae" }
+seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "dc05eece19f14516ab9f996611fa7c63e1d1a8ae" }
