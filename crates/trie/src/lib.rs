@@ -10,7 +10,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use alloy_primitives::{B256, FlaggedStorage, keccak256};
+use alloy_primitives::{keccak256, FlaggedStorage, B256};
 use alloy_trie::{HashBuilder, Nibbles};
 
 /// Hashes storage keys, sorts them, and calculates the root hash of the storage trie.
@@ -43,16 +43,11 @@ pub fn storage_root_unsorted<T: Into<FlaggedStorage>>(
 /// # Panics
 ///
 /// If the items are not in sorted order.
-pub fn storage_root<T: Into<FlaggedStorage>>(
-    storage: impl IntoIterator<Item = (B256, T)>,
-) -> B256 {
+pub fn storage_root<T: Into<FlaggedStorage>>(storage: impl IntoIterator<Item = (B256, T)>) -> B256 {
     let mut hb = HashBuilder::default();
     for (hashed_slot, value) in storage {
         let value: FlaggedStorage = value.into();
-        hb.add_leaf(
-            Nibbles::unpack(hashed_slot),
-            alloy_rlp::encode_fixed_size(&value).as_ref(),
-        );
+        hb.add_leaf(Nibbles::unpack(hashed_slot), alloy_rlp::encode_fixed_size(&value).as_ref());
     }
     hb.root()
 }
