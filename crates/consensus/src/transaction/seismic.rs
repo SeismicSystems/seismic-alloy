@@ -26,29 +26,31 @@ use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
 
-/// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
-pub trait InputDecryptionElements: Clone {
-    /// Returns the elements necessary to decrypt the 'input' field of the transaction.
-    /// May return `None` if the Seismic tx type does not support decryption.
-    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError>;
+/// An extension of the [`Transaction`] trait for transactions that may be Seismic
+/// and support input decryption.
+pub trait InputDecryptionElements: Transaction + Clone {
+    /// Returns the seismic elements if this is a Seismic transaction, `None` otherwise.
+    fn seismic_elements(&self) -> Option<TxSeismicElements>;
 
-    /// Returns the 'input' field of the transaction.
-    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError>;
+    /// Returns tx metadata for encryption with AEAD.
+    /// Returns `None` for non-Seismic transaction types.
+    fn metadata(&self, sender: Address) -> Option<TxSeismicMetadata>;
 
     /// Sets the 'input' field of the transaction to the provided data.
-    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError>;
-
-    /// Returns tx metadata for encryption with AEAD
-    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError>;
+    /// Only exists so `decrypt_input` can work as a default method.
+    fn set_input(&mut self, data: Bytes);
 
     /// Validate block-related security features (expiration and recent block hash).
     /// Non-Seismic transaction types are passed through without validation.
+    //
+    // TODO(samlaf): This doesn't need to be on the trait — it only uses `seismic_elements()` and
+    // could be a free function taking `Option<TxSeismicElements>` instead.
     fn validate_block(
         &self,
         current_block: u64,
         recent_blocks: &[B256],
     ) -> Result<(), SeismicValidationError> {
-        if let Ok(elements) = self.get_decryption_elements() {
+        if let Some(elements) = self.seismic_elements() {
             if current_block > elements.expires_at_block {
                 return Err(SeismicValidationError::TransactionExpired {
                     current_block,
@@ -65,41 +67,31 @@ pub trait InputDecryptionElements: Clone {
     }
 
     /// Creates a copy of the transaction with the input field set to the plaintext.
-    /// Errors if the decryption fails, etc.
-    fn plaintext_copy(
+    /// Returns the original transaction unchanged if it's not a Seismic transaction.
+    fn decrypt_input(
         &self,
         decryption_key: &SecretKey,
         sender: Address,
-    ) -> Result<Self, InputDecryptionElementsError> {
+    ) -> Result<Self, DecryptionError> {
         let mut tx = self.clone();
-        if let Ok(seismic_elements) = tx.get_decryption_elements() {
-            let tx_metadata = self.metadata(sender)?;
-            let ciphertext = tx.get_input()?;
+        if let Some(seismic_elements) = tx.seismic_elements() {
+            let tx_metadata = self
+                .metadata(sender)
+                .expect("seismic_elements() returned Some but metadata() returned None");
+            let ciphertext = Transaction::input(&tx).clone();
             let decrypted_data = seismic_elements
                 .decrypt(decryption_key, &ciphertext, &tx_metadata)
-                .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
-            tx.set_input(Bytes::from(decrypted_data))?;
+                .map_err(|e| DecryptionError(e.to_string()))?;
+            tx.set_input(Bytes::from(decrypted_data));
         }
         Ok(tx)
     }
 }
 
-/// Error type for [`InputDecryptionElements`] trait
+/// Error returned by [`InputDecryptionElements::decrypt_input`] when decryption fails.
 #[derive(Debug, Clone, Error)]
-pub enum InputDecryptionElementsError {
-    /// The transaction type does not support decryption.
-    #[error("Unsupported transaction type: {0}")]
-    UnsupportedTxType(String),
-    /// The decryption failed
-    #[error("Decryption failed: {0}")]
-    DecryptionError(String),
-    /// No elements were found
-    #[error("Expected Elements but no elements found")]
-    NoElements,
-    /// A required field is missing
-    #[error("Missing required field: {0}")]
-    MissingField(&'static str),
-}
+#[error("Decryption failed: {0}")]
+pub struct DecryptionError(pub String);
 
 /// Error type for seismic transaction validation
 #[derive(Debug, Clone, Error)]
@@ -126,22 +118,15 @@ impl<T> InputDecryptionElements for WithOtherFields<T>
 where
     T: InputDecryptionElements,
 {
-    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
-        self.inner.get_decryption_elements()
+    fn seismic_elements(&self) -> Option<TxSeismicElements> {
+        self.inner.seismic_elements()
     }
 
-    fn get_input(&self) -> Result<alloy_primitives::Bytes, InputDecryptionElementsError> {
-        self.inner.get_input()
-    }
-
-    fn set_input(
-        &mut self,
-        data: alloy_primitives::Bytes,
-    ) -> Result<(), InputDecryptionElementsError> {
+    fn set_input(&mut self, data: alloy_primitives::Bytes) {
         self.inner.set_input(data)
     }
 
-    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+    fn metadata(&self, sender: Address) -> Option<TxSeismicMetadata> {
         self.inner.metadata(sender)
     }
 }
@@ -844,21 +829,16 @@ impl Transaction for TxSeismic {
 }
 
 impl InputDecryptionElements for TxSeismic {
-    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
-        Ok(self.seismic_elements)
+    fn seismic_elements(&self) -> Option<TxSeismicElements> {
+        Some(self.seismic_elements)
     }
 
-    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
-        Ok(self.input.clone())
-    }
-
-    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
+    fn set_input(&mut self, data: Bytes) {
         self.input = data;
-        Ok(())
     }
 
-    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
-        Ok(self.tx_metadata(sender))
+    fn metadata(&self, sender: Address) -> Option<TxSeismicMetadata> {
+        Some(self.tx_metadata(sender))
     }
 }
 

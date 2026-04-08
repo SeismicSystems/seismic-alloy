@@ -3,7 +3,7 @@ use alloy_serde::WithOtherFields;
 use seismic_alloy_network::wallet::SeismicWallet;
 
 pub use seismic_alloy_consensus::{
-    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
+    Decodable712, DecryptionError, Eip712Result, InputDecryptionElements,
     SeismicReceiptEnvelope as AnyReceiptEnvelope, SeismicTxEnvelope as TxEnvelope, TxLegacyFields,
     TxSeismic, TxSeismicElements, TxSeismicMetadata, TypedDataRequest, SEISMIC_TX_TYPE_ID,
 };
