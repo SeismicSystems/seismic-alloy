@@ -11,7 +11,6 @@ use alloy_provider::{
     PendingTransactionBuilder, Provider, ProviderLayer, RootProvider, SendableTx,
 };
 use alloy_transport::TransportResult;
-use seismic_alloy_consensus::InputDecryptionElements;
 
 use crate::SeismicProviderError;
 use seismic_alloy_network::seismic_network::SeismicNetwork;
@@ -135,8 +134,7 @@ where
     N: SeismicNetwork,
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
-        + From<SeismicTransactionRequest>
-        + InputDecryptionElements,
+        + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
     F: TxFiller<N>,
     P: Provider<N>,
@@ -164,7 +162,8 @@ where
                         let sender = filled_builder
                             .from()
                             .ok_or_else(|| SeismicProviderError::MissingSender.into_transport())?;
-                        filled_builder.metadata(sender).map_err(|e| {
+                        let seismic_req: &SeismicTransactionRequest = filled_builder.as_ref();
+                        seismic_req.metadata(sender).map_err(|e| {
                             SeismicProviderError::MetadataCreation(format!("{e:?}"))
                                 .into_transport()
                         })?

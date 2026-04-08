@@ -6,14 +6,33 @@ use alloy_consensus::{
 };
 use alloy_eips::{eip7702::SignedAuthorization, Typed2718};
 use alloy_network_primitives::{TransactionBuilder4844, TransactionBuilder7702};
-use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
+use alloy_primitives::{Address, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
-    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
-    SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
-    TxSeismicMetadata, TypedDataRequest, SEISMIC_TX_TYPE_ID,
+    Decodable712, Eip712Result, SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction,
+    TxSeismic, TxSeismicElements, TxSeismicMetadata, TypedDataRequest, SEISMIC_TX_TYPE_ID,
 };
+/// Error type for [`SeismicTransactionRequest`] operations that require builder
+/// fields to be populated (e.g. metadata, decryption).
+#[derive(Debug, Clone)]
+pub enum SeismicRequestError {
+    /// A required builder field is missing.
+    MissingField(&'static str),
+    /// Decryption failed.
+    DecryptionError(String),
+}
+
+impl core::fmt::Display for SeismicRequestError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::MissingField(field) => write!(f, "Missing required field: {field}"),
+            Self::DecryptionError(msg) => write!(f, "Decryption failed: {msg}"),
+        }
+    }
+}
+
+impl core::error::Error for SeismicRequestError {}
 
 /// Builder for [`SeismicTypedTransaction`].
 #[derive(
@@ -220,62 +239,67 @@ impl SeismicTransactionRequest {
         Self::from_transaction(tx).from(from)
     }
 
+    /// Decrypts the input field using the seismic elements.
+    /// Returns `None` if there are no seismic elements (not a seismic tx).
+    /// Returns `Some(Err(...))` if decryption fails.
     fn decrypt_to_tx_request(
         &self,
         secret_key: &seismic_enclave::secp256k1::SecretKey,
-    ) -> Result<TransactionRequest, InputDecryptionElementsError> {
-        if self.seismic_elements.is_some() {
-            let sender = match self.from {
-                Some(addr) => addr,
-                None => {
-                    return Err(InputDecryptionElementsError::MissingField("sender"));
-                }
-            };
-            let tx_metadata = self.metadata(sender)?;
-            return match self.inner.input.input() {
-                Some(ciphertext) => {
-                    let plaintext = tx_metadata.decrypt(secret_key, ciphertext).map_err(|e| {
-                        InputDecryptionElementsError::DecryptionError(e.to_string())
-                    })?;
-                    Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()))
-                }
-                None => Err(InputDecryptionElementsError::MissingField("input")),
-            };
+    ) -> Option<Result<TransactionRequest, SeismicRequestError>> {
+        if self.seismic_elements.is_none() {
+            return None;
         }
-        return Err(InputDecryptionElementsError::NoElements);
+        let sender = match self.from {
+            Some(addr) => addr,
+            None => {
+                return Some(Err(SeismicRequestError::MissingField("sender")));
+            }
+        };
+        let tx_metadata = match self.metadata(sender) {
+            Ok(m) => m,
+            Err(e) => return Some(Err(e)),
+        };
+        Some(match self.inner.input.input() {
+            Some(ciphertext) => {
+                let plaintext = tx_metadata
+                    .decrypt(secret_key, ciphertext)
+                    .map_err(|e| SeismicRequestError::DecryptionError(e.to_string()));
+                match plaintext {
+                    Ok(p) => Ok(self.inner.clone().input(alloy_primitives::Bytes::from(p).into())),
+                    Err(e) => Err(e),
+                }
+            }
+            None => Err(SeismicRequestError::MissingField("input")),
+        })
     }
 
     /// Decrypts the seismic elements and returns a [`TransactionRequest`].
     pub fn to_transaction_request(
         &self,
         secret_key: &seismic_enclave::secp256k1::SecretKey,
-    ) -> Result<TransactionRequest, InputDecryptionElementsError> {
+    ) -> Result<TransactionRequest, SeismicRequestError> {
         match self.transaction_type {
             Some(SEISMIC_TX_TYPE_ID) => {
-                // if there are no elements, throw an error
-                let tx_req = self.decrypt_to_tx_request(secret_key);
-                if tx_req.is_err() {
-                    println!("tx type but no elements: {tx_req:?}");
+                // Seismic tx type set — elements are required
+                match self.decrypt_to_tx_request(secret_key) {
+                    Some(result) => {
+                        if result.is_err() {
+                            println!("tx type but decryption failed: {result:?}");
+                        }
+                        result
+                    }
+                    None => Err(SeismicRequestError::MissingField("seismic_elements")),
                 }
-                tx_req
             }
             None => {
+                // No tx type — try to decrypt if elements exist, otherwise pass through
                 match self.decrypt_to_tx_request(secret_key) {
-                    // if there's no type, return the decrypted request
-                    // if the decryption actually works
-                    Ok(tx_req) => Ok(tx_req),
-                    Err(InputDecryptionElementsError::NoElements) => {
-                        // if there are no elements and no type,
-                        // then return the original request,
-                        // bc then we hit the default type
-                        Ok(self.inner.clone())
-                    }
-                    // if there's no type but there are elements,
-                    // and the decryption fails, return an error
-                    Err(e) => {
-                        println!("No elements & no tx type");
+                    Some(Ok(tx_req)) => Ok(tx_req),
+                    Some(Err(e)) => {
+                        println!("No tx type but has elements & decryption failed");
                         Err(e)
                     }
+                    None => Ok(self.inner.clone()),
                 }
             }
             _ => Ok(self.inner.clone()),
@@ -570,51 +594,51 @@ impl Decodable712 for SeismicTransactionRequest {
     }
 }
 
-impl InputDecryptionElements for SeismicTransactionRequest {
-    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
-        self.seismic_elements.ok_or(InputDecryptionElementsError::NoElements)
-    }
-
-    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
-        match self.inner.input.clone().into_input() {
-            Some(input) => Ok(input),
-            None => Err(InputDecryptionElementsError::MissingField("input")),
-        }
-    }
-
-    fn set_input(
-        &mut self,
-        data: Bytes,
-    ) -> Result<(), seismic_alloy_consensus::InputDecryptionElementsError> {
-        let new_self = core::mem::take(self).input(data.into());
-        *self = new_self;
-        Ok(())
-    }
-
-    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
-        Ok(TxSeismicMetadata {
-            sender,
-            legacy_fields: seismic_alloy_consensus::TxLegacyFields {
-                chain_id: self
-                    .chain_id
-                    .ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
-                nonce: self.nonce.ok_or(InputDecryptionElementsError::MissingField("nonce"))?,
-                to: self.to.ok_or(InputDecryptionElementsError::MissingField("to"))?,
-                value: self.value.unwrap_or_default(),
-            },
-            seismic_elements: self
-                .seismic_elements
-                .ok_or(InputDecryptionElementsError::NoElements)?,
-        })
-    }
-}
-
 // ============================================================================
 // NEW: Seismic transaction builder helpers and validation
 // Added for filler-based seismic transaction handling
 // ============================================================================
 
 impl SeismicTransactionRequest {
+    /// Returns tx metadata for encryption with AEAD.
+    /// Fails if required builder fields (chain_id, nonce, to, seismic_elements) are not set.
+    pub fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, SeismicRequestError> {
+        Ok(TxSeismicMetadata {
+            sender,
+            legacy_fields: seismic_alloy_consensus::TxLegacyFields {
+                chain_id: self.chain_id.ok_or(SeismicRequestError::MissingField("chain_id"))?,
+                nonce: self.nonce.ok_or(SeismicRequestError::MissingField("nonce"))?,
+                to: self.to.ok_or(SeismicRequestError::MissingField("to"))?,
+                value: self.value.unwrap_or_default(),
+            },
+            seismic_elements: self
+                .seismic_elements
+                .ok_or(SeismicRequestError::MissingField("seismic_elements"))?,
+        })
+    }
+
+    /// Creates a copy of the transaction with the input field decrypted to plaintext.
+    pub fn decrypt_input(
+        &self,
+        decryption_key: &seismic_enclave::secp256k1::SecretKey,
+        sender: Address,
+    ) -> Result<Self, SeismicRequestError> {
+        let mut tx = self.clone();
+        if tx.seismic_elements.is_some() {
+            let tx_metadata = self.metadata(sender)?;
+            let ciphertext = match self.inner.input.clone().into_input() {
+                Some(input) => input,
+                None => return Err(SeismicRequestError::MissingField("input")),
+            };
+            let decrypted_data = tx_metadata
+                .decrypt(decryption_key, &ciphertext)
+                .map_err(|e| SeismicRequestError::DecryptionError(e.to_string()))?;
+            tx = core::mem::take(&mut tx)
+                .input(alloy_primitives::Bytes::from(decrypted_data).into());
+        }
+        Ok(tx)
+    }
+
     /// Mark this transaction as a seismic transaction.
     /// Fillers will generate seismic elements and encrypt the input.
     pub fn seismic(mut self) -> Self {
@@ -701,23 +725,24 @@ impl AsMut<SeismicTransactionRequest> for WithOtherFields<SeismicTransactionRequ
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::Bytes;
 
     #[test]
     fn test_set_input_for_request() {
-        let mut req = SeismicTransactionRequest::from_transaction(TxEip1559::default());
-        let start_input = req.get_input().unwrap();
+        let req = SeismicTransactionRequest::from_transaction(TxEip1559::default());
+        let start_input = req.inner.input.input().cloned().unwrap_or_default();
         let data = Bytes::from("test");
         assert_ne!(data, start_input);
 
-        req.set_input(data.clone()).unwrap();
-        let end_input = req.get_input().unwrap();
+        let req = req.input(data.clone().into());
+        let end_input = req.inner.input.input().cloned().unwrap_or_default();
         assert_eq!(data, end_input);
     }
 
-    /// Regression test: get_input() must return an error instead of panicking
+    /// Regression test: input() must return None instead of panicking
     /// when called on a SeismicTransactionRequest with no input data.
     #[test]
-    fn get_input_returns_error_when_input_missing() {
+    fn input_returns_none_when_input_missing() {
         let req = SeismicTransactionRequest::default()
             .from(Address::ZERO)
             .nonce(0)
@@ -725,8 +750,7 @@ mod tests {
             .seismic_elements(TxSeismicElements::default())
             .seismic();
 
-        let result = req.get_input();
-        assert!(result.is_err(), "get_input should return Err when input is missing");
+        assert!(req.inner.input.input().is_none(), "input should be None when not set");
     }
 
     /// Regression test: to_transaction_request() must return an error instead of

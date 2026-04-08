@@ -14,7 +14,7 @@ use alloy_provider::{
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_eth::BlockNumberOrTag;
 use alloy_transport::{TransportErrorKind, TransportResult};
-use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
+use seismic_alloy_consensus::TxSeismicElements;
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 use seismic_enclave::secp256k1::{PublicKey, Secp256k1};
 use std::str::FromStr;
@@ -57,20 +57,19 @@ impl SeismicGasFiller {
     fn is_seismic_tx<N>(&self, tx: &N::TransactionRequest) -> bool
     where
         N: SeismicNetwork,
-        N::TransactionRequest: InputDecryptionElements,
+        N::TransactionRequest: AsRef<SeismicTransactionRequest>,
         <N as Network>::UnsignedTx: Send + Sync,
     {
         // Only treat as seismic if elements are actually set
         // This ensures estimate_gas is called on regular tx during prepare() phase
-        tx.get_decryption_elements().is_ok()
+        tx.as_ref().seismic_elements.is_some()
     }
 }
 
 impl<N: SeismicNetwork> TxFiller<N> for SeismicGasFiller
 where
-    <N as Network>::TransactionRequest: AsRef<SeismicTransactionRequest>
-        + AsMut<SeismicTransactionRequest>
-        + InputDecryptionElements,
+    <N as Network>::TransactionRequest:
+        AsRef<SeismicTransactionRequest> + AsMut<SeismicTransactionRequest>,
     <N as Network>::UnsignedTx: Send + Sync,
 {
     // (Option<GasFillable>, Option<(u128, RpcClient)>)
@@ -250,9 +249,7 @@ impl SeismicElementsFiller {
 
 impl<N: SeismicNetwork> TxFiller<N> for SeismicElementsFiller
 where
-    N::TransactionRequest: AsRef<SeismicTransactionRequest>
-        + AsMut<SeismicTransactionRequest>
-        + InputDecryptionElements,
+    N::TransactionRequest: AsRef<SeismicTransactionRequest> + AsMut<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
 {
     // Fillable contains: Some((tee_pubkey, provider_secret_key, elements, plaintext)) for fill()
@@ -426,7 +423,8 @@ where
                 )
             })?;
 
-            let metadata = builder.metadata(sender).map_err(|e| {
+            let seismic_req: &SeismicTransactionRequest = builder.as_ref();
+            let metadata = seismic_req.metadata(sender).map_err(|e| {
                 TransportErrorKind::custom_str(&format!("Error creating metadata: {:?}", e))
             })?;
 
@@ -437,8 +435,7 @@ where
                 )?;
 
             // Set encrypted input
-            N::set_request_input(builder, encrypted)
-                .map_err(|_| TransportErrorKind::custom_str("Error setting encrypted input"))?;
+            N::set_request_input(builder, encrypted);
         }
         Ok(tx)
     }

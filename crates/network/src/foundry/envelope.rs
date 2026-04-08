@@ -13,7 +13,7 @@ use alloy_network::{
 use alloy_primitives::{Address, Bytes, ChainId, Selector, Signature, TxKind, B256, U256};
 use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{
-    InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, TxSeismic,
+    InputDecryptionElements, SeismicTxEnvelope, TxSeismic,
 };
 
 /// Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
@@ -388,58 +388,40 @@ where
 }
 
 impl InputDecryptionElements for SeismicFoundryTxEnvelope {
-    fn get_decryption_elements(
-        &self,
-    ) -> Result<seismic_alloy_consensus::TxSeismicElements, InputDecryptionElementsError> {
+    fn seismic_elements(&self) -> Option<seismic_alloy_consensus::TxSeismicElements> {
         match self {
-            SeismicFoundryTxEnvelope::Seismic(tx) => tx.tx().get_decryption_elements(),
-            SeismicFoundryTxEnvelope::Ethereum(_) => {
-                Err(InputDecryptionElementsError::UnsupportedTxType("Ethereum".to_string()))
-            }
-            SeismicFoundryTxEnvelope::Unknown(_) => {
-                Err(InputDecryptionElementsError::UnsupportedTxType("Unknown".to_string()))
-            }
+            SeismicFoundryTxEnvelope::Seismic(tx) => tx.tx().seismic_elements(),
+            _ => None,
         }
     }
 
-    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
-        match self {
-            SeismicFoundryTxEnvelope::Seismic(tx) => tx.tx().get_input(),
-            SeismicFoundryTxEnvelope::Ethereum(tx) => Ok(tx.input().clone()),
-            SeismicFoundryTxEnvelope::Unknown(tx) => Ok(tx.input().clone()),
-        }
-    }
-
-    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
+    fn set_input(&mut self, data: Bytes) {
         match self {
             SeismicFoundryTxEnvelope::Seismic(tx) => tx.tx_mut().set_input(data),
-            SeismicFoundryTxEnvelope::Ethereum(tx) => {
-                match tx {
-                    EthereumTxEnvelope::Eip1559(tx) => {
-                        tx.tx_mut().input = data;
-                    }
-                    EthereumTxEnvelope::Eip2930(tx) => {
-                        tx.tx_mut().input = data;
-                    }
-                    EthereumTxEnvelope::Eip4844(tx) => match tx.tx_mut() {
-                        TxEip4844Variant::TxEip4844(tx) => {
-                            tx.input = data;
-                        }
-                        TxEip4844Variant::TxEip4844WithSidecar(tx) => {
-                            tx.tx.input = data;
-                        }
-                    },
-                    EthereumTxEnvelope::Eip7702(tx) => {
-                        tx.tx_mut().input = data;
-                    }
-                    EthereumTxEnvelope::Legacy(tx) => {
-                        tx.tx_mut().input = data;
-                    }
+            SeismicFoundryTxEnvelope::Ethereum(tx) => match tx {
+                EthereumTxEnvelope::Eip1559(tx) => {
+                    tx.tx_mut().input = data;
                 }
-                Ok(())
-            }
+                EthereumTxEnvelope::Eip2930(tx) => {
+                    tx.tx_mut().input = data;
+                }
+                EthereumTxEnvelope::Eip4844(tx) => match tx.tx_mut() {
+                    TxEip4844Variant::TxEip4844(tx) => {
+                        tx.input = data;
+                    }
+                    TxEip4844Variant::TxEip4844WithSidecar(tx) => {
+                        tx.tx.input = data;
+                    }
+                },
+                EthereumTxEnvelope::Eip7702(tx) => {
+                    tx.tx_mut().input = data;
+                }
+                EthereumTxEnvelope::Legacy(tx) => {
+                    tx.tx_mut().input = data;
+                }
+            },
             SeismicFoundryTxEnvelope::Unknown(_) => {
-                Err(InputDecryptionElementsError::UnsupportedTxType("Unknown".to_string()))
+                unreachable!("set_input called on Unknown tx variant")
             }
         }
     }
@@ -447,15 +429,10 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
     fn metadata(
         &self,
         sender: Address,
-    ) -> Result<seismic_alloy_consensus::TxSeismicMetadata, InputDecryptionElementsError> {
+    ) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
         match self {
-            SeismicFoundryTxEnvelope::Seismic(tx) => Ok(tx.tx().tx_metadata(sender)),
-            SeismicFoundryTxEnvelope::Ethereum(_) => {
-                Err(InputDecryptionElementsError::UnsupportedTxType("Ethereum".to_string()))
-            }
-            SeismicFoundryTxEnvelope::Unknown(_) => {
-                Err(InputDecryptionElementsError::UnsupportedTxType("Unknown".to_string()))
-            }
+            SeismicFoundryTxEnvelope::Seismic(tx) => Some(tx.tx().tx_metadata(sender)),
+            _ => None,
         }
     }
 }

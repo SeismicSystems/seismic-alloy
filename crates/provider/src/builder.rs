@@ -36,7 +36,6 @@ use alloy_provider::{
 };
 use alloy_rpc_client::RpcClient;
 use alloy_transport::TransportResult;
-use seismic_alloy_consensus::InputDecryptionElements;
 use seismic_alloy_network::{
     fillers::{SeismicElementsFiller, SeismicGasFiller},
     foundry::SeismicFoundry,
@@ -122,8 +121,7 @@ impl SeismicProviderBuilder {
     where
         N::TransactionRequest: AsRef<SeismicTransactionRequest>
             + AsMut<SeismicTransactionRequest>
-            + From<SeismicTransactionRequest>
-            + InputDecryptionElements,
+            + From<SeismicTransactionRequest>,
         N::UnsignedTx: Send + Sync,
         RootProvider<N>: SeismicProviderExt<N>,
     {
@@ -178,8 +176,7 @@ impl<N: SeismicNetwork> SeismicProviderBuilderWithNetwork<N>
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
-        + From<SeismicTransactionRequest>
-        + InputDecryptionElements,
+        + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -226,8 +223,7 @@ impl<N: SeismicNetwork> SeismicProviderBuilderWithWallet<N>
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
-        + From<SeismicTransactionRequest>
-        + InputDecryptionElements,
+        + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -322,8 +318,7 @@ fn build_unsigned_http<N: SeismicNetwork>(url: reqwest::Url) -> SeismicUnsignedP
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
-        + From<SeismicTransactionRequest>
-        + InputDecryptionElements,
+        + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {
@@ -341,8 +336,7 @@ async fn build_unsigned_ws<N: SeismicNetwork>(
 where
     N::TransactionRequest: AsRef<SeismicTransactionRequest>
         + AsMut<SeismicTransactionRequest>
-        + From<SeismicTransactionRequest>
-        + InputDecryptionElements,
+        + From<SeismicTransactionRequest>,
     N::UnsignedTx: Send + Sync,
     RootProvider<N>: SeismicProviderExt<N>,
 {

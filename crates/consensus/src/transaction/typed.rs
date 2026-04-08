@@ -1,6 +1,6 @@
 //! Typed transaction types and utilities
 use crate::{
-    InputDecryptionElements, InputDecryptionElementsError, SeismicTxEnvelope, SeismicTxType,
+    InputDecryptionElements, SeismicTxEnvelope, SeismicTxType,
     TxSeismic, TxSeismicElements, TxSeismicMetadata,
 };
 use alloy_consensus::{
@@ -419,70 +419,28 @@ impl Transaction for SeismicTypedTransaction {
 }
 
 impl InputDecryptionElements for SeismicTypedTransaction {
-    fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
+    fn seismic_elements(&self) -> Option<TxSeismicElements> {
         match self {
-            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Legacy".to_string(),
-            )),
-            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip1559".to_string(),
-            )),
-            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip2930".to_string(),
-            )),
-            Self::Eip4844(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip4844".to_string(),
-            )),
-            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip7702".to_string(),
-            )),
-            Self::Seismic(tx) => tx.get_decryption_elements(),
+            Self::Seismic(tx) => tx.seismic_elements(),
+            _ => None,
         }
     }
 
-    fn get_input(&self) -> Result<Bytes, InputDecryptionElementsError> {
-        Ok(self.input().clone())
-    }
-
-    fn set_input(&mut self, data: Bytes) -> Result<(), InputDecryptionElementsError> {
+    fn set_input(&mut self, data: Bytes) {
         match self {
-            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Legacy".to_string(),
-            )),
-            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip1559".to_string(),
-            )),
-            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip2930".to_string(),
-            )),
-            Self::Eip4844(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip4844".to_string(),
-            )),
-            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip7702".to_string(),
-            )),
+            Self::Legacy(tx) => tx.input = data,
+            Self::Eip2930(tx) => tx.input = data,
+            Self::Eip1559(tx) => tx.input = data,
+            Self::Eip4844(tx) => tx.input = data,
+            Self::Eip7702(tx) => tx.input = data,
             Self::Seismic(tx) => tx.set_input(data),
         }
     }
 
-    fn metadata(&self, sender: Address) -> Result<TxSeismicMetadata, InputDecryptionElementsError> {
+    fn metadata(&self, sender: Address) -> Option<TxSeismicMetadata> {
         match self {
-            Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Legacy".to_string(),
-            )),
-            Self::Eip1559(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip1559".to_string(),
-            )),
-            Self::Eip2930(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip2930".to_string(),
-            )),
-            Self::Eip4844(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip4844".to_string(),
-            )),
-            Self::Eip7702(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
-                "SeismicTypedTransaction::Eip7702".to_string(),
-            )),
-            Self::Seismic(tx) => Ok(tx.tx_metadata(sender)),
+            Self::Seismic(tx) => Some(tx.tx_metadata(sender)),
+            _ => None,
         }
     }
 }
