@@ -69,7 +69,7 @@ jobs:
         run: |
           curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash
           SEISMIC_BIN="${XDG_CONFIG_HOME:-$HOME}/.seismic/bin"
-          $SEISMIC_BIN/sfoundryup
+          $SEISMIC_BIN/sfoundryup -C 8fc1bf6c774966ccc9bef3ddd2ff9ac63f8084e8
           echo "$SEISMIC_BIN" >> $GITHUB_PATH
       # TODO(samlaf): run provider integration tests against nightly sanvil (sfoundryup -i nightly) as well
       - name: cargo test (provider integration against sanvil)

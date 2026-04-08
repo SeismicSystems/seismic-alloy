@@ -66,8 +66,10 @@ impl Network for SeismicFoundry {
 
 // TODO: unclear if this is correct
 impl RecommendedFillers for SeismicFoundry {
-    type RecommendedFillers =
-        JoinFill<SeismicGasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>;
+    type RecommendedFillers = JoinFill<
+        SeismicGasFiller<SeismicFoundry>,
+        JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>,
+    >;
 
     fn recommended_fillers() -> Self::RecommendedFillers {
         Default::default()
