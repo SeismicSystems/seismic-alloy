@@ -44,7 +44,7 @@ jobs:
           shared-key: "warnings-cache"
       - name: cargo check warnings
         run: RUSTFLAGS="-D warnings" cargo check --all-targets
-  test:
+  unit-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -52,18 +52,28 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "test-cache"
-      # Install sfoundry for sanvil. The provider tests are integration tests that start `sanvil` so we need to add it to the PATH.
-      # TODO(samlaf): We probably would want to separate unit tests from integration tests to be able to run unit tests without dependencies.
-      # Would be nice also to run the provider integration tests against the latest stable and latest nightly version (sfoundryup -i nightly) of sanvil.
+          shared-key: "unit-test-cache"
+      - name: cargo test (unit)
+        run: cargo test --workspace --exclude seismic-alloy-provider
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "integration-test-cache"
+      # Install latest stable sfoundry for sanvil. The provider tests are integration tests that start `sanvil` so we need to add it to the PATH.
       - name: Install sfoundry (sanvil)
         run: |
           curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash
           SEISMIC_BIN="${XDG_CONFIG_HOME:-$HOME}/.seismic/bin"
           $SEISMIC_BIN/sfoundryup
           echo "$SEISMIC_BIN" >> $GITHUB_PATH
-      - name: cargo test
-        run: cargo test --workspace
+      # TODO(samlaf): run provider integration tests against nightly sanvil (sfoundryup -i nightly) as well
+      - name: cargo test (provider integration against sanvil)
+        run: cargo test -p seismic-alloy-provider
       - name: run examples
         run: |
           cargo run -p seismic-examples --example basic_contract
