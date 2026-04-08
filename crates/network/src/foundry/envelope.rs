@@ -12,9 +12,7 @@ use alloy_network::{
 };
 use alloy_primitives::{Address, Bytes, ChainId, Selector, Signature, TxKind, B256, U256};
 use alloy_rpc_types_eth::AccessList;
-use seismic_alloy_consensus::{
-    InputDecryptionElements, SeismicTxEnvelope, TxSeismic,
-};
+use seismic_alloy_consensus::{InputDecryptionElements, SeismicTxEnvelope, TxSeismic};
 
 /// Seismic Foundry transaction envelope, meant to mimic AnyTxEnvelope
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -426,10 +424,7 @@ impl InputDecryptionElements for SeismicFoundryTxEnvelope {
         }
     }
 
-    fn metadata(
-        &self,
-        sender: Address,
-    ) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
+    fn metadata(&self, sender: Address) -> Option<seismic_alloy_consensus::TxSeismicMetadata> {
         match self {
             SeismicFoundryTxEnvelope::Seismic(tx) => Some(tx.tx().tx_metadata(sender)),
             _ => None,

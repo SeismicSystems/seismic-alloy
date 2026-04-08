@@ -1,7 +1,7 @@
 //! Typed transaction types and utilities
 use crate::{
-    InputDecryptionElements, SeismicTxEnvelope, SeismicTxType,
-    TxSeismic, TxSeismicElements, TxSeismicMetadata,
+    InputDecryptionElements, SeismicTxEnvelope, SeismicTxType, TxSeismic, TxSeismicElements,
+    TxSeismicMetadata,
 };
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},

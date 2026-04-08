@@ -2,7 +2,7 @@
 // TODO: will this be helpful inside reth?
 
 pub use seismic_alloy_consensus::{
-    Decodable712, DecryptionError, Eip712Result, InputDecryptionElements,
-    SeismicReceiptEnvelope, SeismicTxEnvelope, TxLegacyFields, TxSeismic, TxSeismicElements,
-    TxSeismicMetadata, TypedDataRequest, SEISMIC_TX_TYPE_ID,
+    Decodable712, DecryptionError, Eip712Result, InputDecryptionElements, SeismicReceiptEnvelope,
+    SeismicTxEnvelope, TxLegacyFields, TxSeismic, TxSeismicElements, TxSeismicMetadata,
+    TypedDataRequest, SEISMIC_TX_TYPE_ID,
 };
