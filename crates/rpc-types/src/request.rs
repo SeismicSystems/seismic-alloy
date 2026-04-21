@@ -11,7 +11,22 @@ use crate::SeismicTransactionRequest;
 pub enum SeismicRawTxRequest {
     /// A raw seismic tx
     Bytes(Bytes),
-    /// An EIP-712 typed data request with a signature
+    /// An EIP-712 typed data request with a signature.
+    ///
+    /// TODO(deprecate TypedData RPC variant): this variant is a convenience for wallets
+    /// that can sign EIP-712 typed data but don't natively produce RLP-encoded `0x4A`
+    /// transactions. It carries no information that isn't equally expressible as an
+    /// RLP-encoded `TxSeismic` with `message_version = 2` and the EIP-712 signature,
+    /// which clients can submit via the [`Self::Bytes`] variant instead. The server
+    /// currently handles this variant by re-encoding to RLP internally (see
+    /// `send_raw_transaction` in seismic-reth's `ext.rs`) so all signed-tx ingress
+    /// funnels through the single `Decodable2718::typed_decode` pipeline.
+    ///
+    /// Clients should migrate to submitting RLP bytes via `Bytes`. This variant is
+    /// planned for removal in a future hard fork, ideally alongside the wire-format
+    /// split that replaces `message_version` with a distinct EIP-2718 type byte
+    /// (`0x4C`) — see the companion TODOs in seismic-alloy's `envelope.rs` (for
+    /// `0x4B` signed-reads) and seismic-reth's `ext.rs` (for `0x4C` EIP-712 writes).
     TypedData(TypedDataRequest),
 }
 
