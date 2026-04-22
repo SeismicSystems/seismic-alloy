@@ -698,46 +698,15 @@ where
             SeismicTxType::Eip7702 => Ok(Self::Eip7702(TxEip7702::rlp_decode_signed(buf)?)),
             SeismicTxType::Seismic => {
                 let tx = TxSeismic::rlp_decode_signed(buf)?;
-                // TODO(signed-read wire-format split): reserve a distinct EIP-2718 type
-                // byte (e.g. `0x4B`) for signed-read calls, and remove the `signed_read`
-                // field from `TxSeismicElements` entirely, which would delete this
-                // whole runtime check.
-                //
-                // Today, writes and signed-reads share type byte `0x4A` and are
-                // distinguished only by the in-body `signed_read` flag. Two problems:
-                //
-                // 1. **Signature-ingress metadata leaks into chain storage.** `signed_read` is a
-                //    discriminator for how a payload should be treated at RPC/mempool ingress. It
-                //    has no semantic effect on execution or state, yet every Seismic tx ever
-                //    included in a block carries the byte — effectively always `false` for chain
-                //    txs. Chain data should be transaction data, not signature-protocol metadata.
-                //
-                // 2. **The invariant is runtime-enforced and has already failed open once.** Replay
-                //    protection (a signed-read payload must not re-execute as a write) lives in
-                //    *this* check. Any ingress path that doesn't funnel through
-                //    `Decodable2718::typed_decode` skips it. The `SeismicRawTxRequest::TypedData`
-                //    RPC path was one such path historically (hence the server-side re-encode now
-                //    in `send_raw_transaction`).
-                //
-                // With a distinct type byte both problems vanish structurally:
-                //
-                // * `signed_read` disappears from `TxSeismicElements`, and chain storage / sighash
-                //   preimages stop carrying it.
-                // * The strict `SeismicTxEnvelope` enum cannot represent a signed-read tx: decoding
-                //   `0x4B` on any block/mempool/p2p path fails with `Eip2718Error::UnexpectedType`.
-                //   Replay protection becomes a type-system property rather than a
-                //   discipline-to-run-the-check property.
-                // * The type byte is part of the sighash preimage, so a signature over a `0x4B`
-                //   payload cannot be reinterpreted as a signature over a `0x4A` write tx —
-                //   cryptographic domain separation for free, without relying solely on the EIP-712
-                //   domain.
-                //
-                // The eth_call RPC path would decode `0x4B` via a separate envelope
-                // type (or permissive decoder) scoped to that path only.
-                //
-                // Cost: hard fork of the wire format; coordinated updates across
-                // seismic-reth, sanvil (seismic-foundry), seismic-alloy providers,
-                // explorers, and indexers.
+                // TODO(samlaf): transform this replaying-signed-read-as-write invariant
+                // into a cryptographic property of the signature scheme rather than a runtime
+                // check. Right now if anyone adds a new ingress path (like we had
+                // for eip-712 signatures) that doesn't go through this 2718 decode
+                // has a potential to have a replayability bug. We should probably
+                // remove the `signed_read` byte from the tx rlp and instead
+                // make signed-reads simply sign a different hash preimage than writes,
+                // making signature replay between the two intents impossible: `ecrecover` on the
+                // write preimage returns a garbage address unrelated to the original signer.
                 if reject_signed_reads &&
                     tx.tx().seismic_elements.signed_read &&
                     !tx.tx().to.is_create()
