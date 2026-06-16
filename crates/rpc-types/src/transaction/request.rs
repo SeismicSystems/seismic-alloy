@@ -35,8 +35,14 @@ pub struct SeismicTransactionRequest {
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub inner: TransactionRequest,
 
-    /// Seismic-specific elements to be included in the transaction
-    /// For now just encrypted call data
+    /// Seismic-specific elements (encryption metadata + freshness/replay fields).
+    ///
+    /// `Option` because this is a [`TransactionBuilder`] bag shared with non-Seismic requests:
+    /// `None` for a plain transaction, `Some` for a Seismic tx. Note the `Option` tracks the
+    /// *request* kind, not whether a `TxSeismic` had elements — `TxSeismic::seismic_elements` is
+    /// mandatory, so any request built from a decoded Seismic tx (`From<TxSeismic>`, `decode_712`)
+    /// always carries `Some`. Consumers that require elements (e.g. signed reads) must still check
+    /// explicitly: nothing at the type level couples the request kind to this field being set.
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub seismic_elements: Option<TxSeismicElements>,
 }
