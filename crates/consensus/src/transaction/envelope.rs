@@ -682,10 +682,10 @@ where
     /// permissive [`Self::decode_2718_permit_seismic_calls`] entry point.
     ///
     /// When `reject_signed_reads` is `true` (block / mempool / p2p / `eth_sendRawTransaction`
-    /// paths), any seismic transaction carrying `signed_read = true` with a non-create
-    /// `to` is rejected at decode time. Signed reads are intended for the RPC `eth_call`
-    /// path only; allowing them through would let an attacker who intercepted a signed
-    /// `eth_call` payload replay it as an actual state-changing transaction.
+    /// paths), any seismic transaction carrying `signed_read = true` is rejected at decode
+    /// time, regardless of `to`. Signed reads are intended for the RPC `eth_call` path only;
+    /// allowing them through would let an attacker who intercepted a signed `eth_call` payload
+    /// replay it as an actual state-changing transaction.
     fn typed_decode_inner(
         ty: u8,
         buf: &mut &[u8],
@@ -707,10 +707,7 @@ where
                 // make signed-reads simply sign a different hash preimage than writes,
                 // making signature replay between the two intents impossible: `ecrecover` on the
                 // write preimage returns a garbage address unrelated to the original signer.
-                if reject_signed_reads &&
-                    tx.tx().seismic_elements.signed_read &&
-                    !tx.tx().to.is_create()
-                {
+                if reject_signed_reads && tx.tx().seismic_elements.signed_read {
                     return Err(alloy_rlp::Error::Custom(
                         "signed-read seismic transactions cannot appear in blocks or the mempool",
                     )
@@ -1057,15 +1054,16 @@ mod tests {
             .expect("permissive decode must accept non-signed-read seismic tx");
     }
 
-    /// A contract-creation tx (`to = Create`) with `signed_read = true` is not
-    /// rejected, mirroring the original mempool rule (`!to.is_create() && signed_read`).
-    /// This test pins that behavior so we notice if the rule changes.
+    /// Signed reads are rejected regardless of `to`: a contract-creation tx (`to = Create`)
+    /// with `signed_read = true` is rejected by the strict decoder just like a signed-read call.
     #[test]
-    fn strict_decode_accepts_signed_read_create() {
+    fn strict_decode_rejects_signed_read_create() {
         let encoded = signed_seismic_envelope(true, TxKind::Create);
 
         let mut slice = encoded.as_slice();
-        <SeismicTxEnvelope>::decode_2718(&mut slice)
-            .expect("strict decode accepts signed-read + create");
+        assert!(
+            <SeismicTxEnvelope>::decode_2718(&mut slice).is_err(),
+            "strict decode must reject signed-read + create"
+        );
     }
 }
