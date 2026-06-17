@@ -11,7 +11,16 @@ use crate::SeismicTransactionRequest;
 pub enum SeismicRawTxRequest {
     /// A raw seismic tx
     Bytes(Bytes),
-    /// An EIP-712 typed data request with a signature
+    /// An EIP-712 typed data request with a signature; this variant is a convenience for wallets
+    /// that can sign EIP-712 typed data but don't natively produce RLP-encoded `0x4A`
+    /// transactions.
+    ///
+    /// TODO(samlaf): this type/path carries no information that isn't equally expressible as an
+    /// RLP-encoded `TxSeismic` with the EIP-712 signature attached, which clients can
+    /// submit via the [`Self::Bytes`] variant instead. Reth currently handles this variant
+    /// by re-encoding to RLP internally anyways. Clients should migrate to submitting RLP bytes
+    /// via `Bytes`; once done, this variant can be removed entirely and the server's re-encode
+    /// logic collapses.
     TypedData(TypedDataRequest),
 }
 

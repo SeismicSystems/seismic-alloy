@@ -14,7 +14,7 @@ use alloy_eips::{
     eip7702::SignedAuthorization,
 };
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
-use alloy_rlp::{Decodable, Encodable};
+use alloy_rlp::{Buf, Decodable, Encodable};
 use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "serde")]
@@ -669,6 +669,78 @@ impl Decodable for SeismicTxEnvelope {
     }
 }
 
+impl<Eip4844> SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
+    /// Shared typed-decode body for both the strict [`Decodable2718`] impl and the
+    /// permissive [`Self::decode_2718_permit_seismic_calls`] entry point.
+    ///
+    /// When `reject_signed_reads` is `true` (block / mempool / p2p / `eth_sendRawTransaction`
+    /// paths), any seismic transaction carrying `signed_read = true` is rejected at decode
+    /// time, regardless of `to`. Signed reads are intended for the RPC `eth_call` path only;
+    /// allowing them through would let an attacker who intercepted a signed `eth_call` payload
+    /// replay it as an actual state-changing transaction.
+    fn typed_decode_inner(
+        ty: u8,
+        buf: &mut &[u8],
+        reject_signed_reads: bool,
+    ) -> Eip2718Result<Self> {
+        match ty.try_into().map_err(|_| Eip2718Error::UnexpectedType(ty))? {
+            SeismicTxType::Eip2930 => Ok(Self::Eip2930(TxEip2930::rlp_decode_signed(buf)?)),
+            SeismicTxType::Eip1559 => Ok(Self::Eip1559(TxEip1559::rlp_decode_signed(buf)?)),
+            SeismicTxType::Eip4844 => Ok(Self::Eip4844(Eip4844::rlp_decode_signed(buf)?)),
+            SeismicTxType::Eip7702 => Ok(Self::Eip7702(TxEip7702::rlp_decode_signed(buf)?)),
+            SeismicTxType::Seismic => {
+                let tx = TxSeismic::rlp_decode_signed(buf)?;
+                // TODO(samlaf): transform this replaying-signed-read-as-write invariant
+                // into a cryptographic property of the signature scheme rather than a runtime
+                // check. Right now if anyone adds a new ingress path (like we had
+                // for eip-712 signatures) that doesn't go through this 2718 decode
+                // has a potential to have a replayability bug. We should probably
+                // remove the `signed_read` byte from the tx rlp and instead
+                // make signed-reads simply sign a different hash preimage than writes,
+                // making signature replay between the two intents impossible: `ecrecover` on the
+                // write preimage returns a garbage address unrelated to the original signer.
+                if reject_signed_reads && tx.tx().seismic_elements.signed_read {
+                    return Err(alloy_rlp::Error::Custom(
+                        "signed-read seismic transactions cannot appear in blocks or the mempool",
+                    )
+                    .into());
+                }
+                Ok(Self::Seismic(tx))
+            }
+            SeismicTxType::Legacy => {
+                Err(alloy_rlp::Error::Custom("type-0 eip2718 transactions are not supported")
+                    .into())
+            }
+        }
+    }
+
+    /// Decode an EIP-2718 transaction, permissively accepting seismic transactions
+    /// with `signed_read = true`.
+    ///
+    /// Intended for the RPC `eth_call` raw-bytes path, which legitimately receives
+    /// signed seismic read requests. **Do not** use this for block, mempool, p2p, or
+    /// `eth_sendRawTransaction` decoding — those paths must go through the strict
+    /// [`Decodable2718::decode_2718`] to ensure signed-read payloads cannot be
+    /// replayed as state-changing transactions.
+    pub fn decode_2718_permit_seismic_calls(buf: &mut &[u8]) -> Eip2718Result<Self> {
+        match Self::extract_type_byte(buf) {
+            Some(ty) => {
+                buf.advance(1);
+                Self::typed_decode_inner(ty, buf, false)
+            }
+            None => Self::fallback_decode(buf),
+        }
+    }
+}
+
 impl<Eip4844> Decodable2718 for SeismicTxEnvelope<Eip4844>
 where
     Eip4844: RlpEcdsaEncodableTx
@@ -679,17 +751,7 @@ where
         + SignableTransaction<Signature>,
 {
     fn typed_decode(ty: u8, buf: &mut &[u8]) -> Eip2718Result<Self> {
-        match ty.try_into().map_err(|_| Eip2718Error::UnexpectedType(ty))? {
-            SeismicTxType::Eip2930 => Ok(Self::Eip2930(TxEip2930::rlp_decode_signed(buf)?)),
-            SeismicTxType::Eip1559 => Ok(Self::Eip1559(TxEip1559::rlp_decode_signed(buf)?)),
-            SeismicTxType::Eip4844 => Ok(Self::Eip4844(Eip4844::rlp_decode_signed(buf)?)),
-            SeismicTxType::Eip7702 => Ok(Self::Eip7702(TxEip7702::rlp_decode_signed(buf)?)),
-            SeismicTxType::Seismic => Ok(Self::Seismic(TxSeismic::rlp_decode_signed(buf)?)),
-            SeismicTxType::Legacy => {
-                Err(alloy_rlp::Error::Custom("type-0 eip2718 transactions are not supported")
-                    .into())
-            }
-        }
+        Self::typed_decode_inner(ty, buf, true)
     }
 
     fn fallback_decode(buf: &mut &[u8]) -> Eip2718Result<Self> {
@@ -929,5 +991,79 @@ mod tests {
         let mut slice = encoded.as_slice();
         let decoded = SeismicTxEnvelope::<TxEip1559>::decode_2718(&mut slice).unwrap();
         assert!(matches!(decoded, SeismicTxEnvelope::Eip1559(_)));
+    }
+
+    /// Build a signed seismic tx envelope for decode testing.
+    fn signed_seismic_envelope(signed_read: bool, to: TxKind) -> Vec<u8> {
+        let tx = TxSeismic {
+            chain_id: 1,
+            nonce: 0,
+            gas_price: 1,
+            gas_limit: 21_000,
+            to,
+            value: U256::ZERO,
+            seismic_elements: TxSeismicElements { signed_read, ..Default::default() },
+            input: Default::default(),
+            authorization_list: vec![],
+        };
+        let sig = Signature::test_signature();
+        let envelope: SeismicTxEnvelope = SeismicTxEnvelope::Seismic(tx.into_signed(sig));
+        envelope.encoded_2718()
+    }
+
+    /// Strict [`Decodable2718::decode_2718`] must reject a signed-read seismic tx
+    /// that has a non-create `to` — this is the block/mempool/p2p guard.
+    #[test]
+    fn strict_decode_rejects_signed_read_write() {
+        let encoded = signed_seismic_envelope(true, Address::left_padding_from(&[1]).into());
+
+        let mut slice = encoded.as_slice();
+        let result = <SeismicTxEnvelope>::decode_2718(&mut slice);
+
+        assert!(
+            result.is_err(),
+            "strict decode must reject signed-read seismic tx with non-create `to`"
+        );
+    }
+
+    /// Permissive decoder accepts the same bytes — this is the eth_call path.
+    #[test]
+    fn permissive_decode_accepts_signed_read_write() {
+        let encoded = signed_seismic_envelope(true, Address::left_padding_from(&[1]).into());
+
+        let mut slice = encoded.as_slice();
+        let decoded = <SeismicTxEnvelope>::decode_2718_permit_seismic_calls(&mut slice)
+            .expect("permissive decode must accept signed-read seismic tx");
+
+        assert!(
+            matches!(decoded, SeismicTxEnvelope::Seismic(ref s) if s.tx().seismic_elements.signed_read)
+        );
+    }
+
+    /// Non-signed-read seismic txs are valid on both paths.
+    #[test]
+    fn both_decoders_accept_non_signed_read() {
+        let encoded = signed_seismic_envelope(false, Address::left_padding_from(&[1]).into());
+
+        let mut slice = encoded.as_slice();
+        <SeismicTxEnvelope>::decode_2718(&mut slice)
+            .expect("strict decode must accept non-signed-read seismic tx");
+
+        let mut slice = encoded.as_slice();
+        <SeismicTxEnvelope>::decode_2718_permit_seismic_calls(&mut slice)
+            .expect("permissive decode must accept non-signed-read seismic tx");
+    }
+
+    /// Signed reads are rejected regardless of `to`: a contract-creation tx (`to = Create`)
+    /// with `signed_read = true` is rejected by the strict decoder just like a signed-read call.
+    #[test]
+    fn strict_decode_rejects_signed_read_create() {
+        let encoded = signed_seismic_envelope(true, TxKind::Create);
+
+        let mut slice = encoded.as_slice();
+        assert!(
+            <SeismicTxEnvelope>::decode_2718(&mut slice).is_err(),
+            "strict decode must reject signed-read + create"
+        );
     }
 }
