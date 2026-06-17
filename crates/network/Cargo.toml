@@ -25,6 +25,7 @@ alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-network-primitives.workspace = true
 alloy-primitives.workspace = true
+alloy-rlp.workspace = true
 alloy-provider.workspace = true
 alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
