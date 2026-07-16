@@ -615,15 +615,22 @@ impl TxSeismic {
         Ok(tx)
     }
 
-    /// Keccak-256 of the RLP-encoded authorization list.
+    /// Keccak-256 of the RLP-encoded authorization list. This is the value the EIP-712 schema
+    /// carries in its `authorizationListHash` field (see `eip712_to_type_data`).
     ///
-    /// The EIP-712 `TxSeismic` schema doesn't include `authorization_list`, so on its own the
-    /// signing hash wouldn't commit to it. An attacker could append or replace authorization
-    /// tuples on a signed transaction (the signature would still recover to the original signer)
-    /// and grief the fee-payer with extra EIP-7702 gas. Committing to this hash via the
-    /// `authorizationListHash` schema field closes that gap: tampering with the wire auth list
+    /// Note these are two different things. The raw `authorization_list` (the `SignedAuthorization[]`
+    /// array) is not an EIP-712 field. It only lives on the RLP wire. What the schema includes is
+    /// this single `bytes32` hash of that array. We commit via a hash rather than re-encoding the
+    /// whole array as a typed field to keep the schema compact.
+    ///
+    /// That commitment is what makes the signature cover the auth list. Without it, the signing hash
+    /// wouldn't depend on the auth list at all, so an attacker could append or replace authorization
+    /// tuples on a signed transaction (the signature would still recover to the original signer) and
+    /// grief the fee-payer with extra EIP-7702 gas. With it, tampering with the wire auth list
     /// changes this hash, changes the signing hash, and makes signer recovery yield a different
-    /// address. An empty list hashes to the constant `keccak256(rlp([]))`.
+    /// address.
+    ///
+    /// An empty list hashes to the constant `keccak256(rlp([]))`.
     fn authorization_list_hash(&self) -> B256 {
         let mut buf = Vec::new();
         self.authorization_list.encode(&mut buf);
