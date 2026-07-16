@@ -535,6 +535,12 @@ impl TxSeismic {
                   { "name": "recentBlockHash", "type": "bytes32" },
                   { "name": "expiresAtBlock", "type": "uint64" },
                   { "name": "signedRead", "type": "bool" },
+                  // Binds the authorization_list into the signing hash. We commit to
+                  // keccak256(rlp(authorization_list)) rather than encoding the full
+                  // SignedAuthorization[] (a compact binding; the wallet doesn't need to render the
+                  // tuples). Without this the auth list isn't covered by the signature and could be
+                  // tampered with (appended/replaced) after signing. See authorization_list_hash.
+                  { "name": "authorizationListHash", "type": "bytes32" },
                 ],
             },
             "primaryType": "TxSeismic",
@@ -563,6 +569,7 @@ impl TxSeismic {
                 "recentBlockHash": self.seismic_elements.recent_block_hash.to_string(),
                 "expiresAtBlock": self.seismic_elements.expires_at_block.to_string(),
                 "signedRead": self.seismic_elements.signed_read,
+                "authorizationListHash": self.authorization_list_hash().to_string(),
             }
         });
         serde_json::from_value(typed_data_json)
@@ -606,6 +613,21 @@ impl TxSeismic {
         }
 
         Ok(tx)
+    }
+
+    /// Keccak-256 of the RLP-encoded authorization list.
+    ///
+    /// The EIP-712 `TxSeismic` schema doesn't include `authorization_list`, so on its own the
+    /// signing hash wouldn't commit to it. An attacker could append or replace authorization
+    /// tuples on a signed transaction (the signature would still recover to the original signer)
+    /// and grief the fee-payer with extra EIP-7702 gas. Committing to this hash via the
+    /// `authorizationListHash` schema field closes that gap: tampering with the wire auth list
+    /// changes this hash, changes the signing hash, and makes signer recovery yield a different
+    /// address. An empty list hashes to the constant `keccak256(rlp([]))`.
+    fn authorization_list_hash(&self) -> B256 {
+        let mut buf = Vec::new();
+        self.authorization_list.encode(&mut buf);
+        keccak256(&buf)
     }
 
     fn eip712_signature_hash(&self) -> B256 {
@@ -1418,6 +1440,65 @@ mod tests {
         .unwrap();
 
         assert_eq!(signed_hash, &expected_tx_hash);
+    }
+
+    /// The EIP-712 signing hash must commit to the authorization list, so appending or replacing
+    /// authorization tuples on a signed transaction breaks signer recovery (closing the griefing
+    /// vector where an attacker inflates a victim's EIP-7702 gas without invalidating the
+    /// signature).
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_eip712_signing_hash_binds_authorization_list() {
+        use alloy_eips::eip7702::Authorization;
+
+        let base = TxSeismic {
+            chain_id: 5124,
+            nonce: 1,
+            gas_price: 1_000_000,
+            gas_limit: 100_000,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::from(1u64),
+            input: Bytes::default(),
+            seismic_elements: TxSeismicElements {
+                encryption_pubkey: TxSeismicElements::default().encryption_pubkey,
+                encryption_nonce: U96::from(1),
+                message_version: 2,
+                recent_block_hash: B256::ZERO,
+                expires_at_block: 100,
+                signed_read: false,
+            },
+            authorization_list: vec![],
+        };
+
+        // An empty list hashes to the RLP-empty-list constant.
+        assert_eq!(base.authorization_list_hash(), keccak256([0xc0u8]));
+
+        // The signer legitimately signs the base (empty auth list) transaction.
+        let base_hash = base.eip712_signature_hash();
+        let sig = sign_hash(base_hash.as_slice());
+        assert_eq!(
+            Address::from_public_key(&sig.recover_from_prehash(&base_hash).unwrap()),
+            get_signing_address()
+        );
+
+        // Attacker appends an authorization tuple (the griefing mutation).
+        let auth = Authorization {
+            chain_id: U256::from(5124u64),
+            address: Address::repeat_byte(0x11),
+            nonce: 7,
+        }
+        .into_signed(Signature::new(U256::from(1u64), U256::from(2u64), false));
+        let mut tampered = base.clone();
+        tampered.authorization_list = vec![auth];
+
+        // The auth list is now bound into the signing hash, so it changed...
+        let tampered_hash = tampered.eip712_signature_hash();
+        assert_ne!(base_hash, tampered_hash);
+        // ...and the original signature no longer recovers to the real signer.
+        assert_ne!(
+            Address::from_public_key(&sig.recover_from_prehash(&tampered_hash).unwrap()),
+            get_signing_address()
+        );
     }
 
     #[cfg(feature = "serde")]
