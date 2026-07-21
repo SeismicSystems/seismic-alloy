@@ -1074,8 +1074,7 @@ async fn test_precompile_secp256k1_sign() {
 
     // Cross-check: recover the signer's public key using ecrecover.
     // The precompile signs the raw 32-byte digest (no extra hashing).
-    let sk =
-        seismic_crypto::secp256k1::SecretKey::from_slice(&sk_bytes).expect("valid secret key");
+    let sk = seismic_crypto::secp256k1::SecretKey::from_slice(&sk_bytes).expect("valid secret key");
     let expected_pk = sk.public_key(&seismic_crypto::secp256k1::Secp256k1::new()).serialize();
 
     let recoverable_sig = seismic_crypto::secp256k1::ecdsa::RecoverableSignature::from_compact(
