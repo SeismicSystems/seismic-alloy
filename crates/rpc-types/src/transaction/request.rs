@@ -228,7 +228,7 @@ impl SeismicTransactionRequest {
 
     fn decrypt_to_tx_request(
         &self,
-        secret_key: &seismic_enclave::secp256k1::SecretKey,
+        secret_key: &seismic_crypto::secp256k1::SecretKey,
     ) -> Result<TransactionRequest, InputDecryptionElementsError> {
         if self.seismic_elements.is_some() {
             let sender = match self.from {
@@ -254,7 +254,7 @@ impl SeismicTransactionRequest {
     /// Decrypts the seismic elements and returns a [`TransactionRequest`].
     pub fn to_transaction_request(
         &self,
-        secret_key: &seismic_enclave::secp256k1::SecretKey,
+        secret_key: &seismic_crypto::secp256k1::SecretKey,
     ) -> Result<TransactionRequest, InputDecryptionElementsError> {
         match self.transaction_type {
             Some(SEISMIC_TX_TYPE_ID) => {
@@ -747,7 +747,7 @@ mod tests {
             .seismic();
         req.inner.chain_id = Some(1);
 
-        let sk = seismic_enclave::get_unsecure_sample_secp256k1_sk();
+        let sk = seismic_crypto::get_unsecure_sample_secp256k1_sk();
         let result = req.to_transaction_request(&sk);
         assert!(result.is_err(), "to_transaction_request should return Err when input is missing");
     }

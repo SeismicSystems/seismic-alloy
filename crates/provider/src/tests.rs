@@ -67,7 +67,7 @@ async fn test_get_tee_pubkey() {
         .unwrap();
 
     let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
-    assert_eq!(tee_pubkey, seismic_enclave::get_unsecure_sample_secp256k1_pk());
+    assert_eq!(tee_pubkey, seismic_crypto::get_unsecure_sample_secp256k1_pk());
 }
 
 #[tokio::test]
@@ -783,10 +783,10 @@ async fn test_precompile_aes_encrypt_decrypt() {
 
     // 6. Cross-check: local AES decryption
     let secp_private =
-        seismic_enclave::secp256k1::SecretKey::from_slice(private_key.as_ref()).unwrap();
+        seismic_crypto::secp256k1::SecretKey::from_slice(private_key.as_ref()).unwrap();
     let aes_key: [u8; 32] = secp_private.secret_bytes()[0..32].try_into().unwrap();
     let nonce_bytes: [u8; 12] = nonce.to_be_bytes();
-    let decrypted_locally = seismic_enclave::aes_decrypt(&aes_key.into(), &ciphertext, nonce_bytes)
+    let decrypted_locally = seismic_crypto::aes_decrypt(&aes_key.into(), &ciphertext, nonce_bytes)
         .expect("Local AES decryption failed");
     assert_eq!(decrypted_locally, message, "Local decryption should match original message");
 
@@ -993,8 +993,8 @@ async fn test_precompile_ecdh() {
     // Use test keys
     let sk = hex!("7e38022030c40773cc561c1cc9c0053e48b0be2cee33c13495f096942ea176ef");
     let pk_secret =
-        seismic_enclave::secp256k1::SecretKey::from_slice(&sk).expect("valid secret key");
-    let pk_public = pk_secret.public_key(&seismic_enclave::secp256k1::Secp256k1::new());
+        seismic_crypto::secp256k1::SecretKey::from_slice(&sk).expect("valid secret key");
+    let pk_public = pk_secret.public_key(&seismic_crypto::secp256k1::Secp256k1::new());
     let pk_bytes = pk_public.serialize(); // 33 bytes compressed
 
     let sk_fixed = FixedBytes::<32>::from(sk);
@@ -1004,9 +1004,9 @@ async fn test_precompile_ecdh() {
     assert_ne!(result, FixedBytes::<32>::ZERO, "ECDH result should not be all zeros");
 
     // Cross-check: compute ECDH + HKDF locally and verify it matches
-    let shared_secret = seismic_enclave::secp256k1::ecdh::SharedSecret::new(&pk_public, &pk_secret);
+    let shared_secret = seismic_crypto::secp256k1::ecdh::SharedSecret::new(&pk_public, &pk_secret);
     let local_aes_key =
-        seismic_enclave::derive_aes_key(&shared_secret).expect("HKDF derivation failed");
+        seismic_crypto::derive_aes_key(&shared_secret).expect("HKDF derivation failed");
     assert_eq!(
         result.as_slice(),
         local_aes_key.as_slice(),
@@ -1075,16 +1075,16 @@ async fn test_precompile_secp256k1_sign() {
     // Cross-check: recover the signer's public key using ecrecover.
     // The precompile signs the raw 32-byte digest (no extra hashing).
     let sk =
-        seismic_enclave::secp256k1::SecretKey::from_slice(&sk_bytes).expect("valid secret key");
-    let expected_pk = sk.public_key(&seismic_enclave::secp256k1::Secp256k1::new()).serialize();
+        seismic_crypto::secp256k1::SecretKey::from_slice(&sk_bytes).expect("valid secret key");
+    let expected_pk = sk.public_key(&seismic_crypto::secp256k1::Secp256k1::new()).serialize();
 
-    let recoverable_sig = seismic_enclave::secp256k1::ecdsa::RecoverableSignature::from_compact(
+    let recoverable_sig = seismic_crypto::secp256k1::ecdsa::RecoverableSignature::from_compact(
         sig.signature.as_slice(),
-        seismic_enclave::secp256k1::ecdsa::RecoveryId::try_from(sig.recovery_id as i32).unwrap(),
+        seismic_crypto::secp256k1::ecdsa::RecoveryId::try_from(sig.recovery_id as i32).unwrap(),
     )
     .expect("valid recoverable signature");
-    let msg = seismic_enclave::secp256k1::Message::from_digest(*msg_hash);
-    let recovered = seismic_enclave::secp256k1::Secp256k1::new()
+    let msg = seismic_crypto::secp256k1::Message::from_digest(*msg_hash);
+    let recovered = seismic_crypto::secp256k1::Secp256k1::new()
         .recover_ecdsa(&msg, &recoverable_sig)
         .expect("recovery should succeed");
     assert_eq!(recovered.serialize(), expected_pk, "Recovered public key should match signer");

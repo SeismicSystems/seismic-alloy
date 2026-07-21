@@ -17,7 +17,7 @@ use alloy_rpc_types_eth::BlockNumberOrTag;
 use alloy_transport::{TransportErrorKind, TransportResult};
 use seismic_alloy_consensus::{InputDecryptionElements, TxSeismicElements};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
-use seismic_enclave::secp256k1::{PublicKey, Secp256k1};
+use seismic_crypto::secp256k1::{PublicKey, Secp256k1};
 use std::str::FromStr;
 
 pub use alloy_provider::fillers::GasFiller;
@@ -211,7 +211,7 @@ pub struct SeismicElementsFiller {
     /// Custom blocks window for transaction expiration (overrides BLOCKS_WINDOW)
     blocks_window: Option<u64>,
     /// Client's provider secret key for encryption/decryption (generated once at client creation)
-    provider_secret_key: seismic_enclave::secp256k1::SecretKey,
+    provider_secret_key: seismic_crypto::secp256k1::SecretKey,
     /// Whether seismic calls should be marked as signed_read (true for signed providers)
     signed_read: bool,
 }
@@ -253,7 +253,7 @@ impl SeismicElementsFiller {
     }
 
     /// Get the provider secret key for response decryption
-    pub fn provider_secret_key(&self) -> &seismic_enclave::secp256k1::SecretKey {
+    pub fn provider_secret_key(&self) -> &seismic_crypto::secp256k1::SecretKey {
         &self.provider_secret_key
     }
 
@@ -279,7 +279,7 @@ where
     // to encrypt
     type Fillable = Option<(
         PublicKey,
-        seismic_enclave::secp256k1::SecretKey,
+        seismic_crypto::secp256k1::SecretKey,
         TxSeismicElements,
         alloy_primitives::Bytes,
     )>;

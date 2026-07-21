@@ -30,8 +30,8 @@ use crate::{SeismicProviderExt, SignedProviderExt};
 #[derive(Debug, Clone)]
 pub struct ResponseDecryptProvider<N, P> {
     inner: P,
-    provider_secret_key: seismic_enclave::secp256k1::SecretKey,
-    tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+    provider_secret_key: seismic_crypto::secp256k1::SecretKey,
+    tee_pubkey: seismic_crypto::secp256k1::PublicKey,
     _network: std::marker::PhantomData<N>,
 }
 
@@ -39,8 +39,8 @@ impl<N, P> ResponseDecryptProvider<N, P> {
     /// Create a new response-decrypting provider.
     pub fn new(
         inner: P,
-        provider_secret_key: seismic_enclave::secp256k1::SecretKey,
-        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+        provider_secret_key: seismic_crypto::secp256k1::SecretKey,
+        tee_pubkey: seismic_crypto::secp256k1::PublicKey,
     ) -> Self {
         Self { inner, provider_secret_key, tee_pubkey, _network: std::marker::PhantomData }
     }
@@ -92,8 +92,8 @@ where
 fn decrypt_response(
     output: &Bytes,
     metadata: &seismic_alloy_consensus::TxSeismicMetadata,
-    tee_pubkey: &seismic_enclave::secp256k1::PublicKey,
-    provider_secret_key: &seismic_enclave::secp256k1::SecretKey,
+    tee_pubkey: &seismic_crypto::secp256k1::PublicKey,
+    provider_secret_key: &seismic_crypto::secp256k1::SecretKey,
 ) -> TransportResult<Bytes> {
     metadata
         .seismic_elements
@@ -231,15 +231,15 @@ where
 /// Layer that wraps a provider with [`ResponseDecryptProvider`].
 #[derive(Debug, Clone)]
 pub struct ResponseDecryptLayer {
-    provider_secret_key: seismic_enclave::secp256k1::SecretKey,
-    tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+    provider_secret_key: seismic_crypto::secp256k1::SecretKey,
+    tee_pubkey: seismic_crypto::secp256k1::PublicKey,
 }
 
 impl ResponseDecryptLayer {
     /// Create a new response decrypt layer.
     pub fn new(
-        provider_secret_key: seismic_enclave::secp256k1::SecretKey,
-        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+        provider_secret_key: seismic_crypto::secp256k1::SecretKey,
+        tee_pubkey: seismic_crypto::secp256k1::PublicKey,
     ) -> Self {
         Self { provider_secret_key, tee_pubkey }
     }

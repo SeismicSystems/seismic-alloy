@@ -17,7 +17,7 @@ workspace = true
 [dependencies]
 # Workspace
 seismic-alloy-consensus = { workspace = true, features = ["serde"] }
-seismic-enclave.workspace = true
+seismic-crypto.workspace = true
 
 # Alloy
 alloy-serde.workspace = true

@@ -15,7 +15,7 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
-seismic-enclave.workspace = true
+seismic-crypto.workspace = true
 
 alloy-eips = { workspace = true, features = ["kzg-sidecar"] }
 alloy-primitives = { workspace = true, features = ["rlp", "seismic"] }
