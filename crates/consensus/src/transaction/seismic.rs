@@ -12,7 +12,7 @@ use alloy_rlp::{BufMut, Decodable, Encodable};
 use alloy_serde::WithOtherFields;
 use core::mem;
 use rand::RngCore;
-use seismic_enclave::{
+use seismic_crypto::{
     ecdh_decrypt_aead, ecdh_encrypt_aead,
     secp256k1::{constants, Keypair, PublicKey, Secp256k1, SecretKey},
     Nonce,
@@ -1123,7 +1123,7 @@ mod tests {
         hex::{self, FromHex},
         Address, FixedBytes, Signature,
     };
-    use seismic_enclave::{get_unsecure_sample_secp256k1_pk, get_unsecure_sample_secp256k1_sk};
+    use seismic_crypto::{get_unsecure_sample_secp256k1_pk, get_unsecure_sample_secp256k1_sk};
 
     use super::*;
 

@@ -248,7 +248,7 @@ where
     pub fn connect_http_with_tee_pubkey(
         self,
         url: reqwest::Url,
-        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+        tee_pubkey: seismic_crypto::secp256k1::PublicKey,
     ) -> SeismicSignedProvider<N> {
         let (filler_chain, provider_secret_key) = self.signed_filler_chain(url.clone(), tee_pubkey);
 
@@ -274,7 +274,7 @@ where
     pub async fn connect_ws_with_tee_pubkey(
         self,
         url: reqwest::Url,
-        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
+        tee_pubkey: seismic_crypto::secp256k1::PublicKey,
     ) -> TransportResult<SeismicSignedProvider<N>> {
         let (filler_chain, provider_secret_key) = self.signed_filler_chain(url.clone(), tee_pubkey);
 
@@ -291,8 +291,8 @@ where
     fn signed_filler_chain(
         self,
         url: reqwest::Url,
-        tee_pubkey: seismic_enclave::secp256k1::PublicKey,
-    ) -> (SignedFillers<N>, seismic_enclave::secp256k1::SecretKey) {
+        tee_pubkey: seismic_crypto::secp256k1::PublicKey,
+    ) -> (SignedFillers<N>, seismic_crypto::secp256k1::SecretKey) {
         let seismic_filler = SeismicElementsFiller::with_tee_pubkey(tee_pubkey);
         let provider_secret_key = seismic_filler.provider_secret_key().clone();
 

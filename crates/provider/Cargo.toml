@@ -26,7 +26,7 @@ alloy-sol-types.workspace = true
 seismic-alloy-consensus.workspace = true
 seismic-alloy-network.workspace = true
 seismic-alloy-rpc-types.workspace = true
-seismic-enclave.workspace = true
+seismic-crypto.workspace = true
 
 async-trait.workspace = true
 reqwest.workspace = true

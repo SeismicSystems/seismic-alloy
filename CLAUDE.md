@@ -137,7 +137,7 @@ This prevents replay attacks and ensures transactions are only valid for a speci
 
 The project depends on custom forks of several upstream libraries:
 
-- **seismic-enclave**: Enclave integration for ECDH encryption/decryption (pinned to specific commit)
+- **seismic-crypto**: Shared AES-GCM / ECDH / HKDF helpers and secp256k1 re-export (pinned to specific commit)
 - **seismic-alloy-core**: Custom Alloy primitives with Seismic ABI support
 - **seismic-revm**: Modified REVM for executing Seismic transactions
 - **seismic-trie**: Custom Merkle trie implementation
@@ -210,7 +210,7 @@ The test job runs on a self-hosted runner with sanvil configured.
 
 ### Seismic-Specific
 
-- **seismic-enclave** - Enclave integration (custom fork, commit-pinned)
+- **seismic-crypto** - Shared crypto helpers from the enclave repo (custom fork, commit-pinned)
 - **seismic-alloy-core** - Seismic primitives (custom fork)
 - **seismic-revm** - Modified EVM (custom fork)
 - **seismic-trie** - Merkle trie (custom fork)
@@ -285,7 +285,7 @@ Seismic transactions expire after the specified block number. This prevents long
 Based on recent commits:
 
 - **Transaction state pinning** - Pin state during transaction execution for consistency
-- **Enclave updates** - Updated seismic-enclave commit reference
+- **Crypto facade removal** - Migrated crypto helper imports from `seismic-enclave` to `seismic-crypto`
 - **EIP-4844 generics** - Improved generic handling for blob transactions
 - **Direct key-based encryption** - Removed enclave client dependency, now uses direct key-based encryption
 
@@ -318,7 +318,7 @@ Use the test utilities in `crates/provider/src/test_utils.rs`. Tests typically s
 
 ### Avoid
 
-- Do not modify vendored dependencies (seismic-enclave, seismic-revm, etc.) directly in this repo
+- Do not modify vendored dependencies (seismic-crypto, seismic-revm, etc.) directly in this repo
 - Do not change the Seismic transaction type ID (0x4A / 74) without chain upgrade coordination
 - Do not add dependencies that conflict with Alloy's version requirements
 - Do not implement partial features - ensure encryption/decryption pairs are complete
@@ -327,7 +327,7 @@ Use the test utilities in `crates/provider/src/test_utils.rs`. Tests typically s
 ## Additional Resources
 
 - **Alloy Documentation**: https://alloy.rs
-- **Seismic Enclave**: https://github.com/SeismicSystems/seismic-enclave
+- **Seismic Crypto / Enclave Repo**: https://github.com/SeismicSystems/enclave
 - **Ethereum EIPs**: https://eips.ethereum.org (for understanding standard transaction types)
 
 ## Essential Commands

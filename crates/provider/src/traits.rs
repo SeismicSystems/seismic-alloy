@@ -23,7 +23,7 @@ use seismic_alloy_network::{
     foundry::SeismicFoundry, seismic_network::SeismicNetwork, SeismicReth,
 };
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
-use seismic_enclave::secp256k1::PublicKey;
+use seismic_crypto::secp256k1::PublicKey;
 
 // ============================================================================
 // SeismicProviderExt — base trait for all Seismic providers

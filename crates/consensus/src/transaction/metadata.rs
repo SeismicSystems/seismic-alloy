@@ -2,7 +2,7 @@
 
 use alloy_primitives::{Address, Bytes, ChainId, TxKind, U256};
 use alloy_rlp::Encodable;
-use seismic_enclave::secp256k1::{PublicKey, SecretKey};
+use seismic_crypto::secp256k1::{PublicKey, SecretKey};
 
 use super::seismic::TxSeismicElements;
 
