@@ -143,7 +143,7 @@ k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 
 [patch.crates-io]
 # seismic-crypto
-seismic-crypto = { git = "https://github.com/SeismicSystems/enclave.git", rev = "8274f14cbbad76daadad3aaa1d6d0418b3eeffc0" }
+seismic-crypto = { git = "https://github.com/SeismicSystems/enclave.git", rev = "26fdf9f2823459c05b0d70b6c528e12ae32f7e11" }
 
 # seismic-alloy-core
 alloy-dyn-abi = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
@@ -178,5 +178,5 @@ alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", tag = "v
 alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 
 # revm
-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "7a3dd39011f9e2566f4b8663406f48939c00bc6f" }
-seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "7a3dd39011f9e2566f4b8663406f48939c00bc6f" }
+revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "d6d571a5db62003530fb410cd24020896e2b1231" }
+seismic-revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "d6d571a5db62003530fb410cd24020896e2b1231" }

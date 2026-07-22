@@ -1005,8 +1005,11 @@ async fn test_precompile_ecdh() {
 
     // Cross-check: compute ECDH + HKDF locally and verify it matches
     let shared_secret = seismic_crypto::secp256k1::ecdh::SharedSecret::new(&pk_public, &pk_secret);
-    let local_aes_key =
-        seismic_crypto::derive_aes_key(&shared_secret).expect("HKDF derivation failed");
+    let local_aes_key = seismic_crypto::derive_aes_key(
+        &shared_secret,
+        seismic_crypto::AesKeyDomain::EcdhPrecompile,
+    )
+    .expect("HKDF derivation failed");
     assert_eq!(
         result.as_slice(),
         local_aes_key.as_slice(),

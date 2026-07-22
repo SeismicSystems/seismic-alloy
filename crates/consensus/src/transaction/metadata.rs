@@ -57,22 +57,22 @@ impl TxSeismicMetadata {
         out
     }
 
-    /// encrypt plaintext calldata using AEAD
-    pub fn encrypt(
+    /// TEE-side encryption of a signed-read result using the response traffic key
+    pub fn encrypt_response(
         &self,
         secret_key: &SecretKey,
         plaintext: &Bytes,
     ) -> Result<Bytes, anyhow::Error> {
-        self.seismic_elements.encrypt(secret_key, plaintext, self)
+        self.seismic_elements.encrypt_response(secret_key, plaintext, self)
     }
 
-    /// decrypt plaintext calldata using AEAD
-    pub fn decrypt(
+    /// TEE-side decryption of request calldata using the request traffic key
+    pub fn decrypt_request(
         &self,
         secret_key: &SecretKey,
         ciphertext: &Bytes,
     ) -> Result<Vec<u8>, anyhow::Error> {
-        self.seismic_elements.decrypt(secret_key, ciphertext, self)
+        self.seismic_elements.decrypt_request(secret_key, ciphertext, self)
     }
 
     /// client-side encrypt: takes TEE public key and provider secret key
