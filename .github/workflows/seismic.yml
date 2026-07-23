@@ -56,23 +56,35 @@ jobs:
       - name: cargo test (unit)
         run: cargo test --workspace --exclude seismic-alloy-provider
   integration-test:
+    name: integration-test (${{ matrix.sanvil-channel }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    continue-on-error: ${{ matrix.allow-failure }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Stable compatibility is informational during coordinated breaking releases.
+          - sanvil-channel: stable
+            allow-failure: true
+          # Nightly compatibility is the forward-looking integration gate.
+          - sanvil-channel: nightly
+            allow-failure: false
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "integration-test-cache"
-      # Install latest stable sfoundry for sanvil. The provider tests are integration tests that start `sanvil` so we need to add it to the PATH.
-      - name: Install sfoundry (sanvil)
+          shared-key: "integration-test-${{ matrix.sanvil-channel }}-cache"
+      # The provider tests start `sanvil`, so install the selected sfoundry release channel and
+      # add it to PATH.
+      - name: Install sfoundry (${{ matrix.sanvil-channel }})
         run: |
           curl -L https://raw.githubusercontent.com/SeismicSystems/seismic-foundry/seismic/foundryup/install | bash
           SEISMIC_BIN="${XDG_CONFIG_HOME:-$HOME}/.seismic/bin"
-          $SEISMIC_BIN/sfoundryup
+          "$SEISMIC_BIN/sfoundryup" --install "${{ matrix.sanvil-channel }}"
           echo "$SEISMIC_BIN" >> $GITHUB_PATH
-      # TODO(samlaf): run provider integration tests against nightly sanvil (sfoundryup -i nightly) as well
-      - name: cargo test (provider integration against sanvil)
+      - name: cargo test (provider integration against ${{ matrix.sanvil-channel }} sanvil)
         run: cargo test -p seismic-alloy-provider
       - name: run examples
         run: |
