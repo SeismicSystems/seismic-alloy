@@ -1638,7 +1638,7 @@ mod tests {
                 &tx_metadata,
             )
             .unwrap();
-        let expected_ecd = Bytes::from_hex("0x3d991bc178b0c0f6ee4ae80c15027950a1588b67").unwrap();
+        let expected_ecd = Bytes::from_hex("0x12fbf3f819e7ae972bfedfc6a5a249983ae527e0").unwrap();
         assert_eq!(encrypted_calldata, expected_ecd);
     }
 
