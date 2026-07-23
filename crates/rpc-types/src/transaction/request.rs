@@ -240,9 +240,10 @@ impl SeismicTransactionRequest {
             let tx_metadata = self.metadata(sender)?;
             return match self.inner.input.input() {
                 Some(ciphertext) => {
-                    let plaintext = tx_metadata.decrypt(secret_key, ciphertext).map_err(|e| {
-                        InputDecryptionElementsError::DecryptionError(e.to_string())
-                    })?;
+                    let plaintext =
+                        tx_metadata.decrypt_request(secret_key, ciphertext).map_err(|e| {
+                            InputDecryptionElementsError::DecryptionError(e.to_string())
+                        })?;
                     Ok(self.inner.clone().input(alloy_primitives::Bytes::from(plaintext).into()))
                 }
                 None => Err(InputDecryptionElementsError::MissingField("input")),

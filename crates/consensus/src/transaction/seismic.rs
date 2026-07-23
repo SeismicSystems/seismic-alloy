@@ -15,7 +15,7 @@ use rand::RngCore;
 use seismic_crypto::{
     ecdh_decrypt_aead, ecdh_encrypt_aead,
     secp256k1::{constants, Keypair, PublicKey, Secp256k1, SecretKey},
-    Nonce,
+    AesKeyDomain, Nonce,
 };
 use thiserror::Error;
 
@@ -76,7 +76,7 @@ pub trait InputDecryptionElements: Clone {
             let tx_metadata = self.metadata(sender)?;
             let ciphertext = tx.get_input()?;
             let decrypted_data = seismic_elements
-                .decrypt(decryption_key, &ciphertext, &tx_metadata)
+                .decrypt_request(decryption_key, &ciphertext, &tx_metadata)
                 .map_err(|e| InputDecryptionElementsError::DecryptionError(e.to_string()))?;
             tx.set_input(Bytes::from(decrypted_data))?;
         }
@@ -240,8 +240,8 @@ impl TxSeismicElements {
         self.encryption_nonce.to_be_bytes().into()
     }
 
-    /// decrypt a message using a provided secret key with AEAD and additional data
-    pub fn decrypt(
+    /// TEE-side decryption of a client request using the request traffic key.
+    pub fn decrypt_request(
         &self,
         secret_key: &SecretKey,
         ciphertext: &Bytes,
@@ -255,14 +255,14 @@ impl TxSeismicElements {
         ecdh_decrypt_aead(
             &self.encryption_pubkey,
             secret_key,
+            AesKeyDomain::TxRequest,
             ciphertext,
             self.get_enclave_nonce(),
             &aad,
         )
     }
 
-    /// encrypt a message using a provided secret key
-    pub fn encrypt(
+    fn encrypt_request(
         &self,
         secret_key: &SecretKey,
         plaintext: &Bytes,
@@ -276,6 +276,7 @@ impl TxSeismicElements {
         let ciphertext = ecdh_encrypt_aead(
             &self.encryption_pubkey,
             secret_key,
+            AesKeyDomain::TxRequest,
             plaintext,
             self.get_enclave_nonce(),
             &aad,
@@ -283,7 +284,30 @@ impl TxSeismicElements {
         Ok(Bytes::from(ciphertext))
     }
 
-    /// client encrypt: network pubkey, client sk
+    /// TEE-side encryption of a signed-read result using the response traffic key.
+    pub fn encrypt_response(
+        &self,
+        secret_key: &SecretKey,
+        plaintext: &Bytes,
+        tx_metadata: &TxSeismicMetadata,
+    ) -> Result<Bytes, anyhow::Error> {
+        if plaintext.is_empty() {
+            return Ok(plaintext.clone());
+        }
+
+        let aad = tx_metadata.encode_as_aad();
+        let ciphertext = ecdh_encrypt_aead(
+            &self.encryption_pubkey,
+            secret_key,
+            AesKeyDomain::TxResponse,
+            plaintext,
+            self.get_enclave_nonce(),
+            &aad,
+        )?;
+        Ok(Bytes::from(ciphertext))
+    }
+
+    /// Client-side request encryption using the request traffic key.
     pub fn client_encrypt(
         &self,
         plaintext: &Bytes,
@@ -294,13 +318,14 @@ impl TxSeismicElements {
         Ok(Bytes::from(ecdh_encrypt_aead(
             network_pk,
             client_sk,
+            AesKeyDomain::TxRequest,
             plaintext,
             self.get_enclave_nonce(),
             &tx_metadata.encode_as_aad(),
         )?))
     }
 
-    /// client decrypt: network pubkey, client sk
+    /// Client-side signed-read response decryption using the response traffic key.
     pub fn client_decrypt(
         &self,
         ciphertext: &Bytes,
@@ -311,6 +336,7 @@ impl TxSeismicElements {
         Ok(Bytes::from(ecdh_decrypt_aead(
             network_pk,
             client_sk,
+            AesKeyDomain::TxResponse,
             ciphertext,
             self.get_enclave_nonce(),
             &tx_metadata.encode_as_aad(),
@@ -685,7 +711,7 @@ impl TxSeismic {
         sender: Address,
     ) -> Result<Bytes, anyhow::Error> {
         let metadata = self.tx_metadata(sender);
-        self.seismic_elements.encrypt(secret_key, plaintext, &metadata)
+        self.seismic_elements.encrypt_request(secret_key, plaintext, &metadata)
     }
 
     /// Decrypt input data with AEAD using transaction metadata
@@ -697,7 +723,7 @@ impl TxSeismic {
         sender: Address,
     ) -> Result<Vec<u8>, anyhow::Error> {
         let metadata = self.tx_metadata(sender);
-        self.seismic_elements.decrypt(secret_key, ciphertext, &metadata)
+        self.seismic_elements.decrypt_request(secret_key, ciphertext, &metadata)
     }
 
     /// Validate that the recent block hash is in the provided list of recent blocks
@@ -1537,9 +1563,39 @@ mod tests {
         let tx_io_sk = get_unsecure_sample_secp256k1_sk();
         let tx_metadata = TxSeismicMetadata::example(seismic_elements.clone(), sender);
 
-        let result = seismic_elements.encrypt(&tx_io_sk, &empty_bytes, &tx_metadata);
+        let result = seismic_elements.encrypt_response(&tx_io_sk, &empty_bytes, &tx_metadata);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Bytes::new());
+    }
+
+    #[test]
+    fn test_request_and_response_use_distinct_traffic_keys() {
+        let network_sk = get_unsecure_sample_secp256k1_sk();
+        let network_pk = get_unsecure_sample_secp256k1_pk();
+        let client_sk = SecretKey::from_slice(&[1u8; 32]).unwrap();
+        let client_pk = client_sk.public_key(&Secp256k1::new());
+        let elements = TxSeismicElements {
+            encryption_pubkey: client_pk,
+            encryption_nonce: U96::from(42),
+            signed_read: true,
+            ..Default::default()
+        };
+        let metadata = TxSeismicMetadata::example(elements, Address::ZERO);
+        let plaintext = Bytes::from_static(b"same plaintext in both directions");
+
+        let request =
+            elements.client_encrypt(&plaintext, &network_pk, &client_sk, &metadata).unwrap();
+        let decrypted_request = elements.decrypt_request(&network_sk, &request, &metadata).unwrap();
+        assert_eq!(decrypted_request, plaintext.as_ref());
+
+        let response = elements.encrypt_response(&network_sk, &plaintext, &metadata).unwrap();
+        let decrypted_response =
+            elements.client_decrypt(&response, &network_pk, &client_sk, &metadata).unwrap();
+        assert_eq!(decrypted_response, plaintext);
+
+        assert_ne!(request, response);
+        assert!(elements.decrypt_request(&network_sk, &response, &metadata).is_err());
+        assert!(elements.client_decrypt(&request, &network_pk, &client_sk, &metadata).is_err());
     }
 
     #[test]
@@ -1574,8 +1630,14 @@ mod tests {
         let encoded_metadata = Bytes::from(tx_metadata.encode_as_aad());
         let expected_emd = Bytes::from_hex("0xf88294f39fd6e51aad88f6f4ce6ab8827279cfffb92266827a698094000000000000000000000000000000000000000001a1028e76821eb4d77fd30223ca971c49738eb5b5b71eabe93f96b348fdce788ae5a08cffffffffffffffffffffffff80a03a7c05da853bd4c4683023e3ba72a81e1015a60aab8b12218f033c0d6544d10e6480").unwrap();
         assert_eq!(encoded_metadata, expected_emd);
-        let encrypted_calldata =
-            seismic_elements.encrypt(&secret_key, &plaintext, &tx_metadata).unwrap();
+        let encrypted_calldata = seismic_elements
+            .client_encrypt(
+                &plaintext,
+                &get_unsecure_sample_secp256k1_pk(),
+                &secret_key,
+                &tx_metadata,
+            )
+            .unwrap();
         let expected_ecd = Bytes::from_hex("0x12fbf3f819e7ae972bfedfc6a5a249983ae527e0").unwrap();
         assert_eq!(encrypted_calldata, expected_ecd);
     }
