@@ -336,7 +336,7 @@ impl From<GenesisAccount> for TrieAccount {
         let storage_root = account
             .storage
             .map(|storage| {
-                alloy_trie::root::storage_root_unhashed(
+                seismic_alloy_trie::storage_root_unhashed(
                     storage.into_iter().filter(|(_, value)| !value.is_zero()),
                 )
             })

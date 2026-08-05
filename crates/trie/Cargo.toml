@@ -1,0 +1,28 @@
+[package]
+name = "seismic-alloy-trie"
+description = "Seismic storage trie root functions (FlaggedStorage-aware)"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-rlp.workspace = true
+alloy-trie = { workspace = true, features = ["ethereum"] }
+
+[features]
+default = ["std"]
+std = [
+    "alloy-primitives/std",
+    "alloy-rlp/std",
+    "alloy-trie/std",
+]
