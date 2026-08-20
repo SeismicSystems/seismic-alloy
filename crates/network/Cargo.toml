@@ -34,6 +34,11 @@ alloy-serde.workspace = true
 alloy-signer.workspace = true
 alloy-eip7702.workspace = true
 
+# alloy-json-rpc is unused directly: it pins a transitive dependency of
+# alloy-transport and alloy-rpc-client for this crate and every consumer of it
+# (see the workspace manifest for why).
+alloy-json-rpc.workspace = true
+
 async-trait.workspace = true
 derive_more.workspace = true
 futures.workspace = true
