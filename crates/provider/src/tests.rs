@@ -67,7 +67,7 @@ async fn test_get_tee_pubkey() {
         .unwrap();
 
     let tee_pubkey = provider.get_tee_pubkey().await.unwrap();
-    assert_eq!(tee_pubkey, seismic_crypto::get_unsecure_sample_secp256k1_pk());
+    assert_eq!(tee_pubkey, seismic_crypto::well_known_tx_io_keypair().public_key());
 }
 
 #[tokio::test]
