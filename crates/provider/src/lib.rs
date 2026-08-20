@@ -2,6 +2,10 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
+// Only satisfies the unused_crate_dependencies warn above: alloy-chains is a
+// deliberately unused dependency that pins a transitive crate (see Cargo.toml).
+use alloy_chains as _;
+
 mod security_params;
 pub use security_params::SecurityParams;
 

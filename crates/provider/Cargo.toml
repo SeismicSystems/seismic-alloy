@@ -15,6 +15,11 @@ exclude.workspace = true
 workspace = true
 
 [dependencies]
+# alloy-chains is unused directly: it pins a transitive dependency of
+# alloy-provider for this crate and every consumer of it (see the workspace
+# manifest for why).
+alloy-chains.workspace = true
+
 alloy-contract.workspace = true
 alloy-network.workspace = true
 alloy-primitives.workspace = true

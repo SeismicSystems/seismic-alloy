@@ -25,6 +25,13 @@ alloy-serde = { workspace = true, optional = true }
 alloy-rpc-types-eth = { workspace = true, optional = true }
 alloy-dyn-abi = { workspace = true, features = ["eip712", "seismic"]}
 
+# alloy-eip2930, alloy-eip7702, and alloy-tx-macros are unused directly: they
+# pin transitive dependencies of alloy-eips and alloy-consensus for this crate
+# and every consumer of it (see the workspace manifest for why).
+alloy-eip2930.workspace = true
+alloy-eip7702.workspace = true
+alloy-tx-macros.workspace = true
+
 # k256
 k256 = { workspace = true, features = ["ecdsa"]}
 secp256k1.workspace = true

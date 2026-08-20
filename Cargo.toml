@@ -47,8 +47,15 @@ seismic-crypto = "0.1.0"
 revm = { version = "29.0.0", default-features = false }
 seismic-revm = "1.0.0"
 
-# Alloy
+# Alloy monorepo (github.com/alloy-rs/alloy) — crates release in lockstep and
+# are all pinned to the same version. That includes alloy-json-rpc and
+# alloy-tx-macros, which no workspace crate uses directly: the published
+# monorepo crates depend on them with caret ranges, so without these pins they
+# float to newer releases (alloy-tx-macros generates code for the newer
+# TransactionEnvelope trait, which does not compile against 1.1.0).
 alloy-consensus = { version = "=1.1.0", default-features = false }
+alloy-json-rpc = { version = "=1.1.0", default-features = false }
+alloy-tx-macros = { version = "=1.1.0", default-features = false }
 alloy-eips = { version = "=1.1.0", default-features = false }
 alloy-network = { version = "=1.1.0", default-features = false }
 alloy-network-primitives = { version = "=1.1.0", default-features = false }
@@ -70,11 +77,18 @@ alloy-contract = { version = "=1.1.0", default-features = false }
 alloy-transport = { version = "=1.1.0", default-features = false }
 alloy-genesis = { version = "=1.1.0", default-features = false }
 
-# Alloy RLP
+# Alloy crates outside the monorepo — each versions independently, so the
+# lockstep pin above does not cover them. Exact-pinned: no lockfile is
+# committed, and releases inside their caret ranges have bumped their
+# alloy-primitives requirement to ^1.6, which conflicts with the patched
+# seismic-alloy-core (1.4.1).
+alloy-chains = { version = "=0.2.34", default-features = false }
+alloy-eip2930 = { version = "=0.2.3", default-features = false }
+alloy-eip7702 = { version = "=0.6.3", default-features = false }
 alloy-rlp = { version = "0.3.12", default-features = false }
-alloy-eip7702 = { version = "0.6.1", default-features = false }
 
-# Alloy Core
+# Alloy Core — patched to the seismic-alloy-core fork (see [patch.crates-io]),
+# so the git rev there is what actually gets built.
 alloy-primitives = { version = "1.3.1", default-features = false, features = ["seismic"] }
 alloy-json-abi = { version = "1.3.1", default-features = false, features = ["seismic"] }
 alloy-sol-macro-expander = { version = "1.3.1", default-features = false, features = ["seismic"] }
@@ -83,6 +97,7 @@ alloy-sol-types = { version = "1.3.1", default-features = false, features = ["se
 alloy-sol-type-parser = { version = "1.3.1", default-features = false, features = ["seismic"] }
 alloy-dyn-abi = { version = "1.3.1", default-features = false, features = ["seismic"] }
 
+# Patched to the seismic-trie fork (see [patch.crates-io]).
 alloy-trie = { version = "0.9.1", default-features = false }
 
 # Serde
@@ -154,28 +169,8 @@ alloy-sol-macro-input = { git = "https://github.com/SeismicSystems/seismic-alloy
 alloy-sol-types = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
 alloy-sol-type-parser = { git = "https://github.com/SeismicSystems/seismic-alloy-core.git", rev = "994f7b3fbc4582c2e06a00d03c7f3fe476b1b7c7" }
 
+# seismic-trie
 alloy-trie = { git = "https://github.com/SeismicSystems/seismic-trie.git", rev = "2787e2265d492fa8eaee00424585b8f7e522178f" }
-
-alloy-consensus = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-alloy-eips = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-alloy-serde = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-alloy-network-primitives = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-
-# alloy-network = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-consensus-any = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-json-rpc = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-rpc-types-any = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-rpc-types-eth = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-signer = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-provider = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-transport = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-rpc-client = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-transport-http = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-pubsub = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-node-bindings = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-# alloy-signer-local = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
-alloy-genesis = { git = "https://github.com/alloy-rs/alloy", tag = "v1.1.0" }
 
 # revm
 revm = { git = "https://github.com/SeismicSystems/seismic-revm.git", rev = "7fc2aee41fc8f9370b7103eb07068b4bdeba9729" }
