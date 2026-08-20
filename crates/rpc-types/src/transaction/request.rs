@@ -748,7 +748,7 @@ mod tests {
             .seismic();
         req.inner.chain_id = Some(1);
 
-        let sk = seismic_crypto::get_unsecure_sample_secp256k1_sk();
+        let sk = seismic_crypto::well_known_tx_io_keypair().secret_key();
         let result = req.to_transaction_request(&sk);
         assert!(result.is_err(), "to_transaction_request should return Err when input is missing");
     }

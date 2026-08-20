@@ -1149,7 +1149,7 @@ mod tests {
         hex::{self, FromHex},
         Address, FixedBytes, Signature,
     };
-    use seismic_crypto::{get_unsecure_sample_secp256k1_pk, get_unsecure_sample_secp256k1_sk};
+    use seismic_crypto::well_known_tx_io_keypair;
 
     use super::*;
 
@@ -1560,7 +1560,7 @@ mod tests {
         let seismic_elements = TxSeismicElements::default();
         let empty_bytes = Bytes::new();
 
-        let tx_io_sk = get_unsecure_sample_secp256k1_sk();
+        let tx_io_sk = well_known_tx_io_keypair().secret_key();
         let tx_metadata = TxSeismicMetadata::example(seismic_elements.clone(), sender);
 
         let result = seismic_elements.encrypt_response(&tx_io_sk, &empty_bytes, &tx_metadata);
@@ -1570,8 +1570,8 @@ mod tests {
 
     #[test]
     fn test_request_and_response_use_distinct_traffic_keys() {
-        let network_sk = get_unsecure_sample_secp256k1_sk();
-        let network_pk = get_unsecure_sample_secp256k1_pk();
+        let network_keypair = well_known_tx_io_keypair();
+        let (network_sk, network_pk) = (network_keypair.secret_key(), network_keypair.public_key());
         let client_sk = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let client_pk = client_sk.public_key(&Secp256k1::new());
         let elements = TxSeismicElements {
@@ -1603,7 +1603,7 @@ mod tests {
         // similar test to seismic-viem-test's trace.ts
         let plaintext = Bytes::from_str("0xdeadbeef").unwrap();
         let seismic_elements = TxSeismicElements {
-            encryption_pubkey: get_unsecure_sample_secp256k1_pk(),
+            encryption_pubkey: well_known_tx_io_keypair().public_key(),
             encryption_nonce: U96::MAX,
             message_version: 0,
             recent_block_hash: FixedBytes::<32>::from_str(
@@ -1613,7 +1613,7 @@ mod tests {
             expires_at_block: 100,
             signed_read: false,
         };
-        let secret_key = get_unsecure_sample_secp256k1_sk();
+        let secret_key = well_known_tx_io_keypair().secret_key();
         let orig_decoded_tx = TxSeismic {
             chain_id: 31337u64,
             nonce: 0,
@@ -1633,7 +1633,7 @@ mod tests {
         let encrypted_calldata = seismic_elements
             .client_encrypt(
                 &plaintext,
-                &get_unsecure_sample_secp256k1_pk(),
+                &well_known_tx_io_keypair().public_key(),
                 &secret_key,
                 &tx_metadata,
             )
