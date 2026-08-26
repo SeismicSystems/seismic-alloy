@@ -15,7 +15,7 @@ use rand::RngCore;
 use seismic_crypto::{
     ecdh_decrypt_aead, ecdh_encrypt_aead,
     secp256k1::{constants, Keypair, PublicKey, Secp256k1, SecretKey},
-    AesKeyDomain, Nonce,
+    AesKeyDomain, Nonce, AESGCM_NONCE_SIZE,
 };
 use thiserror::Error;
 
@@ -25,6 +25,11 @@ use crate::transaction::metadata::TxSeismicMetadata;
 use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
 #[cfg(feature = "serde")]
 use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
+
+/// Wire format version for signed-read response encryption.
+///
+/// Prefixes every non-empty response and is covered by the response AAD.
+pub const RESPONSE_FORMAT_VERSION: u8 = 1;
 
 /// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
 pub trait InputDecryptionElements: Clone {
@@ -285,6 +290,8 @@ impl TxSeismicElements {
     }
 
     /// TEE-side encryption of a signed-read result using the response traffic key.
+    ///
+    /// Returns `version || iv || ciphertext || tag`, with a fresh IV per call.
     pub fn encrypt_response(
         &self,
         secret_key: &SecretKey,
@@ -295,16 +302,22 @@ impl TxSeismicElements {
             return Ok(plaintext.clone());
         }
 
-        let aad = tx_metadata.encode_as_aad();
+        let iv: [u8; AESGCM_NONCE_SIZE] = Self::get_rand_encryption_nonce().to_be_bytes();
+        let aad = tx_metadata.encode_response_aad(RESPONSE_FORMAT_VERSION);
         let ciphertext = ecdh_encrypt_aead(
             &self.encryption_pubkey,
             secret_key,
             AesKeyDomain::TxResponse,
             plaintext,
-            self.get_enclave_nonce(),
+            iv,
             &aad,
         )?;
-        Ok(Bytes::from(ciphertext))
+
+        let mut out = Vec::with_capacity(1 + AESGCM_NONCE_SIZE + ciphertext.len());
+        out.push(RESPONSE_FORMAT_VERSION);
+        out.extend_from_slice(&iv);
+        out.extend_from_slice(&ciphertext);
+        Ok(Bytes::from(out))
     }
 
     /// Client-side request encryption using the request traffic key.
@@ -326,6 +339,8 @@ impl TxSeismicElements {
     }
 
     /// Client-side signed-read response decryption using the response traffic key.
+    ///
+    /// Expects `version || iv || ciphertext || tag` as produced by [`Self::encrypt_response`].
     pub fn client_decrypt(
         &self,
         ciphertext: &Bytes,
@@ -333,13 +348,34 @@ impl TxSeismicElements {
         client_sk: &SecretKey,
         tx_metadata: &TxSeismicMetadata,
     ) -> Result<Bytes, anyhow::Error> {
+        if ciphertext.is_empty() {
+            return Ok(ciphertext.clone());
+        }
+
+        let (&version, rest) = ciphertext.split_first().expect("checked non-empty above");
+        if version != RESPONSE_FORMAT_VERSION {
+            return Err(anyhow::anyhow!(
+                "unsupported signed-read response format {version}, expected \
+                 {RESPONSE_FORMAT_VERSION}"
+            ));
+        }
+
+        let (iv, body) = rest.split_at_checked(AESGCM_NONCE_SIZE).ok_or_else(|| {
+            anyhow::anyhow!(
+                "signed-read response is {} bytes, too short to carry a {AESGCM_NONCE_SIZE}-byte IV",
+                ciphertext.len()
+            )
+        })?;
+        let iv: [u8; AESGCM_NONCE_SIZE] = iv.try_into()?;
+        let aad = tx_metadata.encode_response_aad(version);
+
         Ok(Bytes::from(ecdh_decrypt_aead(
             network_pk,
             client_sk,
             AesKeyDomain::TxResponse,
-            ciphertext,
-            self.get_enclave_nonce(),
-            &tx_metadata.encode_as_aad(),
+            body,
+            iv,
+            &aad,
         )?))
     }
 }
@@ -1596,6 +1632,134 @@ mod tests {
         assert_ne!(request, response);
         assert!(elements.decrypt_request(&network_sk, &response, &metadata).is_err());
         assert!(elements.client_decrypt(&request, &network_pk, &client_sk, &metadata).is_err());
+    }
+
+    fn response_fixture() -> (SecretKey, PublicKey, SecretKey, TxSeismicElements, TxSeismicMetadata)
+    {
+        let network_keypair = well_known_tx_io_keypair();
+        let (network_sk, network_pk) = (network_keypair.secret_key(), network_keypair.public_key());
+        let client_sk = SecretKey::from_slice(&[7u8; 32]).unwrap();
+        let elements = TxSeismicElements {
+            encryption_pubkey: client_sk.public_key(&Secp256k1::new()),
+            encryption_nonce: U96::from(42),
+            signed_read: true,
+            ..Default::default()
+        };
+        let metadata = TxSeismicMetadata::example(elements, Address::ZERO);
+        (network_sk, network_pk, client_sk, elements, metadata)
+    }
+
+    #[test]
+    fn test_response_is_version_and_iv_prefixed() {
+        let (network_sk, network_pk, client_sk, elements, metadata) = response_fixture();
+        let plaintext = Bytes::from_static(b"32-byte-ish signed read result..");
+
+        let response = elements.encrypt_response(&network_sk, &plaintext, &metadata).unwrap();
+
+        assert_eq!(response[0], RESPONSE_FORMAT_VERSION);
+        assert_eq!(response.len(), 1 + AESGCM_NONCE_SIZE + plaintext.len() + 16);
+        assert_eq!(
+            elements.client_decrypt(&response, &network_pk, &client_sk, &metadata).unwrap(),
+            plaintext
+        );
+    }
+
+    /// Two executions of one signed read must not share a keystream (SEI-369).
+    #[test]
+    fn test_repeated_responses_do_not_reuse_keystream() {
+        let (network_sk, network_pk, client_sk, elements, metadata) = response_fixture();
+
+        // Same plaintext twice: under a client-supplied IV these were byte-identical.
+        let plaintext = Bytes::from_static(b"balance = 5000");
+        let a = elements.encrypt_response(&network_sk, &plaintext, &metadata).unwrap();
+        let b = elements.encrypt_response(&network_sk, &plaintext, &metadata).unwrap();
+        assert_ne!(a, b);
+        assert_ne!(a[1..1 + AESGCM_NONCE_SIZE], b[1..1 + AESGCM_NONCE_SIZE]);
+
+        // Differing plaintexts must not leak their XOR through the ciphertext bodies.
+        let p1 = Bytes::from_static(b"balance = 5000");
+        let p2 = Bytes::from_static(b"balance = 0000");
+        let c1 = elements.encrypt_response(&network_sk, &p1, &metadata).unwrap();
+        let c2 = elements.encrypt_response(&network_sk, &p2, &metadata).unwrap();
+        let start = 1 + AESGCM_NONCE_SIZE;
+        let body = |c: &Bytes| c[start..start + p1.len()].to_vec();
+        let cipher_xor: Vec<u8> = body(&c1).iter().zip(body(&c2)).map(|(x, y)| x ^ y).collect();
+        let plain_xor: Vec<u8> = p1.iter().zip(p2.iter()).map(|(x, y)| x ^ y).collect();
+        assert_ne!(cipher_xor, plain_xor);
+
+        for c in [&a, &b, &c1] {
+            assert!(elements.client_decrypt(c, &network_pk, &client_sk, &metadata).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_response_iv_is_authenticated() {
+        let (network_sk, network_pk, client_sk, elements, metadata) = response_fixture();
+        let plaintext = Bytes::from_static(b"private value");
+
+        let mut tampered =
+            elements.encrypt_response(&network_sk, &plaintext, &metadata).unwrap().to_vec();
+        tampered[0] ^= 0x01;
+
+        assert!(elements
+            .client_decrypt(&Bytes::from(tampered), &network_pk, &client_sk, &metadata)
+            .is_err());
+    }
+
+    #[test]
+    fn test_response_shorter_than_iv_is_rejected() {
+        let (_, network_pk, client_sk, elements, metadata) = response_fixture();
+        let mut truncated = vec![RESPONSE_FORMAT_VERSION];
+        truncated.extend_from_slice(&[0u8; AESGCM_NONCE_SIZE - 1]);
+        let truncated = Bytes::from(truncated);
+
+        let err = elements
+            .client_decrypt(&truncated, &network_pk, &client_sk, &metadata)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("too short to carry"), "{err}");
+    }
+
+    #[test]
+    fn test_unknown_response_version_is_rejected() {
+        let (network_sk, network_pk, client_sk, elements, metadata) = response_fixture();
+        let plaintext = Bytes::from_static(b"private value");
+
+        let mut response =
+            elements.encrypt_response(&network_sk, &plaintext, &metadata).unwrap().to_vec();
+        response[0] = RESPONSE_FORMAT_VERSION.wrapping_add(1);
+
+        let err = elements
+            .client_decrypt(&Bytes::from(response), &network_pk, &client_sk, &metadata)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("unsupported signed-read response format"), "{err}");
+    }
+
+    #[test]
+    fn test_response_aad_binds_the_version() {
+        let (_, _, _, _, metadata) = response_fixture();
+
+        let base = metadata.encode_as_aad();
+        let bound = metadata.encode_response_aad(RESPONSE_FORMAT_VERSION);
+
+        assert_eq!(bound.len(), base.len() + 1);
+        assert_eq!(bound[..base.len()], base[..]);
+        assert_eq!(*bound.last().unwrap(), RESPONSE_FORMAT_VERSION);
+        assert_ne!(bound, metadata.encode_response_aad(RESPONSE_FORMAT_VERSION + 1));
+    }
+
+    #[test]
+    fn test_empty_response_round_trips() {
+        let (network_sk, network_pk, client_sk, elements, metadata) = response_fixture();
+        let empty = Bytes::new();
+
+        let response = elements.encrypt_response(&network_sk, &empty, &metadata).unwrap();
+        assert!(response.is_empty());
+        assert!(elements
+            .client_decrypt(&response, &network_pk, &client_sk, &metadata)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
