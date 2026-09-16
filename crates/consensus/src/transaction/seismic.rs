@@ -28,7 +28,7 @@ use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
 
 /// Wire format version for signed-read response encryption.
 ///
-/// Prefixes every non-empty response and is covered by the response AAD.
+/// Prefixes every response and is covered by the response AAD.
 pub const RESPONSE_FORMAT_VERSION: u8 = 1;
 
 /// Smallest well-formed signed-read response: version, IV, and AES-GCM tag over empty plaintext.
@@ -1630,7 +1630,13 @@ mod tests {
 
         assert_ne!(request, response);
         assert!(elements.decrypt_request(&network_sk, &response, &metadata).is_err());
-        assert!(elements.client_decrypt(&request, &network_pk, &client_sk, &metadata).is_err());
+
+        let mut disguised = vec![RESPONSE_FORMAT_VERSION];
+        disguised.extend_from_slice(&[0u8; AESGCM_NONCE_SIZE]);
+        disguised.extend_from_slice(&request);
+        assert!(elements
+            .client_decrypt(&Bytes::from(disguised), &network_pk, &client_sk, &metadata)
+            .is_err());
     }
 
     fn response_fixture() -> (SecretKey, PublicKey, SecretKey, TxSeismicElements, TxSeismicMetadata)
@@ -1698,7 +1704,8 @@ mod tests {
 
         let mut tampered =
             elements.encrypt_response(&network_sk, &plaintext, &metadata).unwrap().to_vec();
-        tampered[0] ^= 0x01;
+        tampered[1] ^= 0x01;
+        assert_eq!(tampered[0], RESPONSE_FORMAT_VERSION);
 
         assert!(elements
             .client_decrypt(&Bytes::from(tampered), &network_pk, &client_sk, &metadata)
@@ -1736,6 +1743,15 @@ mod tests {
     }
 
     #[test]
+    fn test_min_response_len_matches_an_empty_envelope() {
+        let (network_sk, _, _, elements, metadata) = response_fixture();
+
+        let response = elements.encrypt_response(&network_sk, &Bytes::new(), &metadata).unwrap();
+
+        assert_eq!(response.len(), MIN_RESPONSE_LEN);
+    }
+
+    #[test]
     fn test_response_aad_binds_the_version() {
         let (_, _, _, _, metadata) = response_fixture();
 
@@ -1745,7 +1761,7 @@ mod tests {
         assert_eq!(bound.len(), base.len() + 1);
         assert_eq!(bound[..base.len()], base[..]);
         assert_eq!(*bound.last().unwrap(), RESPONSE_FORMAT_VERSION);
-        assert_ne!(bound, metadata.encode_response_aad(RESPONSE_FORMAT_VERSION + 1));
+        assert_ne!(bound, metadata.encode_response_aad(RESPONSE_FORMAT_VERSION.wrapping_add(1)));
     }
 
     #[test]
