@@ -31,6 +31,9 @@ use crate::transaction::tx_serde::pubkey_with_prefix_deserialize;
 /// Prefixes every non-empty response and is covered by the response AAD.
 pub const RESPONSE_FORMAT_VERSION: u8 = 1;
 
+/// Smallest well-formed signed-read response: version, IV, and AES-GCM tag over empty plaintext.
+pub const MIN_RESPONSE_LEN: usize = 1 + AESGCM_NONCE_SIZE + 16;
+
 /// An extension of the [`Transaction`] trait for Seismic's decryptable transactions.
 pub trait InputDecryptionElements: Clone {
     /// Returns the elements necessary to decrypt the 'input' field of the transaction.
@@ -298,10 +301,6 @@ impl TxSeismicElements {
         plaintext: &Bytes,
         tx_metadata: &TxSeismicMetadata,
     ) -> Result<Bytes, anyhow::Error> {
-        if plaintext.is_empty() {
-            return Ok(plaintext.clone());
-        }
-
         let iv: [u8; AESGCM_NONCE_SIZE] = Self::get_rand_encryption_nonce().to_be_bytes();
         let aad = tx_metadata.encode_response_aad(RESPONSE_FORMAT_VERSION);
         let ciphertext = ecdh_encrypt_aead(
@@ -348,11 +347,15 @@ impl TxSeismicElements {
         client_sk: &SecretKey,
         tx_metadata: &TxSeismicMetadata,
     ) -> Result<Bytes, anyhow::Error> {
-        if ciphertext.is_empty() {
-            return Ok(ciphertext.clone());
+        if ciphertext.len() < MIN_RESPONSE_LEN {
+            return Err(anyhow::anyhow!(
+                "signed-read response is {} bytes, shorter than the {MIN_RESPONSE_LEN}-byte \
+                 minimum envelope",
+                ciphertext.len()
+            ));
         }
 
-        let (&version, rest) = ciphertext.split_first().expect("checked non-empty above");
+        let (&version, rest) = ciphertext.split_first().expect("checked length above");
         if version != RESPONSE_FORMAT_VERSION {
             return Err(anyhow::anyhow!(
                 "unsupported signed-read response format {version}, expected \
@@ -360,12 +363,7 @@ impl TxSeismicElements {
             ));
         }
 
-        let (iv, body) = rest.split_at_checked(AESGCM_NONCE_SIZE).ok_or_else(|| {
-            anyhow::anyhow!(
-                "signed-read response is {} bytes, too short to carry a {AESGCM_NONCE_SIZE}-byte IV",
-                ciphertext.len()
-            )
-        })?;
+        let (iv, body) = rest.split_at(AESGCM_NONCE_SIZE);
         let iv: [u8; AESGCM_NONCE_SIZE] = iv.try_into()?;
         let aad = tx_metadata.encode_response_aad(version);
 
@@ -1599,9 +1597,10 @@ mod tests {
         let tx_io_sk = well_known_tx_io_keypair().secret_key();
         let tx_metadata = TxSeismicMetadata::example(seismic_elements.clone(), sender);
 
-        let result = seismic_elements.encrypt_response(&tx_io_sk, &empty_bytes, &tx_metadata);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Bytes::new());
+        let result =
+            seismic_elements.encrypt_response(&tx_io_sk, &empty_bytes, &tx_metadata).unwrap();
+        assert_eq!(result.len(), MIN_RESPONSE_LEN);
+        assert_eq!(result[0], RESPONSE_FORMAT_VERSION);
     }
 
     #[test]
@@ -1707,17 +1706,17 @@ mod tests {
     }
 
     #[test]
-    fn test_response_shorter_than_iv_is_rejected() {
+    fn test_response_shorter_than_the_envelope_is_rejected() {
         let (_, network_pk, client_sk, elements, metadata) = response_fixture();
         let mut truncated = vec![RESPONSE_FORMAT_VERSION];
-        truncated.extend_from_slice(&[0u8; AESGCM_NONCE_SIZE - 1]);
+        truncated.extend_from_slice(&[0u8; MIN_RESPONSE_LEN - 2]);
         let truncated = Bytes::from(truncated);
 
         let err = elements
             .client_decrypt(&truncated, &network_pk, &client_sk, &metadata)
             .unwrap_err()
             .to_string();
-        assert!(err.contains("too short to carry"), "{err}");
+        assert!(err.contains("shorter than the"), "{err}");
     }
 
     #[test]
@@ -1750,16 +1749,33 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_response_round_trips() {
+    fn test_empty_response_round_trips_as_a_full_envelope() {
         let (network_sk, network_pk, client_sk, elements, metadata) = response_fixture();
         let empty = Bytes::new();
 
         let response = elements.encrypt_response(&network_sk, &empty, &metadata).unwrap();
-        assert!(response.is_empty());
+        assert_eq!(response.len(), MIN_RESPONSE_LEN);
         assert!(elements
             .client_decrypt(&response, &network_pk, &client_sk, &metadata)
             .unwrap()
             .is_empty());
+    }
+
+    /// An intercepted response truncated to nothing must not authenticate as an empty result.
+    #[test]
+    fn test_truncated_response_is_not_accepted_as_empty() {
+        let (network_sk, network_pk, client_sk, elements, metadata) = response_fixture();
+        let plaintext = Bytes::from_static(b"secretBalance=1000000");
+
+        let response = elements.encrypt_response(&network_sk, &plaintext, &metadata).unwrap();
+
+        for stripped in [Bytes::new(), response.slice(..MIN_RESPONSE_LEN - 1)] {
+            let err = elements
+                .client_decrypt(&stripped, &network_pk, &client_sk, &metadata)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("shorter than the"), "{err}");
+        }
     }
 
     #[test]
