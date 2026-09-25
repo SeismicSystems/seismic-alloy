@@ -27,22 +27,34 @@ use alloy_primitives::{address, Address, Bytes, FixedBytes};
 pub mod addresses {
     use super::*;
 
-    /// RNG — on-chain random number generation (gas: 3500 + 5 per 32-byte word).
+    /// RNG — on-chain random number generation.
+    ///
+    /// See <https://docs.seismic.systems/reference/precompiles/rng>.
     pub const RNG: Address = address!("0x0000000000000000000000000000000000000064");
 
-    /// ECDH — derive a shared AES-256 key from a secret key and public key (gas: 3120).
+    /// ECDH — derive a shared AES-256 key from a secret key and public key.
+    ///
+    /// See <https://docs.seismic.systems/reference/precompiles/ecdh>.
     pub const ECDH: Address = address!("0x0000000000000000000000000000000000000065");
 
-    /// AES-256-GCM encryption (gas: 1000 + 30 per 16-byte block).
+    /// AES-256-GCM encryption.
+    ///
+    /// See <https://docs.seismic.systems/reference/precompiles/aes-gcm-encrypt>.
     pub const AES_ENCRYPT: Address = address!("0x0000000000000000000000000000000000000066");
 
-    /// AES-256-GCM decryption (gas: 1000 + 30 per 16-byte block).
+    /// AES-256-GCM decryption.
+    ///
+    /// See <https://docs.seismic.systems/reference/precompiles/aes-gcm-decrypt>.
     pub const AES_DECRYPT: Address = address!("0x0000000000000000000000000000000000000067");
 
-    /// HKDF — derive an AES-256 key from arbitrary input (variable gas).
+    /// HKDF — derive an AES-256 key from arbitrary input.
+    ///
+    /// See <https://docs.seismic.systems/reference/precompiles/hkdf>.
     pub const HKDF: Address = address!("0x0000000000000000000000000000000000000068");
 
-    /// SECP256K1 — ECDSA recoverable signing (gas: 3000).
+    /// SECP256K1 — ECDSA recoverable signing.
+    ///
+    /// See <https://docs.seismic.systems/reference/precompiles/secp256k1-sign>.
     pub const SECP256K1_SIGN: Address = address!("0x0000000000000000000000000000000000000069");
 }
 
