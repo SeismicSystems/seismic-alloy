@@ -49,6 +49,8 @@ where
     inner: GasFiller,
     rpc_url: Option<reqwest::Url>,
     wallet: Option<SeismicWallet<N>>,
+    /// Keys for re-encrypting the estimate twin's calldata under `signed_read = true`.
+    encryption: Option<(PublicKey, seismic_crypto::secp256k1::SecretKey)>,
 }
 
 impl<N: SeismicNetwork> Default for SeismicGasFiller<N>
@@ -56,7 +58,7 @@ where
     N::UnsignedTx: Send + Sync,
 {
     fn default() -> Self {
-        Self { inner: GasFiller::default(), rpc_url: None, wallet: None }
+        Self { inner: GasFiller::default(), rpc_url: None, wallet: None, encryption: None }
     }
 }
 
@@ -66,7 +68,22 @@ where
 {
     /// Create a new SeismicGasFiller with wallet for signed gas estimation.
     pub fn new(rpc_url: reqwest::Url, wallet: SeismicWallet<N>) -> Self {
-        Self { inner: GasFiller::default(), rpc_url: Some(rpc_url), wallet: Some(wallet) }
+        Self {
+            inner: GasFiller::default(),
+            rpc_url: Some(rpc_url),
+            wallet: Some(wallet),
+            encryption: None,
+        }
+    }
+
+    /// Supply the keys used to encrypt the signed-read twin sent to `eth_estimateGas`.
+    pub fn with_encryption(
+        mut self,
+        tee_pubkey: PublicKey,
+        provider_secret_key: seismic_crypto::secp256k1::SecretKey,
+    ) -> Self {
+        self.encryption = Some((tee_pubkey, provider_secret_key));
+        self
     }
 }
 
@@ -80,7 +97,7 @@ where
     // (Option<GasFillable>, Option<(u128, u64, RpcClient)>)
     // First: gas values already determined (no estimation needed)
     // Second: (gas_price, block_gas_limit, rpc_client) for signed estimation in fill()
-    type Fillable = (Option<GasFillable>, Option<(u128, u64, RpcClient)>);
+    type Fillable = (Option<GasFillable>, Option<(u128, u64, RpcClient, Option<Bytes>)>);
 
     fn status(&self, tx: &<N as Network>::TransactionRequest) -> FillerControlFlow {
         if self.wallet.is_some() {
@@ -139,7 +156,9 @@ where
                         || TransportErrorKind::custom_str("Failed to fetch latest block"),
                     )?;
                 let block_gas_limit = latest_block.header().gas_limit();
-                Ok((None, Some((gas_price, block_gas_limit, client))))
+                // `prepare` runs before the elements filler encrypts, so this is plaintext.
+                let plaintext = N::get_request_input(tx).cloned();
+                Ok((None, Some((gas_price, block_gas_limit, client, plaintext))))
             }
         } else {
             // No wallet — fall back to standard unsigned GasFiller
@@ -156,7 +175,7 @@ where
 
         if let Some(gas_fillable) = immediate_fill {
             GasFiller::fill(&self.inner, gas_fillable, tx).await
-        } else if let Some((gas_price, block_gas_limit, client)) = deferred_estimate {
+        } else if let Some((gas_price, block_gas_limit, client, plaintext)) = deferred_estimate {
             let wallet = self.wallet.as_ref().ok_or_else(|| {
                 TransportErrorKind::custom_str("Wallet required for seismic gas estimation")
             })?;
@@ -174,6 +193,48 @@ where
             // Set temporary gas fields so the tx is complete enough to sign
             tx_for_estimate.set_gas_limit(block_gas_limit);
             tx_for_estimate.set_gas_price(gas_price);
+
+            // Nodes require a signed simulation to declare `signed_read = true`, and that flag
+            // is bound into the AEAD's AAD, so the twin needs its own elements and its own
+            // ciphertext. A fresh encryption nonce keeps it off the write's (key, nonce) pair.
+            let seismic_estimate: &SeismicTransactionRequest = tx_for_estimate.as_ref();
+            if seismic_estimate.is_seismic() {
+                let (tee_pubkey, provider_secret_key) =
+                    self.encryption.as_ref().ok_or_else(|| {
+                        TransportErrorKind::custom_str(
+                            "Encryption keys required to build the signed-read gas estimate",
+                        )
+                    })?;
+                let plaintext = plaintext.ok_or_else(|| {
+                    TransportErrorKind::custom_str("Missing calldata for seismic gas estimation")
+                })?;
+
+                let elements = seismic_estimate
+                    .seismic_elements
+                    .ok_or_else(|| {
+                        TransportErrorKind::custom_str("Missing seismic elements on estimate twin")
+                    })?
+                    .with_signed_read(true)
+                    .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
+
+                let estimate_builder: &mut SeismicTransactionRequest = tx_for_estimate.as_mut();
+                estimate_builder.set_seismic_elements(elements);
+
+                let sender = tx_for_estimate.from().ok_or_else(|| {
+                    TransportErrorKind::custom_str("Sender required for seismic gas estimation")
+                })?;
+                let metadata = tx_for_estimate.metadata(sender).map_err(|e| {
+                    TransportErrorKind::custom_str(&format!("Error creating metadata: {:?}", e))
+                })?;
+                let encrypted = metadata
+                    .client_encrypt(&plaintext, tee_pubkey, provider_secret_key)
+                    .map_err(|e| {
+                        TransportErrorKind::custom_str(&format!("Error encrypting input: {:?}", e))
+                    })?;
+                N::set_request_input(&mut tx_for_estimate, encrypted).map_err(|_| {
+                    TransportErrorKind::custom_str("Error setting encrypted estimate input")
+                })?;
+            }
 
             // Sign and send as bytes so the node can authenticate the sender
             let envelope = tx_for_estimate
