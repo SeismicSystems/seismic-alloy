@@ -296,7 +296,8 @@ where
         let seismic_filler = SeismicElementsFiller::with_tee_pubkey(tee_pubkey);
         let provider_secret_key = seismic_filler.provider_secret_key().clone();
 
-        let gas_filler = SeismicGasFiller::new(url, self.wallet.clone());
+        let gas_filler = SeismicGasFiller::new(url, self.wallet.clone())
+            .with_encryption(tee_pubkey, provider_secret_key.clone());
         let filler_chain = JoinFill::new(
             JoinFill::new(
                 JoinFill::new(
