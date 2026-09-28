@@ -209,11 +209,14 @@ where
                     TransportErrorKind::custom_str("Missing calldata for seismic gas estimation")
                 })?;
 
+                // The elements filler skips empty calldata, so the request's pubkey may not be
+                // ours. The node derives its key from this field, so it must match the secret
+                // key the twin is encrypted under.
+                let provider_pubkey = provider_secret_key.public_key(&Secp256k1::new());
                 let elements = seismic_estimate
                     .seismic_elements
-                    .ok_or_else(|| {
-                        TransportErrorKind::custom_str("Missing seismic elements on estimate twin")
-                    })?
+                    .unwrap_or_default()
+                    .with_encryption_pubkey(provider_pubkey)
                     .with_signed_read(true)
                     .with_encryption_nonce(TxSeismicElements::get_rand_encryption_nonce());
 
