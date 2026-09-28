@@ -57,6 +57,13 @@ impl TxSeismicMetadata {
         out
     }
 
+    /// Encode the response AAD: the request AAD with the response format version appended.
+    pub fn encode_response_aad(&self, version: u8) -> Vec<u8> {
+        let mut aad = self.encode_as_aad();
+        aad.push(version);
+        aad
+    }
+
     /// TEE-side encryption of a signed-read result using the response traffic key
     pub fn encrypt_response(
         &self,
