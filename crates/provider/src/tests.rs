@@ -36,13 +36,14 @@ use crate::{
 use alloy_network::{ReceiptResponse, TransactionBuilder};
 use alloy_node_bindings::{Anvil, AnvilInstance};
 use alloy_primitives::{address, hex, keccak256, Address, Bytes, FixedBytes, TxKind, B256, U256};
-use alloy_provider::{ext::AnvilApi, Provider, SendableTx};
+use alloy_provider::{ext::AnvilApi, fillers::TxFiller, Provider, SendableTx};
 use alloy_rpc_types_eth::Filter;
 use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::{sol, SolEvent};
 use futures_util::StreamExt;
 use seismic_alloy_consensus::SeismicReceiptEnvelope;
 use seismic_alloy_network::{
+    fillers::{SeismicElementsFiller, SeismicGasFiller},
     foundry::{builder::seismic_foundry_tx_builder, SeismicFoundry},
     wallet::SeismicWallet,
 };
@@ -353,6 +354,57 @@ sol! {
 }
 
 /// Helper: deploy the SeismicCounter test contract
+/// The elements filler skips empty calldata, so the request's encryption pubkey is whatever
+/// the caller set. The estimate twin encrypts under the provider's secret key, so its pubkey
+/// must be the provider's or the node derives a different key and authentication fails.
+#[tokio::test]
+async fn test_estimate_twin_encrypts_under_the_provider_pubkey() {
+    let anvil = Anvil::at(SANVIL_PATH).spawn();
+    let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
+    let sender = signer.address();
+    let wallet = SeismicWallet::<SeismicFoundry>::from(signer);
+    let provider = crate::SeismicProviderBuilder::new()
+        .foundry()
+        .wallet(wallet.clone())
+        .connect_http(anvil.endpoint_url())
+        .await
+        .unwrap();
+
+    // STOP bytecode, so a call with empty calldata executes instead of reverting.
+    let recipient = Address::repeat_byte(0x44);
+    provider.anvil_set_code(recipient, Bytes::from_static(&[0x00])).await.unwrap();
+    let block_hash =
+        provider.get_block_by_number(Default::default()).await.unwrap().unwrap().header.hash;
+
+    let mut tx = SeismicTransactionRequest::default().with_signed_read();
+    let elements = tx.seismic_elements.as_mut().unwrap();
+    elements.recent_block_hash = block_hash;
+    elements.expires_at_block = 100;
+    tx.inner.from = Some(sender);
+    tx.inner.to = Some(recipient.into());
+    tx.inner.nonce = Some(0);
+    tx.inner.chain_id = Some(31337);
+    tx.inner.input = Bytes::new().into();
+    tx.inner.gas_price = Some(1_000_000_000);
+
+    let tee = seismic_crypto::well_known_tx_io_keypair().public_key();
+    let elements_filler = SeismicElementsFiller::with_tee_pubkey(tee);
+    let gas_filler = SeismicGasFiller::<SeismicFoundry>::new(anvil.endpoint_url(), wallet)
+        .with_encryption(tee, elements_filler.provider_secret_key().clone());
+
+    let fillable = gas_filler.prepare(&provider, &tx.clone().into()).await.unwrap();
+    let filled = gas_filler
+        .fill(fillable, SendableTx::Builder(tx.into()))
+        .await
+        .expect("estimate twin failed to authenticate");
+
+    let gas = match filled {
+        SendableTx::Builder(builder) => builder.gas_limit(),
+        SendableTx::Envelope(_) => None,
+    };
+    assert_eq!(gas, Some(21001), "expected the STOP recipient's gas");
+}
+
 async fn deploy_test_contract(
     anvil: &AnvilInstance,
 ) -> (SeismicSignedProvider<SeismicFoundry>, alloy_primitives::Address) {
