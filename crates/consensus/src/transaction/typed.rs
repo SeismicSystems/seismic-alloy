@@ -205,7 +205,14 @@ where
     }
 }
 
-impl Typed2718 for SeismicTypedTransaction {
+impl<Eip4844> Typed2718 for SeismicTypedTransaction<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize,
+{
     fn ty(&self) -> u8 {
         match self {
             Self::Legacy(_) => SeismicTxType::Legacy as u8,
@@ -218,7 +225,15 @@ impl Typed2718 for SeismicTypedTransaction {
     }
 }
 
-impl Transaction for SeismicTypedTransaction {
+impl<Eip4844> Transaction for SeismicTypedTransaction<Eip4844>
+where
+    Eip4844: Transaction
+        + RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize,
+{
     fn chain_id(&self) -> Option<alloy_primitives::ChainId> {
         match self {
             Self::Legacy(tx) => tx.chain_id(),
@@ -418,7 +433,15 @@ impl Transaction for SeismicTypedTransaction {
     }
 }
 
-impl InputDecryptionElements for SeismicTypedTransaction {
+impl<Eip4844> InputDecryptionElements for SeismicTypedTransaction<Eip4844>
+where
+    Eip4844: Transaction
+        + RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize,
+{
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
         match self {
             Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
@@ -487,7 +510,15 @@ impl InputDecryptionElements for SeismicTypedTransaction {
     }
 }
 
-impl RlpEcdsaEncodableTx for SeismicTypedTransaction {
+impl<Eip4844> RlpEcdsaEncodableTx for SeismicTypedTransaction<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Typed2718
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize,
+{
     fn rlp_encoded_fields_length(&self) -> usize {
         match self {
             Self::Legacy(tx) => tx.rlp_encoded_fields_length(),

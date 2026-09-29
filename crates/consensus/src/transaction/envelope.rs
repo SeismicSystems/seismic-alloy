@@ -126,8 +126,17 @@ impl From<Signed<TxSeismic>> for SeismicTxEnvelope {
     }
 }
 
-impl From<SeismicTxEnvelope> for Signed<SeismicTypedTransaction> {
-    fn from(value: SeismicTxEnvelope) -> Self {
+impl<Eip4844> From<SeismicTxEnvelope<Eip4844>> for Signed<SeismicTypedTransaction<Eip4844>>
+where
+    Eip4844: Transaction
+        + RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
+    fn from(value: SeismicTxEnvelope<Eip4844>) -> Self {
         match value {
             SeismicTxEnvelope::Legacy(tx) => {
                 let (tx, sig, hash) = tx.into_parts();
@@ -157,14 +166,32 @@ impl From<SeismicTxEnvelope> for Signed<SeismicTypedTransaction> {
     }
 }
 
-impl Hash for SeismicTxEnvelope {
+impl<Eip4844> Hash for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+    SeismicTxEnvelope<Eip4844>: Encodable2718,
+{
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.trie_hash().hash(state);
     }
 }
 
-impl From<Signed<SeismicTypedTransaction>> for SeismicTxEnvelope {
-    fn from(value: Signed<SeismicTypedTransaction>) -> Self {
+impl<Eip4844> From<Signed<SeismicTypedTransaction<Eip4844>>> for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: Transaction
+        + RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
+    fn from(value: Signed<SeismicTypedTransaction<Eip4844>>) -> Self {
         let (tx, sig, hash) = value.into_parts();
         match tx {
             SeismicTypedTransaction::Legacy(tx_legacy) => {
@@ -195,7 +222,16 @@ impl From<Signed<SeismicTypedTransaction>> for SeismicTxEnvelope {
     }
 }
 
-impl Typed2718 for SeismicTxEnvelope {
+impl<Eip4844> Typed2718 for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: Typed2718
+        + RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
     fn ty(&self) -> u8 {
         match self {
             Self::Legacy(tx) => tx.tx().ty(),
@@ -208,7 +244,16 @@ impl Typed2718 for SeismicTxEnvelope {
     }
 }
 
-impl Transaction for SeismicTxEnvelope {
+impl<Eip4844> Transaction for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: Transaction
+        + RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
     fn chain_id(&self) -> Option<u64> {
         match self {
             Self::Legacy(tx) => tx.tx().chain_id(),
@@ -408,7 +453,16 @@ impl Transaction for SeismicTxEnvelope {
     }
 }
 
-impl InputDecryptionElements for SeismicTxEnvelope {
+impl<Eip4844> InputDecryptionElements for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: Transaction
+        + RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
     fn get_decryption_elements(&self) -> Result<TxSeismicElements, InputDecryptionElementsError> {
         match self {
             Self::Legacy(_) => Err(InputDecryptionElementsError::UnsupportedTxType(
@@ -611,7 +665,15 @@ where
 }
 
 #[cfg(feature = "k256")]
-impl alloy_consensus::transaction::SignerRecoverable for SeismicTxEnvelope {
+impl<Eip4844> alloy_consensus::transaction::SignerRecoverable for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
     fn recover_signer(&self) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
         let signature_hash = match self {
             Self::Legacy(tx) => tx.signature_hash(),
@@ -653,7 +715,16 @@ impl alloy_consensus::transaction::SignerRecoverable for SeismicTxEnvelope {
     }
 }
 
-impl Encodable for SeismicTxEnvelope {
+impl<Eip4844> Encodable for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Typed2718
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
         self.network_encode(out)
     }
@@ -663,7 +734,16 @@ impl Encodable for SeismicTxEnvelope {
     }
 }
 
-impl Decodable for SeismicTxEnvelope {
+impl<Eip4844> Decodable for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Typed2718
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         Ok(Self::network_decode(buf)?)
     }
@@ -759,7 +839,16 @@ where
     }
 }
 
-impl Encodable2718 for SeismicTxEnvelope {
+impl<Eip4844> Encodable2718 for SeismicTxEnvelope<Eip4844>
+where
+    Eip4844: RlpEcdsaEncodableTx
+        + RlpEcdsaDecodableTx
+        + Typed2718
+        + Clone
+        + serde::de::DeserializeOwned
+        + serde::Serialize
+        + SignableTransaction<Signature>,
+{
     fn type_flag(&self) -> Option<u8> {
         match self {
             Self::Legacy(_) => None,
@@ -939,6 +1028,12 @@ mod tests {
 
     #[cfg(feature = "serde")]
     use alloy_primitives::hex;
+
+    #[test]
+    fn generic_eip4844_variant_keeps_consensus_traits() {
+        fn assert_transaction<T: Transaction + Typed2718 + Encodable2718>() {}
+        assert_transaction::<TxEnvelope>();
+    }
 
     #[test]
     #[cfg(feature = "serde")]
