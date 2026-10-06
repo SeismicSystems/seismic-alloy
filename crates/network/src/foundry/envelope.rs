@@ -483,6 +483,7 @@ mod tests {
     /// so a dummy signature exercises the path we care about.
     fn encoded_seismic_tx(signed_read: bool, to: TxKind) -> Vec<u8> {
         let tx = TxSeismic {
+            gas_payment: seismic_alloy_consensus::GasPayment::Auto,
             chain_id: 31337u64,
             nonce: 0,
             gas_price: 1,

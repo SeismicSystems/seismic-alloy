@@ -75,7 +75,7 @@ where
     Eip4844(Signed<Eip4844>),
     /// A [`TxEip7702`] tagged with type 4.
     Eip7702(Signed<TxEip7702>),
-    /// A [`TxSeismic`] tagged with type 0x7E.
+    /// A [`TxSeismic`] tagged with type 0x4A.
     Seismic(Signed<TxSeismic>),
 }
 
@@ -948,6 +948,7 @@ mod tests {
         use crate::TxSeismicElements;
 
         let tx = TxSeismic {
+            gas_payment: crate::GasPayment::Auto,
             chain_id: 4u64,
             nonce: 2,
             gas_price: 1000000000,
@@ -996,6 +997,7 @@ mod tests {
     /// Build a signed seismic tx envelope for decode testing.
     fn signed_seismic_envelope(signed_read: bool, to: TxKind) -> Vec<u8> {
         let tx = TxSeismic {
+            gas_payment: crate::GasPayment::Auto,
             chain_id: 1,
             nonce: 0,
             gas_price: 1,

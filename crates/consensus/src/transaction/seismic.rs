@@ -19,7 +19,7 @@ use seismic_crypto::{
 };
 use thiserror::Error;
 
-use crate::transaction::metadata::TxSeismicMetadata;
+use crate::{transaction::metadata::TxSeismicMetadata, GasPayment};
 
 #[cfg(feature = "serde")]
 use crate::transaction::eip712::{Eip712Error, Eip712Result, TypedDataRequest};
@@ -476,6 +476,9 @@ pub struct TxSeismic {
         serde(with = "alloy_serde::quantity", rename = "gas", alias = "gasLimit")
     )]
     pub gas_limit: u64,
+    /// Mandatory signed payment metadata, encoded immediately after the gas limit.
+    /// Request builders may default to Auto; decoded transactions may not omit it.
+    pub gas_payment: GasPayment,
     /// The 160-bit address of the message call's recipient or, for a contract creation
     /// transaction, ∅, used here to denote the only member of B0 ; formally Tt.
     #[cfg_attr(feature = "serde", serde(default))]
@@ -515,6 +518,7 @@ impl<'a> arbitrary::Arbitrary<'a> for TxSeismic {
             nonce: u64::arbitrary(u)?,
             gas_price: u128::arbitrary(u)?,
             gas_limit: u64::arbitrary(u)?,
+            gas_payment: GasPayment::arbitrary(u)?,
             to: TxKind::arbitrary(u)?,
             value: U256::arbitrary(u)?,
             input: Bytes::arbitrary(u)?,
@@ -549,6 +553,7 @@ impl TxSeismic {
         mem::size_of::<u64>() + // nonce
         mem::size_of::<u128>() + // gas_price
         mem::size_of::<u64>() + // gas_limit
+        mem::size_of::<GasPayment>() + // gas_payment
         self.to.size() + // to
         mem::size_of::<U256>() + // value
         self.input.len() + // input
@@ -558,7 +563,8 @@ impl TxSeismic {
         mem::size_of::<B256>() + // recent_block_hash
         mem::size_of::<u64>() + // expires_at_block
         mem::size_of::<bool>() + // signed_read
-        self.authorization_list.capacity() * mem::size_of::<SignedAuthorization>() // authorization_list
+        self.authorization_list.capacity() * mem::size_of::<SignedAuthorization>()
+        // authorization_list
     }
 
     /// Encodes a [`TxSeismic`] into a [`TypedData`] for wallet signing via `signTypedData_v4`.
@@ -576,11 +582,16 @@ impl TxSeismic {
                   { "name": "chainId", "type": "uint256" },
                   { "name": "verifyingContract", "type": "address" },
                 ],
+                "GasPayment": [
+                  { "name": "kind", "type": "uint8" },
+                  { "name": "token", "type": "address" },
+                ],
                 "TxSeismic": [
                   { "name": "chainId", "type": "uint64" },
                   { "name": "nonce", "type": "uint64" },
                   { "name": "gasPrice", "type": "uint128" },
                   { "name": "gasLimit", "type": "uint64" },
+                  { "name": "gasPayment", "type": "GasPayment" },
                   // EIP-712 doesn't support optional types, so we can't have Optional(address) to encode a CREATE tx as not having a `to` field.
                   // Instead we force CREATE to serialize as (to=0x0, isCreate=true).
                   // See eip712_decode for the consistency validation.
@@ -616,6 +627,10 @@ impl TxSeismic {
                 "nonce": self.nonce.to_string(),
                 "gasPrice": self.gas_price.to_string(),
                 "gasLimit": self.gas_limit,
+                "gasPayment": {
+                    "kind": self.gas_payment.kind().to_string(),
+                    "token": self.gas_payment.token().unwrap_or(Address::ZERO).to_string(),
+                },
                 "to": match self.to {
                     TxKind::Create => Address::ZERO.to_string(),
                     TxKind::Call(to) => to.to_string(),
@@ -641,8 +656,32 @@ impl TxSeismic {
     /// Decodes a [`TypedData`] into a [`TxSeismic`].
     pub fn eip712_decode(typed_data: &TypedData) -> Eip712Result<Self> {
         // Extract the `message` field from TypedData (JSON format)
-        let message = serde_json::to_value(&typed_data.message)
+        let mut message = serde_json::to_value(&typed_data.message)
             .map_err(|_| Eip712Error::DecodeError("Failed to serialize message".to_string()))?;
+
+        // EIP-712 has an explicit numeric tag/address schema, unlike tagged JSON.
+        // Require both fields and enforce the canonical zero-address sentinel.
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct TypedPayment {
+            #[serde(with = "alloy_serde::quantity")]
+            kind: u8,
+            token: Address,
+        }
+        let payment: TypedPayment = serde_json::from_value(
+            message
+                .get("gasPayment")
+                .cloned()
+                .ok_or_else(|| Eip712Error::DecodeError("Missing gasPayment field".to_string()))?,
+        )
+        .map_err(|_| Eip712Error::DecodeError("Invalid gasPayment fields".to_string()))?;
+        let payment = GasPayment::from_parts(
+            payment.kind,
+            (payment.token != Address::ZERO).then_some(payment.token),
+        )
+        .map_err(|_| Eip712Error::DecodeError("Invalid gasPayment selector".to_string()))?;
+        message["gasPayment"] = serde_json::to_value(payment)
+            .map_err(|_| Eip712Error::DecodeError("Invalid gasPayment selector".to_string()))?;
 
         // Extract the explicit isCreate flag
         let is_create = message.get("isCreate").and_then(|v| v.as_bool()).ok_or_else(|| {
@@ -672,6 +711,14 @@ impl TxSeismic {
             tx.to = TxKind::Create;
         }
 
+        let canonical = tx.eip712_to_type_data();
+        if typed_data.primary_type != canonical.primary_type ||
+            typed_data.resolver != canonical.resolver
+        {
+            return Err(Eip712Error::DecodeError(
+                "Noncanonical TxSeismic signing schema".to_string(),
+            ));
+        }
         Ok(tx)
     }
 
@@ -796,6 +843,7 @@ impl RlpEcdsaEncodableTx for TxSeismic {
             self.nonce.length() +
             self.gas_price.length() +
             self.gas_limit.length() +
+            self.gas_payment.length() +
             self.to.length() +
             self.value.length() +
             self.seismic_elements.length() +
@@ -808,6 +856,7 @@ impl RlpEcdsaEncodableTx for TxSeismic {
         self.nonce.encode(out);
         self.gas_price.encode(out);
         self.gas_limit.encode(out);
+        self.gas_payment.encode(out);
         self.to.encode(out);
         self.value.encode(out);
         self.seismic_elements.encode(out);
@@ -838,6 +887,7 @@ impl RlpEcdsaDecodableTx for TxSeismic {
             nonce: Decodable::decode(buf)?,
             gas_price: Decodable::decode(buf)?,
             gas_limit: Decodable::decode(buf)?,
+            gas_payment: Decodable::decode(buf)?,
             to: Decodable::decode(buf)?,
             value: Decodable::decode(buf)?,
             seismic_elements: Decodable::decode(buf)?,
@@ -1054,20 +1104,20 @@ pub(super) mod serde_bincode_compat {
 
     use alloy_eips::eip7702::SignedAuthorization;
 
-    use super::TxSeismicElements;
+    use super::{GasPayment, TxSeismicElements};
 
     /// Bincode-compatible [`super::TxSeismic`] serde implementation.
     ///
     /// Intended to use with the [`serde_with::serde_as`] macro in the following way:
     /// ```rust
-    /// use alloy_consensus::{serde_bincode_compat, TxSeismic};
+    /// use seismic_alloy_consensus::{serde_bincode_compat, TxSeismic};
     /// use serde::{Deserialize, Serialize};
     /// use serde_with::serde_as;
     ///
     /// #[serde_as]
     /// #[derive(Serialize, Deserialize)]
     /// struct Data {
-    ///     #[serde_as(as = "serde_bincode_compat::transaction::TxSeismic")]
+    ///     #[serde_as(as = "serde_bincode_compat::TxSeismic")]
     ///     header: TxSeismic,
     /// }
     /// ```
@@ -1077,6 +1127,7 @@ pub(super) mod serde_bincode_compat {
         nonce: u64,
         gas_price: u128,
         gas_limit: u64,
+        gas_payment: GasPayment,
         // Carried over from upstream TxLegacy. No-op for bincode (TxKind always serializes
         // as Option<Address>, never skipped), but kept for consistency with upstream pattern.
         // See https://github.com/alloy-rs/alloy/blob/876b889ddddfabdfa81bfcd381c9c26c60584016/crates/consensus/src/transaction/legacy.rs#L646
@@ -1099,6 +1150,7 @@ pub(super) mod serde_bincode_compat {
                 nonce: value.nonce,
                 gas_price: value.gas_price,
                 gas_limit: value.gas_limit,
+                gas_payment: value.gas_payment,
                 to: value.to,
                 value: value.value,
                 seismic_elements: value.seismic_elements,
@@ -1115,6 +1167,7 @@ pub(super) mod serde_bincode_compat {
                 nonce: value.nonce,
                 gas_price: value.gas_price,
                 gas_limit: value.gas_limit,
+                gas_payment: value.gas_payment,
                 to: value.to,
                 value: value.value,
                 seismic_elements: value.seismic_elements,
@@ -1201,9 +1254,10 @@ mod tests {
     #[test]
     fn test_encode_decode_seismic() {
         let hash: B256 =
-            b256!("0xd18462df79a0e613bf39886c23ef1e0fc0c7d518b488fa5e76bf7462632cc1f9");
+            b256!("0x0ab8171bc80a2c7084acbf40ef24b30bb67512c58317a764cf00afaecf0c5207");
 
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 4u64,
             nonce: 2,
             gas_price: 1000000000,
@@ -1233,7 +1287,7 @@ mod tests {
             let signer = decoded.recover_signer().unwrap();
             assert_eq!(
                 signer,
-                Address::from_slice(&hex!("166cd796821ac9f47605dcf63c313f5a0df355e7"))
+                Address::from_slice(&hex!("6db00eb8daa8e55e0d55c15218c4b98b6222d385"))
             );
         }
     }
@@ -1276,6 +1330,7 @@ mod tests {
     #[test]
     fn test_eip712_encode_decode() {
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 4u64,
             nonce: 2,
             gas_price: 1000000000,
@@ -1322,6 +1377,7 @@ mod tests {
     fn test_eip712_encode_decode_max_value() {
         // when the value for gas_price is too large, json! macro cannot handle it
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: u64::max_value(),
             nonce: u64::max_value(),
             gas_price: u128::max_value(),
@@ -1354,6 +1410,7 @@ mod tests {
     #[test]
     fn test_eip712_call_zero_address_round_trip() {
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 1u64,
             nonce: 42,
             gas_price: 1_000_000_000,
@@ -1386,6 +1443,7 @@ mod tests {
     fn test_eip712_decode_rejects_is_create_with_nonzero_to() {
         // Start with a valid Create tx, encode it, then tamper with the `to` field
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 1u64,
             nonce: 1,
             gas_price: 1_000_000_000,
@@ -1424,6 +1482,7 @@ mod tests {
     fn test_eip712_decode_rejects_null_to_with_is_create_false() {
         // Start with a valid Call tx, encode it, then tamper
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 1u64,
             nonce: 1,
             gas_price: 1_000_000_000,
@@ -1462,6 +1521,7 @@ mod tests {
     #[test]
     fn test_eip712_hash() {
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 5124,
             nonce: 48,
             gas_price: 360000,
@@ -1503,7 +1563,7 @@ mod tests {
         let signed_hash = signed.hash();
 
         let expected_tx_hash = FixedBytes::<32>::from_hex(
-            "0x8c95f5133ab8d55531621f1d46f0ca092084be09db7a932e738c56003d3735eb",
+            "0x620ee20426cbb00bb7ea494cd08567ffdff9f022df3e00e4438d0a026e6917d3",
         )
         .unwrap();
 
@@ -1520,6 +1580,7 @@ mod tests {
         use alloy_eips::eip7702::Authorization;
 
         let base = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 5124,
             nonce: 1,
             gas_price: 1_000_000,
@@ -1586,6 +1647,98 @@ mod tests {
         let with_old_field: TxSeismicElements = serde_json::from_str(raw_old).unwrap();
         assert_eq!(with_old_field.encryption_pubkey, key);
         assert_eq!(with_old_field.expires_at_block, 0);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn gas_payment_is_signed_and_roundtrips_in_both_signing_modes() {
+        for message_version in [0, 2] {
+            let mut tx = TxSeismic::default();
+            tx.seismic_elements.message_version = message_version;
+            let selectors =
+                [GasPayment::Auto, GasPayment::Native, GasPayment::Token(Address::repeat_byte(1))];
+            let mut hashes = Vec::new();
+            for gas_payment in selectors {
+                tx.gas_payment = gas_payment;
+                let hash = tx.signature_hash();
+                let signature = sign_hash(hash.as_slice());
+                assert_eq!(
+                    signature.recover_address_from_prehash(&hash).unwrap(),
+                    get_signing_address()
+                );
+                let mut bytes = Vec::new();
+                tx.rlp_encode_signed(&signature, &mut bytes);
+                assert_eq!(TxSeismic::rlp_decode_signed(&mut bytes.as_slice()).unwrap().tx(), &tx);
+                let typed = tx.eip712_to_type_data();
+                assert_eq!(TxSeismic::eip712_decode(&typed).unwrap(), tx);
+                let json = serde_json::to_value(&tx).unwrap();
+                assert_eq!(serde_json::from_value::<TxSeismic>(json).unwrap(), tx);
+                let mut tampered = tx.clone();
+                tampered.gas_payment = if gas_payment == GasPayment::Auto {
+                    GasPayment::Native
+                } else {
+                    GasPayment::Auto
+                };
+                assert_ne!(
+                    signature.recover_address_from_prehash(&tampered.signature_hash()).unwrap(),
+                    get_signing_address()
+                );
+                assert_ne!(tx.tx_hash(&signature), tampered.tx_hash(&signature));
+                hashes.push(hash);
+            }
+            assert_ne!(hashes[0], hashes[1]);
+            assert_ne!(hashes[1], hashes[2]);
+            assert_ne!(hashes[0], hashes[2]);
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn signed_json_and_typed_data_require_canonical_payment() {
+        let tx = TxSeismic::default();
+        let mut json = serde_json::to_value(&tx).unwrap();
+        json.as_object_mut().unwrap().remove("gasPayment");
+        assert!(serde_json::from_value::<TxSeismic>(json).is_err());
+        let mut typed = tx.eip712_to_type_data();
+        typed.message.as_object_mut().unwrap().remove("gasPayment");
+        assert!(TxSeismic::eip712_decode(&typed).is_err());
+        for payment in [
+            serde_json::json!({"kind":"0","token":Address::repeat_byte(1)}),
+            serde_json::json!({"kind":"1","token":Address::repeat_byte(1)}),
+            serde_json::json!({"kind":"2","token":Address::ZERO}),
+            serde_json::json!({"kind":"3","token":Address::ZERO}),
+            serde_json::json!({"kind":"0"}),
+        ] {
+            let mut typed = tx.eip712_to_type_data();
+            typed.message["gasPayment"] = payment;
+            assert!(TxSeismic::eip712_decode(&typed).is_err());
+        }
+        let mut value = serde_json::to_value(tx.eip712_to_type_data()).unwrap();
+        value["types"]["TxSeismic"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|field| field["name"] != "gasPayment");
+        let typed: TypedData = serde_json::from_value(value).unwrap();
+        assert!(TxSeismic::eip712_decode(&typed).is_err());
+    }
+
+    #[test]
+    fn old_unsigned_raw_shape_is_rejected() {
+        let tx = TxSeismic::default();
+        let mut fields = Vec::new();
+        tx.chain_id.encode(&mut fields);
+        tx.nonce.encode(&mut fields);
+        tx.gas_price.encode(&mut fields);
+        tx.gas_limit.encode(&mut fields);
+        tx.to.encode(&mut fields);
+        tx.value.encode(&mut fields);
+        tx.seismic_elements.encode(&mut fields);
+        tx.input.encode(&mut fields);
+        tx.authorization_list.encode(&mut fields);
+        let mut bytes = Vec::new();
+        alloy_rlp::Header { list: true, payload_length: fields.len() }.encode(&mut bytes);
+        bytes.extend_from_slice(&fields);
+        assert!(TxSeismic::decode(&mut bytes.as_slice()).is_err());
     }
 
     #[test]
@@ -1811,6 +1964,7 @@ mod tests {
         };
         let secret_key = well_known_tx_io_keypair().secret_key();
         let orig_decoded_tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 31337u64,
             nonce: 0,
             gas_price: 10_000_000_000,
@@ -1842,6 +1996,7 @@ mod tests {
     #[test]
     fn test_payload_len_matches_encoded_for_signing_eip712() {
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 4u64,
             nonce: 2,
             gas_price: 1000000000,
@@ -1868,6 +2023,7 @@ mod tests {
     #[test]
     fn test_payload_len_matches_encoded_for_signing_legacy() {
         let tx = TxSeismic {
+            gas_payment: GasPayment::Auto,
             chain_id: 4u64,
             nonce: 2,
             gas_price: 1000000000,

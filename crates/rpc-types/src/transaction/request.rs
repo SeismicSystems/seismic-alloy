@@ -10,7 +10,7 @@ use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, TransactionInput, TransactionRequest};
 use alloy_serde::WithOtherFields;
 use seismic_alloy_consensus::{
-    Decodable712, Eip712Result, InputDecryptionElements, InputDecryptionElementsError,
+    Decodable712, Eip712Result, GasPayment, InputDecryptionElements, InputDecryptionElementsError,
     SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction, TxSeismic, TxSeismicElements,
     TxSeismicMetadata, TypedDataRequest, SEISMIC_TX_TYPE_ID,
 };
@@ -45,6 +45,11 @@ pub struct SeismicTransactionRequest {
     /// explicitly: nothing at the type level couples the request kind to this field being set.
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub seismic_elements: Option<TxSeismicElements>,
+
+    /// Public payment selector; omission defaults to Auto before signing.
+    /// A non-Auto selector is valid only on a Seismic request.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub gas_payment: GasPayment,
 }
 
 impl SeismicTransactionRequest {
@@ -55,12 +60,17 @@ impl SeismicTransactionRequest {
         self
     }
 
-    /// Initializes the [`SeismicTransactionRequest`] with the provided transaction.
+    /// Initializes the [`SeismicTransactionRequest`] with standard transaction fields.
+    ///
+    /// This generic helper cannot read Seismic-specific metadata from the
+    /// [`alloy_consensus::Transaction`] trait: it leaves encryption elements absent
+    /// and uses Auto payment. Use `From<TxSeismic>` or the typed/envelope `From`
+    /// conversions to preserve those fields from a Seismic transaction.
     ///
     /// Note: This leaves the `from` field empty.
     pub fn from_transaction<T: alloy_consensus::Transaction>(tx: T) -> Self {
         let inner = TransactionRequest::from_transaction(tx);
-        Self { inner, seismic_elements: None }
+        Self { inner, seismic_elements: None, gas_payment: GasPayment::Auto }
     }
 
     /// Sets the transactions type for the transactions.
@@ -73,6 +83,12 @@ impl SeismicTransactionRequest {
     /// Sets the gas limit for the transaction.
     pub const fn gas_limit(mut self, gas_limit: u64) -> Self {
         self.inner.gas = Some(gas_limit);
+        self
+    }
+
+    /// Set the signed gas-payment selector (only supported on Seismic transactions).
+    pub const fn gas_payment(mut self, gas_payment: GasPayment) -> Self {
+        self.gas_payment = gas_payment;
         self
     }
 
@@ -146,9 +162,6 @@ impl SeismicTransactionRequest {
         if self.inner.gas.is_none() {
             missing.push("gas_limit");
         }
-        if self.inner.to.is_none() {
-            missing.push("to");
-        }
     }
 
     /// Check if all necessary keys are present to build a seismic transaction,
@@ -156,6 +169,9 @@ impl SeismicTransactionRequest {
     pub fn complete_seismic(&self) -> Result<(), Vec<&'static str>> {
         let mut missing = Vec::new();
         self.check_seismic_fields(&mut missing);
+        if self.gas_payment.validate().is_err() {
+            missing.push("valid gas_payment");
+        }
 
         if missing.is_empty() {
             Ok(())
@@ -169,7 +185,9 @@ impl SeismicTransactionRequest {
     /// Returns an error if required fields are missing.
     /// Use `complete_seismic` to check if the request can be built.
     fn build_seismic(self) -> Result<TxSeismic, &'static str> {
-        let checked_to = self.inner.to.ok_or("Missing 'to' field for seismic transaction.")?;
+        self.gas_payment.validate().map_err(|_| "Invalid gas payment selector.")?;
+        // JSON represents CREATE as a null/omitted destination, like standard requests.
+        let checked_to = self.inner.to.unwrap_or(TxKind::Create);
 
         Ok(TxSeismic {
             chain_id: self
@@ -182,6 +200,7 @@ impl SeismicTransactionRequest {
                 .gas_price
                 .ok_or("Missing 'gas_price' for seismic transaction.")?,
             gas_limit: self.inner.gas.ok_or("Missing 'gas_limit' for seismic transaction.")?,
+            gas_payment: self.gas_payment,
             to: checked_to,
             value: self.inner.value.unwrap_or_default(),
             input: self.inner.input.into_input().unwrap_or_default(),
@@ -195,6 +214,9 @@ impl SeismicTransactionRequest {
     /// Builds [`SeismicTypedTransaction`] from this builder. See
     /// [`TransactionRequest::build_typed_tx`] for more info.
     pub fn build_typed_tx(self) -> Result<SeismicTypedTransaction, Self> {
+        if self.validate_seismic_consistency().is_err() {
+            return Err(self);
+        }
         if self.seismic_elements.is_some() {
             let fallback = self.clone();
             let tx = self.build_seismic().map_err(|e| {
@@ -204,10 +226,11 @@ impl SeismicTransactionRequest {
             return Ok(SeismicTypedTransaction::Seismic(tx));
         }
 
-        let tx = self
-            .inner
-            .build_typed_tx()
-            .map_err(|orig_tx| Self { inner: orig_tx, seismic_elements: self.seismic_elements })?;
+        let tx = self.inner.build_typed_tx().map_err(|orig_tx| Self {
+            inner: orig_tx,
+            seismic_elements: self.seismic_elements,
+            gas_payment: self.gas_payment,
+        })?;
 
         match tx {
             TypedTransaction::Legacy(tx) => Ok(SeismicTypedTransaction::Legacy(tx)),
@@ -305,6 +328,7 @@ impl SeismicTransactionRequest {
     /// Return the tx type this request can be built as. Computed by checking
     /// the preferred type, and then checking for completeness.
     pub fn buildable_type(&self) -> Option<SeismicTxType> {
+        self.validate_seismic_consistency().ok()?;
         let pref = self.preferred_type();
         match pref {
             SeismicTxType::Seismic => self.complete_seismic().ok(),
@@ -327,6 +351,9 @@ impl SeismicTransactionRequest {
     /// - Err((type, missing)) if some keys are missing to build the preferred type.
     pub fn missing_keys(&self) -> Result<SeismicTxType, (SeismicTxType, Vec<&'static str>)> {
         let pref = self.preferred_type();
+        if self.validate_seismic_consistency().is_err() {
+            return Err((pref, alloc::vec!["valid gas_payment/transaction type"]));
+        }
         if let Err(missing) = match pref {
             SeismicTxType::Seismic => self.complete_seismic(),
             _ => {
@@ -359,49 +386,49 @@ impl core::ops::DerefMut for SeismicTransactionRequest {
 
 impl From<TransactionRequest> for SeismicTransactionRequest {
     fn from(tx: TransactionRequest) -> Self {
-        Self { inner: tx, seismic_elements: None }
+        Self { inner: tx, seismic_elements: None, gas_payment: GasPayment::Auto }
     }
 }
 
 impl From<TxLegacy> for SeismicTransactionRequest {
     fn from(tx: TxLegacy) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None }
+        Self { inner, seismic_elements: None, gas_payment: GasPayment::Auto }
     }
 }
 
 impl From<TxEip2930> for SeismicTransactionRequest {
     fn from(tx: TxEip2930) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None }
+        Self { inner, seismic_elements: None, gas_payment: GasPayment::Auto }
     }
 }
 
 impl From<TxEip1559> for SeismicTransactionRequest {
     fn from(tx: TxEip1559) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None }
+        Self { inner, seismic_elements: None, gas_payment: GasPayment::Auto }
     }
 }
 
 impl From<TxEip7702> for SeismicTransactionRequest {
     fn from(tx: TxEip7702) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None }
+        Self { inner, seismic_elements: None, gas_payment: GasPayment::Auto }
     }
 }
 
 impl From<TxEip4844Variant> for SeismicTransactionRequest {
     fn from(tx: TxEip4844Variant) -> Self {
         let inner = tx.into();
-        Self { inner, seismic_elements: None }
+        Self { inner, seismic_elements: None, gas_payment: GasPayment::Auto }
     }
 }
 
 impl From<TxEip4844> for SeismicTransactionRequest {
     fn from(tx: TxEip4844) -> Self {
         let inner = TransactionRequest::from_transaction(tx);
-        Self { inner, seismic_elements: None }
+        Self { inner, seismic_elements: None, gas_payment: GasPayment::Auto }
     }
 }
 
@@ -413,6 +440,7 @@ impl From<TxSeismic> for SeismicTransactionRequest {
             nonce,
             gas_price,
             gas_limit,
+            gas_payment,
             to,
             value,
             input,
@@ -437,7 +465,7 @@ impl From<TxSeismic> for SeismicTransactionRequest {
             ..Default::default()
         };
 
-        Self { inner, seismic_elements: Some(seismic_elements) }
+        Self { inner, seismic_elements: Some(seismic_elements), gas_payment }
     }
 }
 
@@ -469,21 +497,15 @@ where
 {
     fn from(tx: SeismicTypedTransaction<Eip4844>) -> Self {
         match tx {
-            SeismicTypedTransaction::Legacy(tx) => {
-                Self { inner: tx.into(), seismic_elements: None }
-            }
-            SeismicTypedTransaction::Eip2930(tx) => {
-                Self { inner: tx.into(), seismic_elements: None }
-            }
-            SeismicTypedTransaction::Eip1559(tx) => {
-                Self { inner: tx.into(), seismic_elements: None }
-            }
-            SeismicTypedTransaction::Eip4844(tx) => {
-                Self { inner: TransactionRequest::from_transaction(tx), seismic_elements: None }
-            }
-            SeismicTypedTransaction::Eip7702(tx) => {
-                Self { inner: tx.into(), seismic_elements: None }
-            }
+            SeismicTypedTransaction::Legacy(tx) => tx.into(),
+            SeismicTypedTransaction::Eip2930(tx) => tx.into(),
+            SeismicTypedTransaction::Eip1559(tx) => tx.into(),
+            SeismicTypedTransaction::Eip4844(tx) => Self {
+                inner: TransactionRequest::from_transaction(tx),
+                seismic_elements: None,
+                gas_payment: GasPayment::Auto,
+            },
+            SeismicTypedTransaction::Eip7702(tx) => tx.into(),
             SeismicTypedTransaction::Seismic(tx) => tx.into(),
         }
     }
@@ -606,7 +628,7 @@ impl InputDecryptionElements for SeismicTransactionRequest {
                     .chain_id
                     .ok_or(InputDecryptionElementsError::MissingField("chain_id"))?,
                 nonce: self.nonce.ok_or(InputDecryptionElementsError::MissingField("nonce"))?,
-                to: self.to.ok_or(InputDecryptionElementsError::MissingField("to"))?,
+                to: self.to.unwrap_or(TxKind::Create),
                 value: self.value.unwrap_or_default(),
             },
             seismic_elements: self
@@ -667,6 +689,10 @@ impl SeismicTransactionRequest {
     /// Validate that transaction type and seismic elements are compatible.
     /// Returns an error if non-seismic type is set with seismic elements.
     pub fn validate_seismic_consistency(&self) -> Result<(), &'static str> {
+        self.gas_payment.validate().map_err(|_| "Invalid gas payment selector.")?;
+        if !self.is_seismic() && self.gas_payment != GasPayment::Auto {
+            return Err("Non-Auto gas payment is supported only on Seismic transactions.");
+        }
         if let Some(tx_type) = self.inner.transaction_type {
             if tx_type != TxSeismic::TX_TYPE && self.seismic_elements.is_some() {
                 return Err(
@@ -708,6 +734,55 @@ impl AsMut<SeismicTransactionRequest> for WithOtherFields<SeismicTransactionRequ
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn payment_request_defaults_and_transaction_roundtrips() {
+        let request: SeismicTransactionRequest = serde_json::from_str("{}").unwrap();
+        assert_eq!(request.gas_payment, GasPayment::Auto);
+        for gas_payment in
+            [GasPayment::Auto, GasPayment::Native, GasPayment::Token(Address::repeat_byte(1))]
+        {
+            let tx = TxSeismic { gas_payment, ..Default::default() };
+            let request: SeismicTransactionRequest = tx.clone().into();
+            assert_eq!(request.gas_payment, gas_payment);
+            assert_eq!(request.build_typed_tx().unwrap(), SeismicTypedTransaction::Seismic(tx));
+        }
+        let request: SeismicTransactionRequest = TxSeismic::default().into();
+        let mut json = serde_json::to_value(request).unwrap();
+        json.as_object_mut().unwrap().remove("gasPayment");
+        let request: SeismicTransactionRequest = serde_json::from_value(json).unwrap();
+        assert!(
+            matches!(request.build_typed_tx().unwrap(), SeismicTypedTransaction::Seismic(tx) if tx.gas_payment == GasPayment::Auto)
+        );
+    }
+
+    #[test]
+    fn non_auto_standard_requests_and_zero_tokens_are_rejected() {
+        for gas_payment in [GasPayment::Native, GasPayment::Token(Address::repeat_byte(1))] {
+            let request: SeismicTransactionRequest = TxLegacy {
+                to: TxKind::Call(Address::repeat_byte(1)),
+                chain_id: Some(1),
+                ..Default::default()
+            }
+            .into();
+            let request = request.gas_payment(gas_payment);
+            assert!(request.validate_seismic_consistency().is_err());
+            assert!(request.buildable_type().is_none());
+            assert!(request.missing_keys().is_err());
+            assert!(request.build_typed_tx().is_err());
+        }
+        let request: SeismicTransactionRequest = TxSeismic::default().into();
+        let request = request.gas_payment(GasPayment::Token(Address::ZERO));
+        assert!(request.complete_seismic().is_err());
+        assert!(request.build_typed_tx().is_err());
+        let standard: SeismicTransactionRequest = TxLegacy {
+            to: TxKind::Call(Address::repeat_byte(1)),
+            chain_id: Some(1),
+            ..Default::default()
+        }
+        .into();
+        standard.build_typed_tx().unwrap();
+    }
 
     #[test]
     fn test_set_input_for_request() {
