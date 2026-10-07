@@ -1378,20 +1378,20 @@ mod tests {
         // when the value for gas_price is too large, json! macro cannot handle it
         let tx = TxSeismic {
             gas_payment: GasPayment::Auto,
-            chain_id: u64::max_value(),
-            nonce: u64::max_value(),
-            gas_price: u128::max_value(),
-            gas_limit: u64::max_value(),
+            chain_id: u64::MAX,
+            nonce: u64::MAX,
+            gas_price: u128::MAX,
+            gas_limit: u64::MAX,
             to: TxKind::Call(Address::from_slice(&hex!(
                 "87d40d7c65ef908b24cf2a0ddf0b620ebca686b5"
             ))),
             value: U256::MAX,
             seismic_elements: TxSeismicElements {
                 encryption_pubkey: TxSeismicElements::get_rand_encryption_keypair().public_key(),
-                message_version: u8::max_value(),
+                message_version: u8::MAX,
                 encryption_nonce: U96::MAX,
                 recent_block_hash: B256::repeat_byte(0xff),
-                expires_at_block: u64::max_value(),
+                expires_at_block: u64::MAX,
                 signed_read: true,
             },
             input: Bytes::default(),
