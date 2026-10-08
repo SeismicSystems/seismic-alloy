@@ -8,6 +8,9 @@ pub fn pubkey_with_prefix_deserialize<'de, D>(deserializer: D) -> Result<PublicK
 where
     D: Deserializer<'de>,
 {
+    if !deserializer.is_human_readable() {
+        return PublicKey::deserialize(deserializer);
+    }
     let bytes = FixedBytes::<{ constants::PUBLIC_KEY_SIZE }>::deserialize(deserializer)?;
     PublicKey::from_slice(bytes.as_slice()).map_err(D::Error::custom)
 }

@@ -70,7 +70,7 @@ For long-running processes, consider periodically recreating the provider to rot
 
 ## Features
 
-- **Seismic transaction type (0x4A)** -- Extends standard Ethereum transaction types with encryption metadata
+- **Seismic transaction type (0x4A)** -- Extends standard Ethereum transaction types with encryption metadata and a mandatory signed `gasPayment` selector: Auto, Native, or Token(address). Requests default to Auto; explicit selection never falls back. See the [fresh-chain wire/JSON/EIP-712 specification](docs/gas-payment.md).
 - **Auto-encryption for shielded functions** -- A function is "shielded" if any of its parameters use shielded types (`suint256`, `saddress`, `sbool`, `sbytes`, `sbytesN`). The `sol!` macro detects this and auto-encrypts the entire calldata via `ShieldedCallBuilder` -- `.call()` and `.send()` work directly
 - **`.seismic()` call builder** -- `contract.method().seismic().call()` / `.send()` for non-shielded functions that need encryption
 - **`SeismicProviderBuilder`** -- Typestate builder for signed (wallet) and unsigned (read-only) providers over HTTP or WebSocket

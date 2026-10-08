@@ -18,7 +18,6 @@ jobs:
       pull-requests: read
       issues: read
       id-token: write
-      members: read
 
     steps:
       - name: Check team membership

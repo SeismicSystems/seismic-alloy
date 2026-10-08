@@ -64,6 +64,7 @@ impl SeismicFoundryRpcTransaction {
         if let SeismicFoundryTxEnvelope::Seismic(s) = tx {
             let (p, _, _) = s.into_parts();
             tx_req.set_seismic_elements(p.seismic_elements);
+            tx_req.gas_payment = p.gas_payment;
         }
         tx_req
     }

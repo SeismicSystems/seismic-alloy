@@ -230,12 +230,13 @@ impl TransactionBuilder<SeismicFoundry> for SeismicTransactionRequest {
     }
 
     fn build_unsigned(self) -> BuildResult<SeismicFoundryTypedTransaction, SeismicFoundry> {
-        if let Err((tx_type, missing)) = self.inner.missing_keys() {
+        if let Err((tx_type, missing)) = self.missing_keys() {
             let tx_type = AnyTxType(tx_type as u8);
             return Err(TransactionBuilderError::InvalidTransactionRequest(tx_type, missing)
                 .into_unbuilt(WithOtherFields::new(SeismicTransactionRequest {
                     inner: self.inner,
                     seismic_elements: self.seismic_elements,
+                    gas_payment: self.gas_payment,
                 })));
         }
         let typed_tx = self.build_typed_tx().expect("checked by missing_keys");
@@ -344,5 +345,119 @@ impl NetworkWallet<SeismicFoundry> for EthereumWallet {
             }
         };
         Ok(signed_envelope)
+    }
+}
+
+#[cfg(test)]
+mod gas_payment_tests {
+    use super::*;
+    use alloy_consensus::{transaction::Recovered, TxLegacy};
+    use alloy_primitives::Signature;
+    use alloy_rpc_types_eth::Transaction;
+    use seismic_alloy_consensus::GasPayment;
+
+    use crate::SeismicReth;
+
+    #[test]
+    fn both_network_builders_preserve_payment_for_calls_and_creates() {
+        for gas_payment in
+            [GasPayment::Auto, GasPayment::Native, GasPayment::Token(Address::repeat_byte(1))]
+        {
+            for to in [TxKind::Create, TxKind::Call(Address::repeat_byte(2))] {
+                let tx = TxSeismic { gas_payment, to, ..Default::default() };
+                let request: SeismicTransactionRequest = tx.clone().into();
+                let reth =
+                    <SeismicTransactionRequest as TransactionBuilder<SeismicReth>>::build_unsigned(
+                        request.clone(),
+                    )
+                    .unwrap();
+                assert_eq!(reth, SeismicTypedTransaction::Seismic(tx.clone()));
+                let foundry = <SeismicTransactionRequest as TransactionBuilder<SeismicFoundry>>::build_unsigned(
+                    request,
+                )
+                .unwrap();
+                assert!(
+                    matches!(foundry, SeismicFoundryTypedTransaction::Seismic(actual) if actual == tx)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn both_network_builders_reject_non_auto_standard_requests() {
+        for gas_payment in [GasPayment::Native, GasPayment::Token(Address::repeat_byte(1))] {
+            let request: SeismicTransactionRequest = TxLegacy {
+                chain_id: Some(1),
+                to: TxKind::Call(Address::repeat_byte(2)),
+                ..Default::default()
+            }
+            .into();
+            let request = request.gas_payment(gas_payment);
+            let reth =
+                <SeismicTransactionRequest as TransactionBuilder<SeismicReth>>::build_unsigned(
+                    request.clone(),
+                )
+                .unwrap_err();
+            assert_eq!(reth.request, request);
+            let foundry =
+                <SeismicTransactionRequest as TransactionBuilder<SeismicFoundry>>::build_unsigned(
+                    request.clone(),
+                )
+                .unwrap_err();
+            assert_eq!(foundry.request.inner, request);
+        }
+    }
+
+    #[test]
+    fn both_network_builders_return_original_incomplete_request() {
+        for gas_payment in
+            [GasPayment::Auto, GasPayment::Native, GasPayment::Token(Address::repeat_byte(1))]
+        {
+            let tx = TxSeismic { gas_payment, ..Default::default() };
+            let mut request: SeismicTransactionRequest = tx.into();
+            request.inner.gas_price = None;
+            let reth =
+                <SeismicTransactionRequest as TransactionBuilder<SeismicReth>>::build_unsigned(
+                    request.clone(),
+                )
+                .unwrap_err();
+            assert_eq!(reth.request, request);
+            let foundry =
+                <SeismicTransactionRequest as TransactionBuilder<SeismicFoundry>>::build_unsigned(
+                    request.clone(),
+                )
+                .unwrap_err();
+            assert_eq!(foundry.request.inner, request);
+        }
+    }
+
+    #[test]
+    fn foundry_rpc_conversion_preserves_payment_and_sender() {
+        let sender = Address::repeat_byte(3);
+        for gas_payment in
+            [GasPayment::Auto, GasPayment::Native, GasPayment::Token(Address::repeat_byte(1))]
+        {
+            let tx = TxSeismic {
+                gas_payment,
+                gas_price: 1,
+                to: TxKind::Call(Address::repeat_byte(2)),
+                ..Default::default()
+            };
+            // This is a conversion test, not a signer-recovery test.
+            let envelope = SeismicFoundryTxEnvelope::Seismic(
+                tx.clone().into_signed(Signature::new(U256::from(1), U256::from(2), false)),
+            );
+            let response = SeismicFoundryRpcTransaction(WithOtherFields::new(Transaction {
+                inner: Recovered::new_unchecked(envelope, sender),
+                block_hash: None,
+                block_number: None,
+                transaction_index: None,
+                effective_gas_price: Some(1),
+            }));
+            let request = response.to_tx_request();
+            assert_eq!(request.inner.from, Some(sender));
+            assert_eq!(request.gas_payment, gas_payment);
+            assert_eq!(request.build_typed_tx().unwrap(), SeismicTypedTransaction::Seismic(tx));
+        }
     }
 }

@@ -1,6 +1,7 @@
 //! Transaction types and utilities
 pub mod eip712;
 pub mod envelope;
+pub mod gas_payment;
 pub mod metadata;
 pub mod seismic;
 #[cfg(feature = "serde")]
@@ -10,6 +11,7 @@ pub mod typed;
 
 pub use eip712::*;
 pub use envelope::*;
+pub use gas_payment::*;
 pub use metadata::*;
 pub use seismic::*;
 #[cfg(feature = "serde")]
