@@ -13,7 +13,7 @@ use alloy_rpc_types_eth::AccessList;
 use seismic_alloy_consensus::{SeismicTxEnvelope, SeismicTxType, SeismicTypedTransaction};
 use seismic_alloy_rpc_types::SeismicTransactionRequest;
 
-/// Types for an Op-stack network.
+/// Types for the Seismic network when used with reth as the execution client.
 #[derive(Clone, Copy, Debug)]
 pub struct SeismicReth {
     _private: (),

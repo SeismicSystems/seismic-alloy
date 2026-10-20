@@ -36,7 +36,7 @@ use crate::{
 /// Seismic foundry receipt response
 pub type SeismicFoundryReceiptResponse = WithOtherFields<SeismicTransactionReceipt>;
 
-/// Types for an Op-stack network.
+/// Types for the Seismic network when used with Foundry (anvil/cast) as the execution client.
 #[derive(Clone, Copy, Debug)]
 pub struct SeismicFoundry {
     _private: (),
