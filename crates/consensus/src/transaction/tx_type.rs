@@ -45,8 +45,14 @@ pub enum SeismicTxType {
 
 impl SeismicTxType {
     /// List of all variants.
-    pub const ALL: [Self; 5] =
-        [Self::Legacy, Self::Eip2930, Self::Eip1559, Self::Eip7702, Self::Seismic];
+    pub const ALL: [Self; 6] = [
+        Self::Legacy,
+        Self::Eip2930,
+        Self::Eip1559,
+        Self::Eip4844,
+        Self::Eip7702,
+        Self::Seismic,
+    ];
 }
 
 #[cfg(feature = "arbitrary")]
@@ -157,11 +163,12 @@ mod tests {
 
     #[test]
     fn test_all_tx_types() {
-        assert_eq!(SeismicTxType::ALL.len(), 5);
+        assert_eq!(SeismicTxType::ALL.len(), 6);
         let all = vec![
             SeismicTxType::Legacy,
             SeismicTxType::Eip2930,
             SeismicTxType::Eip1559,
+            SeismicTxType::Eip4844,
             SeismicTxType::Eip7702,
             SeismicTxType::Seismic,
         ];
